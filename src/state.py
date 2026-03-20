@@ -291,22 +291,22 @@ def build_initial_state(
     speaking_order = _build_interleaved_order(pro_ids, con_ids)
 
     return DebateState(
-        topic=topic,
-        user_stance=user_stance,
-        user_intensity=user_intensity,
-        agents=agents,
-        debate_history=[],
-        speaking_order=speaking_order,
-        current_speaker_index=0,
-        current_turn=0,
-        phase="opening",
-        current_cycle=0,
-        max_cycle=max_cycle,
+        topic=topic, # 입력받은 주제 
+        user_stance=user_stance, # 사용자 진영
+        user_intensity=user_intensity, # 사용자 강경도
+        agents=agents, # AI Agent 목록 저장
+        debate_history=[], # 발언 기록(처음엔 발언 기록이 없으니까 빈 리스트)
+        speaking_order=speaking_order, # 교차 발언 순서 
+        current_speaker_index=0, # 첫 번째 화자부터 시작
+        current_turn=0, # 아직 아무도 말 안 했으니 첫 발언 번호 0
+        phase="opening", # 토론은 항상 입론에서 시작
+        current_cycle=0, # 자유논박은 시작 안 했으니 0
+        max_cycle=max_cycle, # 기본으로 4
         rebuttal_pairs=None,       # 2단계 진입 시 build_chained_rebuttal_pairs()로 생성
-        current_rebuttal_round=0,
-        role_reversed=False,
+        current_rebuttal_round=0, # 라운드 시작 전, 기본은 0 
+        role_reversed=False, # 역할 반전 아직 시작 안 함
         synthesis_draft=None,      # 5단계 진입 전까지 None
-        is_finished=False,
+        is_finished=False, # 토론 시작 상태이므로 종료 아님 
     )
 
 
