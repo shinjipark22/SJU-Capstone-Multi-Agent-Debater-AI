@@ -24,11 +24,11 @@ class DebateInitRequest(BaseModel):
     agent_intensities 길이는 토론 포맷에서 요구하는 AI 수와 일치해야 한다.
     """
 
-    topic: str
-    user_stance: Literal["PRO", "CON"]
-    user_intensity: int  # 1~5
+    topic: str # 토론 주제 
+    user_stance: Literal["PRO", "CON"] # 사용자의 찬반 입장 
+    user_intensity: int  # 사용자의 강경도 (1~5)
     agent_intensities: List[int]  # 각 AI 에이전트 강경도 (1~5). 진영 할당은 응답의 agents 배열에서 확인
-    debate_format: Literal["1:1", "2:2", "3:3"]
+    debate_format: Literal["1:1", "2:2", "3:3"] # 토론 형식
 
     # ── 단일 필드 검증 ─────────────────────────────────────────────────────────
 
