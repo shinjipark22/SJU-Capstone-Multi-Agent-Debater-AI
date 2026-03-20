@@ -8,7 +8,7 @@ main.py — FastAPI 애플리케이션 진입점 (Phase 0)
 from fastapi import FastAPI, HTTPException
 
 from src.models import DebateInitRequest, DebateInitResponse, AgentInfo
-from src.persona_factory import create_agents, AgentPersona
+from src.phase0.persona_factory import create_agents, AgentPersona
 from src.state import (
     AgentSnapshot,
     build_initial_state,
