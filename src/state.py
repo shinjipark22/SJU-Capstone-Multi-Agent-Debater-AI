@@ -1,23 +1,40 @@
 """
-state.py — LangGraph State 설계 및 초기화 유틸리티 (Phase 0)
+state.py — LangGraph State 설계 및 초기화 유틸리티
 
-토론 워크플로우 전체에서 공유되는 상태(State)를 정의한다.
-LangGraph의 StateGraph는 이 TypedDict를 노드 간 데이터 컨테이너로 사용한다.
+구성적 논쟁(Constructive Controversy) 기반 토론 워크플로우의 공유 상태를 정의한다.
 
-Phase 1에서 노드(opening / rebuttal / synthesis)를 추가할 때
-이 State를 그대로 확장하여 사용한다.
+[발언 순서 원칙]
+    - 사용자는 항상 자신의 진영(PRO/CON) 마지막에 배치된다.
+    - 입론·자유 논박 발언 순서: PRO1 → CON1 → PRO2 → CON2 → ... (교차 배치)
+    - 연쇄 논박은 (PRO_i, CON_i) 쌍 기반으로 자동 생성된다.
+
+[Phase 1] 1~4단계
+    1단계 입론        (opening)          : PRO1 → CON1 → PRO2 → CON2 → ... (교차)
+    2단계 연쇄 논박   (chained_rebuttal) : (PRO_i, CON_i) 쌍마다 CON→PRO, PRO→CON 순으로 1:1 비판
+                                          각 라운드는 공격 발언 → 응답 발언 2개 서브턴으로 구성
+    3단계 자유 논박   (free_rebuttal)    : 입론과 동일한 고정 루프 + Max_Cycle 자동 종료
+                                          발화 시 @에이전트명 반드시 포함 (사용자 포함)
+    4단계 역할 반전   (role_reversal)    : 사회자가 사용자에게 역할 반전 강제
+
+[Phase 2] 5단계
+    5단계 종합 및 재개념 (synthesis)     : 병렬 판정단 승패 + 제3의 최선택 합의안
 """
 
 import uuid
-from typing import Annotated, List, Literal, Optional
+from typing import List, Literal, Optional, Tuple
 from typing_extensions import TypedDict
 
-# LangGraph reducer: 리스트 필드에 append-only 병합을 적용할 때 사용
-from langgraph.graph import add_messages  # noqa: F401 — Phase 1에서 메시지 누적에 활용
+from langgraph.graph import add_messages  # noqa: F401 — 메시지 누적에 활용
 
 
 # ── 토론 단계 타입 ────────────────────────────────────────────────────────────
-DebatePhase = Literal["opening", "rebuttal", "synthesis"]
+DebatePhase = Literal[
+    "opening",           # 1단계: 입론
+    "chained_rebuttal",  # 2단계: 연쇄 논박
+    "free_rebuttal",     # 3단계: 자유 논박
+    "role_reversal",     # 4단계: 역할 반전
+    "synthesis",         # 5단계: 종합 및 재개념 (Phase 2)
+]
 
 
 # ── 히스토리 엔트리 타입 ──────────────────────────────────────────────────────
@@ -25,11 +42,12 @@ class DebateEntry(TypedDict):
     """단일 발언 기록.
 
     Attributes:
-        turn: 발언 순서 번호 (0부터 시작)
-        speaker_id: 발언자 ID ("user" 또는 "agent_N")
-        stance: 발언자 진영
-        phase: 발언 시점의 토론 단계
-        content: 발언 내용
+        turn        : 발언 순서 번호 (0부터 시작)
+        speaker_id  : 발언자 ID ("user" 또는 "agent_N")
+        stance      : 발언자 진영
+        phase       : 발언 시점의 토론 단계
+        content     : 발언 내용
+        target_id   : 비판 대상 ID (chained_rebuttal / free_rebuttal 에서 사용, 그 외 None)
     """
 
     turn: int
@@ -37,9 +55,33 @@ class DebateEntry(TypedDict):
     stance: Literal["PRO", "CON"]
     phase: DebatePhase
     content: str
+    target_id: Optional[str]
 
 
-# ── 에이전트 스냅샷 타입 (State 저장용) ──────────────────────────────────────
+# ── 연쇄 논박 페어 타입 ───────────────────────────────────────────────────────
+class RebuttalPair(TypedDict):
+    """2단계 연쇄 논박의 1:1 비판 쌍.
+
+    (PRO_i, CON_i) 쌍마다 2개의 라운드가 생성된다:
+        R(2i-1): CON_i 공격 → PRO_i 응답
+        R(2i)  : PRO_i 공격 → CON_i 응답
+
+    Attributes:
+        round             : 라운드 번호 (1부터 시작)
+        attacker_id       : 공격 발언자 ID
+        target_id         : 응답 발언자 ID
+        awaiting_response : False=공격 발언 차례, True=응답 발언 차례
+        done              : 공격+응답 모두 완료 여부
+    """
+
+    round: int
+    attacker_id: str
+    target_id: str
+    awaiting_response: bool
+    done: bool
+
+
+# ── 에이전트 스냅샷 타입 ──────────────────────────────────────────────────────
 class AgentSnapshot(TypedDict):
     """State 내부에 저장되는 에이전트 요약.
 
@@ -59,73 +101,211 @@ class DebateState(TypedDict):
     """LangGraph StateGraph에서 사용하는 토론 공유 상태.
 
     모든 노드는 이 State를 읽고 부분적으로 업데이트하여 반환한다.
-    LangGraph는 반환된 딕셔너리를 기존 State에 병합(shallow merge)한다.
+    LangGraph는 반환된 딕셔너리를 기존 State에 shallow merge한다.
 
-    Fields:
-        topic           : 토론 주제
-        user_stance     : 사용자 진영
-        user_intensity  : 사용자 강경도 (1~5)
-        agents          : 생성된 AI 에이전트 스냅샷 리스트
-        debate_history  : 전체 발언 기록 (시간순 append)
-        current_turn    : 현재 발언 차례 번호
-        current_speaker : 현재 발언자 ID
-        phase           : 현재 토론 단계
-        synthesis_draft : synthesis 단계에서 누적되는 합의 초안
-        is_finished     : 토론 종료 여부
+    [기본 정보]
+        topic                 : 토론 주제
+        user_stance           : 사용자 진영
+        user_intensity        : 사용자 강경도 (1~5)
+        agents                : 생성된 AI 에이전트 스냅샷 리스트
+
+    [발언 기록]
+        debate_history        : 전체 발언 기록 (시간순 append)
+
+    [발언 순서 제어]
+        speaking_order        : 현재 단계의 발언 순서 (speaker_id 리스트)
+                                1단계·3단계 공용 (PRO1,CON1,PRO2,CON2,... 교차)
+        current_speaker_index : speaking_order 내 현재 위치
+        current_turn          : 전체 누적 발언 번호
+
+    [단계 제어]
+        phase                 : 현재 토론 단계
+        current_cycle         : 자유 논박(3단계) 현재 사이클 번호
+        max_cycle             : 자유 논박 최대 사이클 수 (AI 폭주 방지)
+
+    [연쇄 논박 - 2단계]
+        rebuttal_pairs        : RebuttalPair 리스트 (2단계 진입 시 생성)
+        current_rebuttal_round: 현재 진행 중인 라운드 인덱스 (0부터 시작)
+
+    [역할 반전 - 4단계]
+        role_reversed         : 역할 반전 완료 여부
+
+    [종합 - 5단계]
+        synthesis_draft       : 누적되는 합의 초안
+
+    [종료]
+        is_finished           : 토론 종료 여부
     """
 
+    # 기본 정보
     topic: str
     user_stance: Literal["PRO", "CON"]
     user_intensity: int
     agents: List[AgentSnapshot]
+
+    # 발언 기록
     debate_history: List[DebateEntry]
+
+    # 발언 순서 제어
+    speaking_order: List[str]
+    current_speaker_index: int
     current_turn: int
-    current_speaker: str
+
+    # 단계 제어
     phase: DebatePhase
+    current_cycle: int
+    max_cycle: int
+
+    # 연쇄 논박 (2단계)
+    rebuttal_pairs: Optional[List[RebuttalPair]]
+    current_rebuttal_round: int
+
+    # 역할 반전 (4단계)
+    role_reversed: bool
+
+    # 종합 (5단계)
     synthesis_draft: Optional[str]
+
+    # 종료
     is_finished: bool
 
 
-# ── 초기 State 생성 유틸리티 ──────────────────────────────────────────────────
+# ── 내부 유틸리티 ─────────────────────────────────────────────────────────────
+
+def _build_stance_lists(
+    agents: List[AgentSnapshot],
+    user_stance: Literal["PRO", "CON"],
+) -> Tuple[List[str], List[str]]:
+    """진영별 발언자 ID 리스트를 반환한다. 사용자는 자신의 진영 마지막에 배치.
+
+    Args:
+        agents      : AI 에이전트 스냅샷 리스트
+        user_stance : 사용자 진영
+
+    Returns:
+        (pro_ids, con_ids) — 각 진영의 발언자 ID 리스트 (사용자 포함)
+    """
+    pro_ids = [a["agent_id"] for a in agents if a["stance"] == "PRO"]
+    con_ids = [a["agent_id"] for a in agents if a["stance"] == "CON"]
+
+    if user_stance == "PRO":
+        pro_ids.append("user")
+    else:
+        con_ids.append("user")
+
+    return pro_ids, con_ids
+
+
+def _build_interleaved_order(pro_ids: List[str], con_ids: List[str]) -> List[str]:
+    """PRO/CON 교차 발언 순서를 생성한다: PRO1, CON1, PRO2, CON2, ...
+
+    진영 간 인원수가 다를 경우 남는 쪽을 뒤에 이어 붙인다.
+
+    Args:
+        pro_ids : PRO 발언자 ID 리스트
+        con_ids : CON 발언자 ID 리스트
+
+    Returns:
+        교차 배치된 speaker_id 리스트
+    """
+    order: List[str] = []
+    for pro, con in zip(pro_ids, con_ids):
+        order.append(pro)
+        order.append(con)
+    # 인원수 불균형 시 남는 쪽 추가
+    order.extend(pro_ids[len(con_ids):])
+    order.extend(con_ids[len(pro_ids):])
+    return order
+
+
+# ── 공개 유틸리티 ─────────────────────────────────────────────────────────────
+
+def build_chained_rebuttal_pairs(
+    agents: List[AgentSnapshot],
+    user_stance: Literal["PRO", "CON"],
+) -> List[RebuttalPair]:
+    """2단계 진입 시 연쇄 논박 페어 리스트를 생성한다.
+
+    (PRO_i, CON_i) 쌍마다 2개의 라운드를 생성한다:
+        R(2i-1): CON_i 공격 → PRO_i 응답
+        R(2i)  : PRO_i 공격 → CON_i 응답
+
+    총 라운드 수 = 2 * min(len(pro_ids), len(con_ids))
+    인원이 늘어나도 자동으로 쌍이 추가된다.
+
+    Args:
+        agents      : AI 에이전트 스냅샷 리스트
+        user_stance : 사용자 진영
+
+    Returns:
+        RebuttalPair 리스트
+    """
+    pro_ids, con_ids = _build_stance_lists(agents, user_stance)
+
+    pairs: List[RebuttalPair] = []
+    round_num = 1
+    for pro_id, con_id in zip(pro_ids, con_ids):
+        pairs.append(RebuttalPair(
+            round=round_num,
+            attacker_id=con_id,
+            target_id=pro_id,
+            awaiting_response=False,
+            done=False,
+        ))
+        round_num += 1
+        pairs.append(RebuttalPair(
+            round=round_num,
+            attacker_id=pro_id,
+            target_id=con_id,
+            awaiting_response=False,
+            done=False,
+        ))
+        round_num += 1
+
+    return pairs
+
 
 def build_initial_state(
     topic: str,
     user_stance: Literal["PRO", "CON"],
     user_intensity: int,
     agents: List[AgentSnapshot],
+    max_cycle: int = 4,
 ) -> DebateState:
     """Phase 0 초기화 시 LangGraph에 주입할 기본 State를 생성한다.
 
-    첫 발언자는 PRO 진영의 첫 번째 참가자(사용자 또는 agent)로 설정한다.
-    사용자가 PRO이면 사용자가 먼저 발언하고, CON이면 PRO 측 agent_1이 먼저 발언한다.
+    사용자는 자신의 진영 마지막에 배치되며, 입론 순서는 PRO/CON 교차로 구성된다.
+    인원수와 사용자 진영에 관계없이 동일한 로직이 적용된다.
 
     Args:
-        topic: 토론 주제
-        user_stance: 사용자 진영
+        topic         : 토론 주제
+        user_stance   : 사용자 진영
         user_intensity: 사용자 강경도
-        agents: persona_factory에서 생성된 AgentSnapshot 리스트
+        agents        : persona_factory에서 생성된 AgentSnapshot 리스트
+        max_cycle     : 자유 논박 최대 사이클 수 (기본값 4)
 
     Returns:
         초기화된 DebateState
     """
-    # PRO 진영 첫 발언자 결정
-    if user_stance == "PRO":
-        first_speaker = "user"
-    else:
-        # PRO 에이전트 중 첫 번째를 탐색
-        pro_agents = [a for a in agents if a["stance"] == "PRO"]
-        first_speaker = pro_agents[0]["agent_id"] if pro_agents else "user"
+    pro_ids, con_ids = _build_stance_lists(agents, user_stance)
+    speaking_order = _build_interleaved_order(pro_ids, con_ids)
 
     return DebateState(
         topic=topic,
         user_stance=user_stance,
         user_intensity=user_intensity,
         agents=agents,
-        debate_history=[],       # Phase 1에서 발언이 누적됨
+        debate_history=[],
+        speaking_order=speaking_order,
+        current_speaker_index=0,
         current_turn=0,
-        current_speaker=first_speaker,
-        phase="opening",         # 항상 opening 단계에서 시작
-        synthesis_draft=None,    # synthesis 단계 전까지 None
+        phase="opening",
+        current_cycle=0,
+        max_cycle=max_cycle,
+        rebuttal_pairs=None,       # 2단계 진입 시 build_chained_rebuttal_pairs()로 생성
+        current_rebuttal_round=0,
+        role_reversed=False,
+        synthesis_draft=None,      # 5단계 진입 전까지 None
         is_finished=False,
     )
 
