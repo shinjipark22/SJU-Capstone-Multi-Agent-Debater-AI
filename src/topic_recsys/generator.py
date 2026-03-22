@@ -104,22 +104,27 @@ def _extract_json(text: str) -> str:
     return match.group(0) if match else text
 
 
-def generate_topics(category: str, articles: List[Dict]) -> List[Dict]:
-    """
-    HuggingFace Qwen/Qwen3.5-9B 모델로 카테고리별 토론 주제를 생성한다.
+def _has_foreign_chars(text: str) -> bool:
+    """한자·가나·아랍 문자 등 외국어 문자가 포함되어 있으면 True를 반환한다."""
+    for ch in text:
+        cp = ord(ch)
+        if (
+            0x3040 <= cp <= 0x30FF or   # 히라가나·가타카나
+            0x4E00 <= cp <= 0x9FFF or   # CJK 통합 한자 (중국어·일본어)
+            0x3400 <= cp <= 0x4DBF or   # CJK 확장 A
+            0x0600 <= cp <= 0x06FF      # 아랍 문자
+        ):
+            return True
+    return False
 
-    Returns:
-        [{"title": "...", "description": "..."}, ...] 형태의 리스트.
-        오류 발생 시 빈 리스트 반환.
-    """
-    model, tokenizer = _load_model()
 
+def _generate_once(model, tokenizer, category: str, articles: List[Dict]) -> List[Dict]:
+    """LLM을 1회 호출해 주제 리스트를 반환한다."""
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user",   "content": _build_user_message(category, articles)},
     ]
 
-    # enable_thinking=False: Qwen3의 <think> 블록 비활성화 → 순수 JSON 출력
     text = tokenizer.apply_chat_template(
         messages,
         tokenize=False,
@@ -138,7 +143,6 @@ def generate_topics(category: str, articles: List[Dict]) -> List[Dict]:
             pad_token_id=tokenizer.eos_token_id,
         )
 
-    # 입력 토큰 제외하고 생성된 부분만 디코딩
     generated_ids = output_ids[0][inputs.input_ids.shape[1]:]
     raw_response = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
 
@@ -146,9 +150,41 @@ def generate_topics(category: str, articles: List[Dict]) -> List[Dict]:
         json_str = _extract_json(raw_response)
         data = json.loads(json_str)
         topics = data.get("topics", [])
-        valid = [t for t in topics if t.get("title") and t.get("description")]
-        return valid
+        return [t for t in topics if t.get("title") and t.get("description")]
     except (json.JSONDecodeError, AttributeError) as e:
         print(f"  [경고] JSON 파싱 실패 ({category}): {e}")
-        print(f"         원본 응답 (앞 300자): {raw_response[:300]}")
         return []
+
+
+def generate_topics(category: str, articles: List[Dict], max_retries: int = 3) -> List[Dict]:
+    """
+    HuggingFace Qwen/Qwen3.5-9B 모델로 카테고리별 토론 주제를 생성한다.
+    외국어 문자(한자·가나·아랍 등)가 감지되면 최대 max_retries회 재시도한다.
+
+    Returns:
+        [{"title": "...", "description": "..."}, ...] 형태의 리스트.
+        오류 발생 시 빈 리스트 반환.
+    """
+    model, tokenizer = _load_model()
+
+    for attempt in range(1, max_retries + 1):
+        topics = _generate_once(model, tokenizer, category, articles)
+
+        # 외국어 문자 검사
+        contaminated = [
+            t for t in topics
+            if _has_foreign_chars(t.get("title", "") + t.get("description", ""))
+        ]
+
+        if not contaminated:
+            return topics
+
+        print(f"  [재시도 {attempt}/{max_retries}] 외국어 문자 감지 ({category}): "
+              f"{[t['title'][:20] for t in contaminated]}")
+
+    # 마지막 시도 결과에서 오염된 항목만 제거하고 반환
+    print(f"  [경고] {max_retries}회 재시도 후에도 외국어 혼용 항목 존재 → 해당 항목 제거")
+    return [
+        t for t in topics
+        if not _has_foreign_chars(t.get("title", "") + t.get("description", ""))
+    ]
