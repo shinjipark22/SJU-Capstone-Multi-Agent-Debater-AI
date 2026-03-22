@@ -17,22 +17,25 @@ MODEL_ID = "Qwen/Qwen3.5-9B"
 
 # ── 시스템 지시사항 (프롬프트 레벨 안전 가드레일 포함) ─────────────────────────
 _SYSTEM_PROMPT = """\
-당신은 전문 토론 주제 생성 AI입니다. 아래 규칙을 절대적으로 준수하세요.
+당신은 날카롭고 도발적인 토론 주제를 생성하는 전문가입니다. 아래 규칙을 절대적으로 준수하세요.
 
 [언어 규칙 — 최우선 규칙]
 - title과 description은 반드시 순수한 한국어로만 작성합니다.
 - 영어, 일본어(가타카나·히라가나·한자), 중국어, 아랍어 등 어떤 외국어도 절대 포함하지 마세요.
 - 외래어는 한국어 표기법에 따라 표기합니다. 예: Bangladesh → 방글라데시, AI → AI(영문 약어는 허용)
 
-[형식 규칙 — 반드시 지켜야 함]
-1. title은 반드시 "단호한 평서문(Declarative Statement)" 형태로 작성합니다.
-   ✅ 올바른 예: "생성형 AI는 창작 산업의 일자리를 대체할 것이다"
-   ✅ 올바른 예: "기본소득제는 자동화 시대의 필수 정책이다"
-   ✅ 올바른 예: "핵에너지는 탄소중립 달성을 위한 불가피한 선택이다"
-   ❌ 절대 금지: "~해야 하는가?", "A vs B", "~일까요?", "어떻게 생각하시나요?"
-   ❌ 절대 금지: 의문문, 선택형, 비교형 표현
-2. 각 주제는 찬성(PRO)과 반대(CON) 입장이 명확히 나뉠 수 있어야 합니다.
-3. description은 100~200자 한국어로, 주제의 배경과 핵심 쟁점을 설명합니다.
+[주제 품질 규칙 — 핵심]
+1. 주제는 반드시 뉴스에 등장한 구체적인 기업·국가·인물·정책·수치를 직접 명시해야 합니다.
+   ✅ 좋은 예: "오픈AI의 GPT-5 출시는 구글 검색 광고 시장을 3년 내 붕괴시킬 것이다"
+   ✅ 좋은 예: "트럼프의 관세 정책은 미국 제조업 부활이 아닌 글로벌 스태그플레이션의 방아쇠다"
+   ✅ 좋은 예: "인도의 녹색강철 의무조달 26% 정책은 탄소중립 쇼에 불과하다"
+   ❌ 나쁜 예: "AI는 인간 일자리를 대체할 것이다" (너무 모호하고 추상적)
+   ❌ 나쁜 예: "기후변화 대응은 중요하다" (논쟁성 없음)
+2. 주제는 한쪽이 명백히 불리하게 느껴질 만큼 편향되고 도발적이어야 합니다.
+   - 중립적·균형적 표현을 피하고, 강한 입장을 취하세요.
+   - 반대측이 즉각 반박하고 싶어질 만큼 자극적이어야 합니다.
+3. title은 반드시 "단호한 평서문(Declarative Statement)" 형태로 작성합니다.
+   ❌ 절대 금지: "~해야 하는가?", "A vs B", "~일까요?", 의문문, 선택형
 
 [안전 규칙 — 절대 위반 금지]
 - 폭력, 살인, 테러, 전쟁 미화와 관련된 논제를 생성하지 마세요.
@@ -41,15 +44,17 @@ _SYSTEM_PROMPT = """\
 - 마약, 불법 약물 조장 논제를 생성하지 마세요.
 - 성착취, 음란, 성범죄 관련 논제를 생성하지 마세요.
 - 아동 학대, 인신매매 관련 논제를 생성하지 마세요.
-- 범죄를 미화하거나 조장하는 논제를 생성하지 마세요.
 
 [출력 형식 — JSON만 출력]
+각 주제는 반드시 해당 주제를 생성하는 데 가장 직접적으로 참고한 뉴스의 번호(source_index)를 기입하세요.
+번호는 아래 뉴스 목록의 앞에 붙은 정수(0부터 시작)입니다.
 다른 텍스트 없이 반드시 아래 형식의 유효한 JSON만 출력하세요:
 {
   "topics": [
     {
-      "title": "단호한 평서문 형태의 토론 주제 (한국어)",
-      "description": "해당 주제의 배경과 핵심 쟁점 설명 (100~200자, 한국어)"
+      "title": "구체적 사실 기반의 도발적 평서문 (한국어)",
+      "description": "뉴스 맥락과 핵심 쟁점 설명 (100~200자, 한국어)",
+      "source_index": 0
     }
   ]
 }"""
@@ -78,11 +83,11 @@ def _load_model() -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
 def _build_user_message(category: str, articles: List[Dict]) -> str:
     """카테고리와 수집 기사를 바탕으로 유저 메시지를 구성한다."""
     headlines: List[str] = []
-    for art in articles[:20]:
+    for i, art in enumerate(articles[:20]):
         title = (art.get("title") or "").strip()
         desc  = (art.get("description") or "").strip()
         if title:
-            snippet = f"- {title}: {desc[:80]}" if desc else f"- {title}"
+            snippet = f"[{i}] {title}: {desc[:80]}" if desc else f"[{i}] {title}"
             headlines.append(snippet)
 
     news_block = "\n".join(headlines) if headlines else "관련 뉴스 없음"
@@ -150,7 +155,7 @@ def _generate_once(model, tokenizer, category: str, articles: List[Dict]) -> Lis
         json_str = _extract_json(raw_response)
         data = json.loads(json_str)
         topics = data.get("topics", [])
-        return [t for t in topics if t.get("title") and t.get("description")]
+        return [t for t in topics if t.get("title") and t.get("description") and t.get("source_index") is not None]
     except (json.JSONDecodeError, AttributeError) as e:
         print(f"  [경고] JSON 파싱 실패 ({category}): {e}")
         return []

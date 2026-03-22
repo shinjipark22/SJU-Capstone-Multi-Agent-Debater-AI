@@ -46,26 +46,42 @@ OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "output")
 
 # ── 헬퍼 함수 ─────────────────────────────────────────────────────────────────
 
-def _assign_ids(topics: List[Dict], prefix: str, start: int = 1) -> List[Dict]:
+def _assign_ids(
+    topics: List[Dict],
+    prefix: str,
+    articles: List[Dict],
+    start: int = 1,
+) -> List[Dict]:
     """
-    주제 리스트에 카테고리 접두사 기반 고유 ID를 순차 발급한다.
+    주제 리스트에 고유 ID를 발급하고, source_title로 기사를 매칭해 source를 첨부한다.
 
     예: prefix="tech", start=1 → "tech_001", "tech_002", ...
     """
-    return [
-        {
+    result = []
+    for i, topic in enumerate(topics):
+        idx = topic.get("source_index")
+        matched = articles[idx] if isinstance(idx, int) and 0 <= idx < len(articles) else None
+        source = (
+            {
+                "title":       matched.get("title", ""),
+                "url":         matched.get("url", ""),
+                "publishedAt": matched.get("publishedAt", ""),
+            }
+            if matched else
+            {"title": "", "url": "", "publishedAt": ""}
+        )
+        result.append({
             "id":          f"{prefix}_{(start + i):03d}",
             "title":       topic.get("title", "").strip(),
             "description": topic.get("description", "").strip(),
-        }
-        for i, topic in enumerate(topics)
-    ]
+            "source":      source,
+        })
+    return result
 
 
-def _validate_minimum(categories: Dict[str, Dict]) -> None:
+def _validate_minimum(categories: Dict[str, List[Dict]]) -> None:
     """카테고리당 최소 3개 주제가 있는지 확인하고 경고를 출력한다."""
-    for cat, data in categories.items():
-        topics = data.get("topics", [])
+    for cat, topics in categories.items():
         if len(topics) < 3:
             print(
                 f"  [경고] '{cat}' 카테고리의 주제가 {len(topics)}개입니다 "
@@ -124,28 +140,14 @@ def run() -> Dict:
         # 룰베이스 안전 필터링
         safe_topics = filter_topics(raw_topics, category)
 
-        # 고유 ID 발급
-        final_topics = _assign_ids(safe_topics, prefix)
-
-        # 참고 뉴스 소스 요약 (title, url, publishedAt)
-        sources = [
-            {
-                "title":       art.get("title", ""),
-                "url":         art.get("url", ""),
-                "publishedAt": art.get("publishedAt", ""),
-            }
-            for art in articles
-        ]
-
-        categories_result[category] = {
-            "sources": sources,
-            "topics":  final_topics,
-        }
+        # 고유 ID 발급 + source_title로 기사 1:1 매칭
+        final_topics = _assign_ids(safe_topics, prefix, articles)
+        categories_result[category] = final_topics
 
         print(f"    최종 확정 주제: {len(final_topics)}개")
         for t in final_topics:
-            print(f"      [{t['id']}] {t['title']}")
-        print(f"    참고 뉴스: {len(sources)}건")
+            matched = "✅" if t["source"].get("url") else "⚠️ 미매칭"
+            print(f"      [{t['id']}] {t['title']} ({matched})")
 
     # 최소 주제 수 검증
     _validate_minimum(categories_result)

@@ -41,6 +41,18 @@ class NewsCrawler:
         resp.raise_for_status()
         return resp.json().get("articles", [])
 
+    @staticmethod
+    def _deduplicate(articles: List[Dict]) -> List[Dict]:
+        """URL 기준으로 중복 기사를 제거한다."""
+        seen: set = set()
+        unique = []
+        for art in articles:
+            url = art.get("url", "")
+            if url and url not in seen:
+                seen.add(url)
+                unique.append(art)
+        return unique
+
     def fetch_all(self) -> Dict[str, List[Dict]]:
         """4개 카테고리 전체 뉴스를 수집해 반환한다."""
         now      = datetime.now(timezone.utc)
@@ -52,6 +64,7 @@ class NewsCrawler:
             print(f"  [크롤링] {category}  ({from_dt[:10]} ~ {to_dt[:10]}) ...")
             try:
                 articles = self._fetch_category(query, from_dt, to_dt)
+                articles = self._deduplicate(articles)
             except requests.RequestException as e:
                 print(f"  [경고] {category} 뉴스 수집 실패: {e}")
                 articles = []
