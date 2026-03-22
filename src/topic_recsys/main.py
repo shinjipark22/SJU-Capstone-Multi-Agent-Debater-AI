@@ -59,22 +59,23 @@ def _assign_ids(
     """
     result = []
     for i, topic in enumerate(topics):
-        idx = topic.get("source_index")
-        matched = articles[idx] if isinstance(idx, int) and 0 <= idx < len(articles) else None
-        source = (
-            {
-                "title":       matched.get("title", ""),
-                "url":         matched.get("url", ""),
-                "publishedAt": matched.get("publishedAt", ""),
-            }
-            if matched else
-            {"title": "", "url": "", "publishedAt": ""}
-        )
+        indices = topic.get("source_indices", [])
+        if isinstance(indices, int):
+            indices = [indices]  # 혹시 단일 정수로 올 경우 호환 처리
+        sources = []
+        for idx in indices:
+            if isinstance(idx, int) and 0 <= idx < len(articles):
+                art = articles[idx]
+                sources.append({
+                    "title":       art.get("title", ""),
+                    "url":         art.get("url", ""),
+                    "publishedAt": art.get("publishedAt", ""),
+                })
         result.append({
             "id":          f"{prefix}_{(start + i):03d}",
             "title":       topic.get("title", "").strip(),
             "description": topic.get("description", "").strip(),
-            "source":      source,
+            "sources":     sources,
         })
     return result
 
@@ -127,26 +128,56 @@ def run() -> Dict:
 
     categories_result: Dict[str, List[Dict]] = {}
 
+    MIN_TOPICS = 3
+    MAX_FILL_RETRIES = 3
+
     for category, prefix in CATEGORY_PREFIX.items():
         print(f"\n  ▶ [{category}]")
 
         articles = news_data.get(category, [])
         print(f"    수집 기사 수: {len(articles)}건")
 
-        # LLM 호출
-        raw_topics = generate_topics(category, articles)
-        print(f"    LLM 생성 주제: {len(raw_topics)}개")
+        # LLM 호출 + 안전 필터링 (부족하면 최대 MAX_FILL_RETRIES회 추가 생성)
+        safe_topics: List[Dict] = []
+        seen_titles: set = set()
 
-        # 룰베이스 안전 필터링
-        safe_topics = filter_topics(raw_topics, category)
+        for attempt in range(1, MAX_FILL_RETRIES + 2):  # 첫 시도 + 최대 재시도
+            need = MIN_TOPICS - len(safe_topics)
+            raw_topics = generate_topics(
+                category, articles,
+                exclude_titles=list(seen_titles) if seen_titles else None,
+                n=need,
+            )
+            new_safe = filter_topics(raw_topics, category)
 
-        # 고유 ID 발급 + source_title로 기사 1:1 매칭
+            # 제목 중복 제거 후 누적
+            for t in new_safe:
+                title = t.get("title", "").strip()
+                if title and title not in seen_titles:
+                    seen_titles.add(title)
+                    safe_topics.append(t)
+
+            if len(safe_topics) >= MIN_TOPICS:
+                break
+
+            remaining = MIN_TOPICS - len(safe_topics)
+            if attempt <= MAX_FILL_RETRIES:
+                print(f"    [재시도 {attempt}/{MAX_FILL_RETRIES}] "
+                      f"안전 필터 후 주제 부족 ({len(safe_topics)}개) → {remaining}개 추가 생성 시도")
+
+        print(f"    LLM 생성 주제: {len(safe_topics)}개 (필터 후)")
+
+        # 최소 3개로 자르기 (초과분 제거)
+        safe_topics = safe_topics[:MIN_TOPICS]
+
+        # 고유 ID 발급 + 기사 매칭
         final_topics = _assign_ids(safe_topics, prefix, articles)
         categories_result[category] = final_topics
 
         print(f"    최종 확정 주제: {len(final_topics)}개")
         for t in final_topics:
-            matched = "✅" if t["source"].get("url") else "⚠️ 미매칭"
+            n = len(t["sources"])
+            matched = f"✅ {n}건" if n > 0 else "⚠️ 미매칭"
             print(f"      [{t['id']}] {t['title']} ({matched})")
 
     # 최소 주제 수 검증
