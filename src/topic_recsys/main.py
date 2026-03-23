@@ -75,6 +75,8 @@ def _assign_ids(
             "id":          f"{prefix}_{(start + i):03d}",
             "title":       topic.get("title", "").strip(),
             "description": topic.get("description", "").strip(),
+            "pro":         topic.get("pro", "").strip(),
+            "con":         topic.get("con", "").strip(),
             "sources":     sources,
         })
     return result
