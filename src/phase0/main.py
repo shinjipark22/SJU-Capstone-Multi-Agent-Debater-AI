@@ -5,6 +5,9 @@ main.py — FastAPI 애플리케이션 진입점 (Phase 0)
 세션 정보를 반환한다. 실제 토론 실행은 Phase 1에서 구현한다.
 """
 
+import json
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 
 from src.models import DebateInitRequest, DebateInitResponse, AgentInfo
@@ -32,10 +35,30 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
 
     Phase 1에서는 이 엔드포인트 이후 /debate/run 등을 추가한다.
     """
-    # ── 1. AI 에이전트 생성 ──────────────────────────────────────────────────
+    # ── 1. topics.json에서 topic ID로 dict 조회 ──────────────────────────────
+    topics_path = Path(__file__).parent.parent / "data" / "topics.json"
+    if not topics_path.exists():
+        raise HTTPException(status_code=404, detail="topics.json 파일을 찾을 수 없습니다.")
+
+    with topics_path.open(encoding="utf-8") as f:
+        topics_data = json.load(f)
+
+    topic_dict = None
+    for category_topics in topics_data.get("categories", {}).values():
+        for t in category_topics:
+            if t["id"] == request.topic:
+                topic_dict = t
+                break
+        if topic_dict:
+            break
+
+    if topic_dict is None:
+        raise HTTPException(status_code=404, detail=f"topic ID '{request.topic}'를 찾을 수 없습니다.")
+
+    # ── 2. AI 에이전트 생성 ──────────────────────────────────────────────────
     try:
         personas: list[AgentPersona] = create_agents(
-            topic=request.topic,
+            topic=topic_dict,
             debate_format=request.debate_format,
             user_stance=request.user_stance,
             agent_intensities=request.agent_intensities,
@@ -43,7 +66,7 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
     except (KeyError, ValueError) as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    # ── 2. State용 AgentSnapshot 변환 ────────────────────────────────────────
+    # ── 3. State용 AgentSnapshot 변환 ────────────────────────────────────────
     snapshots: list[AgentSnapshot] = [
         AgentSnapshot(
             agent_id=p.agent_id,
@@ -55,7 +78,7 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
         for p in personas
     ]
 
-    # ── 3. LangGraph 초기 State 생성 ─────────────────────────────────────────
+    # ── 4. LangGraph 초기 State 생성 ─────────────────────────────────────────
     initial_state = build_initial_state(
         topic=request.topic,
         user_stance=request.user_stance,
@@ -63,7 +86,7 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
         agents=snapshots,
     )
 
-    # ── 4. 응답 구성 ─────────────────────────────────────────────────────────
+    # ── 5. 응답 구성 ─────────────────────────────────────────────────────────
     session_id = generate_session_id()
 
     agent_info_list = [
