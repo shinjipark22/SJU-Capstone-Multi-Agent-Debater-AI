@@ -160,7 +160,7 @@ def create_agents(
     title = topic["title"]
     pro = topic["pro"]
     con = topic["con"]
-    description = topic.get("description")
+    description = topic.get("description_long")
 
     stance_list = STANCE_DISTRIBUTION[(debate_format, user_stance)]
 
