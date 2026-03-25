@@ -36,9 +36,9 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
     Phase 1에서는 이 엔드포인트 이후 /debate/run 등을 추가한다.
     """
     # ── 1. topics.json에서 topic ID로 dict 조회 ──────────────────────────────
-    topics_path = Path(__file__).parent.parent / "data" / "topics" / "20250323_processed.json"
+    topics_path = Path(__file__).parent.parent / "data" / "topics_20260323_processed.json"
     if not topics_path.exists():
-        raise HTTPException(status_code=404, detail="topics/20250323_processed.json 파일을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="topics_20260323_processed.json 파일을 찾을 수 없습니다.")
 
     with topics_path.open(encoding="utf-8") as f:
         topics_data = json.load(f)
@@ -114,9 +114,9 @@ def get_topics():
     import json
     from pathlib import Path
 
-    topics_path = Path(__file__).parent.parent / "data" / "topics" / "20250323_processed.json"
+    topics_path = Path(__file__).parent.parent / "data" / "topics_20260323_processed.json"
     if not topics_path.exists():
-        raise HTTPException(status_code=404, detail="topics/20250323_processed.json 파일을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="topics_20260323_processed.json 파일을 찾을 수 없습니다.")
 
     with topics_path.open(encoding="utf-8") as f:
         return json.load(f)
