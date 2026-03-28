@@ -142,11 +142,14 @@ def _build_opening_prompt(topic: str, stance: str) -> str:
     """입론 요청 HumanMessage 본문을 생성한다."""
     stance_kr = "찬성(PRO)" if stance == "PRO" else "반대(CON)"
     return (
-        f"토론 주제: {topic}\n\n"
-        f"당신의 진영은 {stance_kr}입니다.\n"
-        f"위 주제에 대해 {stance_kr} 입장에서 논리적이고 설득력 있는 입론(Opening Argument)을 작성하세요.\n"
-        f"필요하다면 search_web 또는 search_vector_db 도구를 사용하여 근거를 보강하세요.\n"
-        f"최종 입론은 명확한 주장, 근거, 예상 반론 대응을 포함하여 완성된 형태로 작성하세요."
+        f"토론 주제: {topic}\n"
+        f"당신의 진영: {stance_kr}\n\n"
+        f"지금 당장 search_web과 search_vector_db 도구를 호출해서 근거를 수집하라.\n"
+        f"도구 결과를 받은 뒤, 그 안에 실제로 존재하는 수치와 사실만 사용해 입론을 작성하라.\n"
+        f"검색 결과에 없는 통계나 연구를 절대 만들어내지 마라.\n\n"
+        f"입론은 실제 토론 단상에서 말하는 연설 대본 형식으로 작성하라.\n"
+        f"마크다운 기호(##, **, * 등)는 일절 사용하지 마라.\n"
+        f"주장, 검색된 근거, 예상 반론 대응 순서로 구어체로 전개하라."
     )
 
 
