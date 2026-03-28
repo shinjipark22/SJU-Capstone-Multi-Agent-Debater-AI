@@ -26,4 +26,6 @@ echo ""
 
 vllm serve "$MODEL" \
     --port "$PORT" \
-    --enforce-eager
+    --enforce-eager \
+    --enable-auto-tool-choice \
+    --tool-call-parser hermes
