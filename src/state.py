@@ -21,8 +21,8 @@ state.py — LangGraph State 설계 및 초기화 유틸리티
 """
 
 import uuid
-from typing import List, Literal, Optional, Tuple
-from typing_extensions import TypedDict
+from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing_extensions import NotRequired, TypedDict
 
 from langgraph.graph import add_messages  # noqa: F401 — 메시지 누적에 활용
 
@@ -56,6 +56,7 @@ class DebateEntry(TypedDict):
     phase: DebatePhase
     content: str
     target_id: Optional[str]
+    tool_calls_log: NotRequired[List[Dict[str, Any]]]  # 사용된 도구 목록 (디버깅용)
 
 
 # ── 연쇄 논박 페어 타입 ───────────────────────────────────────────────────────
@@ -94,6 +95,7 @@ class AgentSnapshot(TypedDict):
     intensity: int
     role_description: str
     system_prompt: str
+    focus_area: str  # 에이전트별 논증 전문 분야 (같은 진영 내 의견 다양성 확보)
 
 
 # ── 핵심 State TypedDict ──────────────────────────────────────────────────────

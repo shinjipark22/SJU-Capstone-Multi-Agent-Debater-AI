@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from ddgs import DDGS
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -138,22 +138,25 @@ def _parse_xml_tool_calls(content: str) -> List[Dict]:
 
 # ── 내부 유틸리티 ─────────────────────────────────────────────────────────────
 
-def _build_opening_prompt(topic: str, stance: str) -> str:
+def _build_opening_prompt(topic: str, stance: str, focus_area: str) -> str:
     """입론 요청 HumanMessage 본문을 생성한다."""
     stance_kr = "찬성(PRO)" if stance == "PRO" else "반대(CON)"
     return (
         f"토론 주제: {topic}\n"
-        f"당신의 진영: {stance_kr}\n\n"
+        f"당신의 진영: {stance_kr}\n"
+        f"당신의 전문 분야: {focus_area}\n\n"
         f"지금 당장 search_web과 search_vector_db 도구를 호출해서 근거를 수집하라.\n"
+        f"검색어는 반드시 '{focus_area}'와 직결되는 각도로 작성하라.\n"
         f"도구 결과를 받은 뒤, 그 안에 실제로 존재하는 수치와 사실만 사용해 입론을 작성하라.\n"
         f"검색 결과에 없는 통계나 연구를 절대 만들어내지 마라.\n\n"
         f"입론은 실제 토론 단상에서 말하는 연설 대본 형식으로 작성하라.\n"
         f"마크다운 기호(##, **, * 등)는 일절 사용하지 마라.\n"
-        f"주장, 검색된 근거, 예상 반론 대응 순서로 구어체로 전개하라."
+        f"주장, 검색된 근거, 예상 반론 대응 순서로 구어체로 전개하라.\n"
+        f"'{focus_area}' 관점에서만 논거를 전개하고, 다른 에이전트가 다룰 영역과 중복되지 않도록 하라."
     )
 
 
-def _run_tool_calling_loop(messages: List) -> str:
+def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
     """도구 실행 루프: tool_calls가 없을 때까지 모델 ↔ 도구를 반복 호출한다.
 
     [처리 순서]
@@ -166,8 +169,11 @@ def _run_tool_calling_loop(messages: List) -> str:
         messages: [SystemMessage, HumanMessage, ...] 초기 메시지 리스트 (in-place 확장됨)
 
     Returns:
-        <think>/<tool_call> 블록이 제거된 순수 입론 텍스트
+        (순수 입론 텍스트, 사용된 도구 로그 리스트)
+        도구 로그 항목: {"name": str, "args": dict}
     """
+    tool_calls_log: List[Dict] = []
+
     while True:
         response: AIMessage = _llm_with_tools.invoke(messages)
         content: str = response.content if isinstance(response.content, str) else str(response.content)
@@ -177,7 +183,11 @@ def _run_tool_calling_loop(messages: List) -> str:
 
         if not tool_calls:
             # 더 이상 도구 호출 없음 → 최종 답변 반환
-            return _clean_response(content)
+            return _clean_response(content), tool_calls_log
+
+        # ── 도구 호출 로그 수집 ───────────────────────────────────────────────
+        for tc in tool_calls:
+            tool_calls_log.append({"name": tc["name"], "args": tc["args"]})
 
         # ── 도구 실행 및 결과 주입 ────────────────────────────────────────────
         messages.append(response)
@@ -240,11 +250,11 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         # 메시지 구성: 페르소나 주입 + 입론 요청
         messages = [
             SystemMessage(content=agent["system_prompt"]),
-            HumanMessage(content=_build_opening_prompt(topic, agent["stance"])),
+            HumanMessage(content=_build_opening_prompt(topic, agent["stance"], agent["focus_area"])),
         ]
 
-        # 도구 실행 루프 → 최종 입론 텍스트
-        final_text = _run_tool_calling_loop(messages)
+        # 도구 실행 루프 → 최종 입론 텍스트 + 도구 사용 로그
+        final_text, tool_calls_log = _run_tool_calling_loop(messages)
 
         # DebateHistory에 누적
         entry: DebateEntry = DebateEntry(
@@ -254,6 +264,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
             phase="opening",
             content=final_text,
             target_id=None,
+            tool_calls_log=tool_calls_log,
         )
         history.append(entry)
         current_turn += 1

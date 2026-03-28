@@ -70,6 +70,7 @@ def build_test_state():
             intensity=p.intensity,
             role_description=p.role_description,
             system_prompt=p.system_prompt,
+            focus_area=p.focus_area,
         )
         for p in personas
     ]
@@ -106,6 +107,7 @@ def main():
     print()
     for p in personas:
         print(f"    [{p.agent_id}] {p.stance} | 강경도 {p.intensity} | {p.role_description}")
+        print(f"             전문 분야: {p.focus_area}")
 
     # ── 노드 실행 ─────────────────────────────────────────────────────────────
     print_separator()
@@ -148,7 +150,19 @@ def main():
         print(f"  발언자  : {entry['speaker_id']} ({entry['stance']})")
         print(f"  턴 번호 : {entry['turn']}")
         print(f"  단계    : {entry['phase']}")
-        print(f"  입론 내용:\n")
+
+        # ── 도구 사용 내역 출력 ───────────────────────────────────────────────
+        tool_log = entry.get("tool_calls_log", [])
+        if tool_log:
+            print(f"\n  [사용된 도구 — 총 {len(tool_log)}회]")
+            for tc in tool_log:
+                print(f"    - 도구명: {tc['name']}")
+                args_str = ", ".join(f'"{k}": "{v}"' for k, v in tc["args"].items())
+                print(f"      인자  : {{{args_str}}}")
+        else:
+            print(f"\n  [사용된 도구] 없음")
+
+        print(f"\n  입론 내용:\n")
         # 긴 텍스트는 80자 단위로 출력
         content = entry["content"]
         for i in range(0, len(content), 80):

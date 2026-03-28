@@ -5,7 +5,7 @@ persona_factory.py — 동적 AI 에이전트 페르소나 생성 (Phase 0)
 강경도에 맞는 시스템 프롬프트를 생성한다.
 """
 
-from typing import List, Literal, Dict, Optional
+from typing import List, Literal, Dict, Optional, Tuple
 from dataclasses import dataclass, field
 
 
@@ -36,6 +36,24 @@ INTENSITY_PROFILES: Dict[int, Dict[str, str]] = {
         "style": "상대방 주장의 모순과 논리적 오류를 적극적으로 지적하며, 자신의 입장을 강하게 견지한다.",
         "tone": "직접적이고 강한 어조로 핵심 모순을 집중 공략한다.",
     },
+}
+
+# ── 진영 내 논증 전문 분야 (에이전트 번호 순서대로 순환 할당) ─────────────────────
+# 같은 진영 에이전트끼리 동일한 검색어·논거를 중복 사용하는 문제를 방지한다.
+# 에이전트 수가 정의된 수보다 많으면 인덱스를 순환(modulo)하여 재사용한다.
+FOCUS_AREAS: Dict[str, List[str]] = {
+    # 어떤 토론 주제에도 적용 가능한 범용 논증 각도
+    # 에이전트 번호 순서대로 순환 할당 (modulo)
+    "PRO": [
+        "실증적 데이터와 통계 중심: 해당 주제를 지지하는 수치, 연구 결과, 설문 데이터를 발굴하여 논증하라.",
+        "사례·현장 증거 중심: 실제 시행 사례, 성공 사례, 현장 증언을 바탕으로 효과를 입증하라.",
+        "장기적 가치·미래 비전 중심: 사회·환경·문화적 장기 편익과 미래 방향성을 논거로 제시하라.",
+    ],
+    "CON": [
+        "실증적 데이터와 통계 중심: 해당 주제의 부작용을 보여주는 수치, 연구 결과, 설문 데이터를 발굴하여 반박하라.",
+        "사회적 형평성·취약 계층 중심: 피해 집단, 불평등 심화, 윤리적 문제점을 구체적 근거로 반박하라.",
+        "역사적 선례·정책 실패 중심: 유사한 시도의 역사적 실패 사례와 제도적 한계를 근거로 반박하라.",
+    ],
 }
 
 # ── 토론 포맷별 AI 진영 분배 규칙 ────────────────────────────────────────────
@@ -74,6 +92,7 @@ class AgentPersona:
     intensity: int
     role_description: str
     system_prompt: str
+    focus_area: str  # 논증 전문 분야 (같은 진영 내 다양성 확보)
     # Phase 1에서 메모리·도구 등 확장 필드를 추가할 수 있도록 여유 슬롯 확보
     metadata: Dict = field(default_factory=dict)
 
@@ -85,6 +104,7 @@ def _build_system_prompt(
     title: str,
     pro: str,
     con: str,
+    focus_area: str,
     description: Optional[str] = None,
 ) -> str:
     """강경도와 진영에 맞는 시스템 프롬프트를 생성한다.
@@ -144,7 +164,13 @@ def _build_system_prompt(
 [논증 스타일 — 강경도 {intensity}: {profile['label']}]
 - 전략: {profile['style']}
 - 어조: {profile['tone']}
-"""
+
+[전문 분야 — 이 에이전트의 고유 논증 각도]
+{focus_area}
+이 분야에 집중하여 검색하고 주장하라. 같은 진영의 다른 에이전트가 다루는 영역과 중복되지 않도록 하라.
+
+[언어 지시사항 — 절대 준수]
+반드시 100% 자연스러운 한국어로만 작성하십시오. 어떠한 경우에도 한자(중국어 간체/번체)를 섞어 쓰지 마십시오. 번역기 돌린 듯한 어색한 문장이나 중국어식 표현을 엄격히 금지합니다."""
     return prompt.strip()
 
 
@@ -185,15 +211,24 @@ def create_agents(
         )
 
     agents: List[AgentPersona] = []
+    # 진영별 내부 인덱스를 따로 추적하여 같은 진영 에이전트에 서로 다른 focus_area 부여
+    stance_counters: Dict[str, int] = {"PRO": 0, "CON": 0}
+
     for idx, (stance, intensity) in enumerate(zip(stance_list, agent_intensities), start=1):
         agent_id = f"agent_{idx}"
         profile = INTENSITY_PROFILES[intensity]
+
+        # 진영 내 순번으로 focus_area 순환 할당
+        focus_idx = stance_counters[stance] % len(FOCUS_AREAS[stance])
+        focus_area = FOCUS_AREAS[stance][focus_idx]
+        stance_counters[stance] += 1
+
         role_description = (
             f"{('찬성' if stance == 'PRO' else '반대')} 진영 | "
             f"강경도 {intensity} ({profile['label']})"
         )
         system_prompt = _build_system_prompt(
-            agent_id, stance, intensity, title, pro, con, description
+            agent_id, stance, intensity, title, pro, con, focus_area, description
         )
 
         agents.append(
@@ -203,6 +238,7 @@ def create_agents(
                 intensity=intensity,
                 role_description=role_description,
                 system_prompt=system_prompt,
+                focus_area=focus_area,
             )
         )
 
