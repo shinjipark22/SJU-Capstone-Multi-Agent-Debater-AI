@@ -21,11 +21,7 @@ from typing import Any, Dict, List
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
-
-try:
-    from langchain_ollama import ChatOllama
-except ImportError:
-    from langchain_community.chat_models import ChatOllama  # type: ignore[no-redef]
+from langchain_openai import ChatOpenAI
 
 from src.state import DebateEntry, DebateState
 
@@ -62,8 +58,15 @@ _TOOLS: List = [search_web, search_vector_db]
 _TOOL_MAP: Dict[str, Any] = {t.name: t for t in _TOOLS}
 
 # ── LLM 초기화 (모듈 로드 시 1회) ─────────────────────────────────────────────
+# vLLM OpenAI-compatible 서버를 사용한다.
+# 서버 실행: vllm serve Qwen/Qwen3.5-9B --port 8000
 
-_llm = ChatOllama(model="qwen3.5:9b", temperature=0.7)
+_llm = ChatOpenAI(
+    model="Qwen/Qwen3.5-9B",
+    base_url="http://localhost:8000/v1",
+    api_key="fake",          # vLLM은 API 키 불필요, 빈값 아닌 임의값 필요
+    temperature=0.7,
+)
 _llm_with_tools = _llm.bind_tools(_TOOLS)
 
 
