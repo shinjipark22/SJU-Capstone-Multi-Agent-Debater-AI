@@ -1,9 +1,9 @@
 """
-test_run.py — Phase 1 입론 노드 독립 실행 테스트
+test_run.py — 1단계 입론(Opening Arguments) 노드 독립 실행 테스트
 
 터미널에서 직접 실행:
-    python -m src.phase1.test_run
-    (또는 프로젝트 루트에서 PYTHONPATH=. python src/phase1/test_run.py)
+    python -m src.stage1_opening.test_run
+    (또는 프로젝트 루트에서 PYTHONPATH=. python src/stage1_opening/test_run.py)
 
 [테스트 시나리오]
     - data/topics_20260323_processed.json 에서 TOPIC_ID로 주제 로드
@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.phase0.persona_factory import create_agents
 from src.state import AgentSnapshot, build_initial_state
-from src.phase1.nodes import opening_arguments_node
+from src.stage1_opening.nodes import opening_arguments_node
 
 
 # ── 테스트 설정 ───────────────────────────────────────────────────────────────

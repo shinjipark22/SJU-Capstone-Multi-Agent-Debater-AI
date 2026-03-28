@@ -1,5 +1,5 @@
 """
-nodes.py — Phase 1: 입론(Opening Arguments) 노드
+nodes.py — 1단계: 입론(Opening Arguments) 노드
 
 [동작 흐름]
     1. speaking_order에서 AI 에이전트(user 제외)만 순서대로 추출
@@ -7,11 +7,9 @@ nodes.py — Phase 1: 입론(Opening Arguments) 노드
         a. system_prompt → SystemMessage, 입론 요청 → HumanMessage 구성
         b. LLM + 도구 실행 루프: tool_calls가 없어질 때까지 ToolMessage 주입 반복
         c. 최종 텍스트(입론)를 DebateEntry 형태로 debate_history에 누적
-    3. 모든 AI 입론 완료 후 phase를 "chained_rebuttal"로 전환
+    3. 모든 AI 입론 완료 후 phase를 "chained_rebuttal"(2단계 연쇄 논박)로 전환
 
 [설계 노트]
-    - state["phase"] 필드는 DebatePhase Literal 타입이므로 "chained_rebuttal" 사용
-      (사용자가 "Phase 2: 자유 토론"이라 표현한 것은 2단계 연쇄 논박 단계를 의미함)
     - 도구 실행 루프는 각 에이전트 호출마다 독립적으로 동작 (메시지 격리)
 """
 
@@ -120,7 +118,7 @@ def _run_tool_calling_loop(messages: List) -> str:
 # ── 메인 노드 ─────────────────────────────────────────────────────────────────
 
 def opening_arguments_node(state: DebateState) -> DebateState:
-    """Phase 1 입론 노드.
+    """1단계 입론 노드.
 
     speaking_order에서 AI 에이전트 순서를 존중하여 각 에이전트가 순차적으로
     입론을 생성한다. 사용자(user)는 이 노드에서 발언하지 않는다.
@@ -129,7 +127,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         state: 현재 DebateState (phase == "opening" 을 전제)
 
     Returns:
-        debate_history가 누적되고 phase가 "chained_rebuttal"로 변경된 DebateState
+        debate_history가 누적되고 phase가 "chained_rebuttal"(2단계 연쇄 논박)로 변경된 DebateState
     """
     topic: str = state["topic"]
     history: List[DebateEntry] = list(state["debate_history"])
@@ -141,7 +139,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
     # speaking_order에서 AI 에이전트만 추출 (user 제외, 순서 유지)
     ai_speaker_ids = [sid for sid in state["speaking_order"] if sid != "user"]
 
-    print(f"\n[Phase 1] 입론 시작 — 발언 순서: {ai_speaker_ids}\n")
+    print(f"\n[1단계: 입론] 발언 순서: {ai_speaker_ids}\n")
 
     for speaker_id in ai_speaker_ids:
         agent = agent_map[speaker_id]
@@ -171,8 +169,8 @@ def opening_arguments_node(state: DebateState) -> DebateState:
 
         print(f"  [{speaker_id}] 입론 완료 (turn={entry['turn']})\n")
 
-    # 모든 AI 입론 완료 → 다음 단계(2단계 연쇄 논박)로 전환
-    print("[Phase 1] 입론 단계 완료 → chained_rebuttal 단계로 전환\n")
+    # 모든 AI 입론 완료 → 2단계 연쇄 논박으로 전환
+    print("[1단계: 입론] 완료 → 2단계 연쇄 논박(chained_rebuttal)으로 전환\n")
 
     return DebateState(
         **{
