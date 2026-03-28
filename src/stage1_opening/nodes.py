@@ -15,7 +15,9 @@ nodes.py — 1단계: 입론(Opening Arguments) 노드
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import re
+import uuid
+from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
@@ -68,6 +70,55 @@ _llm = ChatOpenAI(
 _llm_with_tools = _llm.bind_tools(_TOOLS)
 
 
+# ── 응답 후처리 유틸리티 ───────────────────────────────────────────────────────
+
+def _clean_response(content: str) -> str:
+    """순수 입론 텍스트만 반환한다.
+
+    Qwen3.5는 <think>...</think> 안에 추론 과정을 출력하고,
+    </think> 이후에 실제 답변을 출력한다.
+    </think> 이후 텍스트를 추출하되, 없으면 <tool_call> 블록만 제거하여 반환한다.
+    """
+    # </think> 이후 텍스트 추출 (있을 경우)
+    if '</think>' in content:
+        text = content.split('</think>', 1)[1]
+    else:
+        text = content
+    # 혹시 남아있는 <tool_call> 블록 제거
+    text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
+    return text.strip()
+
+
+def _parse_xml_tool_calls(content: str) -> List[Dict]:
+    """content 내 <tool_call> XML 블록을 파싱하여 tool_calls 형태로 반환한다.
+
+    Qwen3.5는 vLLM의 hermes 파서가 인식하지 못하는 XML 포맷으로 도구를 호출한다.
+    response.tool_calls가 비어 있을 때 이 함수로 폴백 파싱한다.
+
+    출력 형식 예시:
+        <tool_call>
+        <function=search_web>
+        <parameter=query>검색어</parameter>
+        </function>
+        </tool_call>
+    """
+    tool_calls = []
+    for block in re.findall(r'<tool_call>(.*?)</tool_call>', content, re.DOTALL):
+        func_match = re.search(r'<function=(\w+)>(.*?)</function>', block, re.DOTALL)
+        if not func_match:
+            continue
+        func_name = func_match.group(1)
+        args: Dict[str, str] = {}
+        for param in re.finditer(r'<parameter=(\w+)>\s*(.*?)\s*</parameter>', func_match.group(2), re.DOTALL):
+            args[param.group(1)] = param.group(2).strip()
+        tool_calls.append({
+            "name": func_name,
+            "args": args,
+            "id": f"call_{func_name}_{uuid.uuid4().hex[:6]}",
+        })
+    return tool_calls
+
+
 # ── 내부 유틸리티 ─────────────────────────────────────────────────────────────
 
 def _build_opening_prompt(topic: str, stance: str) -> str:
@@ -85,34 +136,54 @@ def _build_opening_prompt(topic: str, stance: str) -> str:
 def _run_tool_calling_loop(messages: List) -> str:
     """도구 실행 루프: tool_calls가 없을 때까지 모델 ↔ 도구를 반복 호출한다.
 
+    [처리 순서]
+    1. 모델 호출 후 response.tool_calls(vLLM 정식 파싱) 확인
+    2. 비어 있으면 content 내 <tool_call> XML 폴백 파싱 (Qwen3.5 호환)
+    3. 도구가 없으면 최종 답변으로 판단 → <think>/<tool_call> 블록 제거 후 반환
+    4. 도구가 있으면 실행 후 결과를 메시지에 주입하고 반복
+
     Args:
         messages: [SystemMessage, HumanMessage, ...] 초기 메시지 리스트 (in-place 확장됨)
 
     Returns:
-        최종 평문 답변(입론) 텍스트
+        <think>/<tool_call> 블록이 제거된 순수 입론 텍스트
     """
     while True:
         response: AIMessage = _llm_with_tools.invoke(messages)
+        content: str = response.content if isinstance(response.content, str) else str(response.content)
+
+        # ── 도구 호출 감지: 정식 파싱 우선, 없으면 XML 폴백 ──────────────────
+        tool_calls = list(response.tool_calls) if response.tool_calls else _parse_xml_tool_calls(content)
+
+        if not tool_calls:
+            # 더 이상 도구 호출 없음 → 최종 답변 반환
+            return _clean_response(content)
+
+        # ── 도구 실행 및 결과 주입 ────────────────────────────────────────────
         messages.append(response)
 
-        # tool_calls가 없으면 최종 답변 반환
-        if not response.tool_calls:
-            return response.content if isinstance(response.content, str) else str(response.content)
-
-        # 각 tool_call을 실행하고 ToolMessage로 결과를 주입
-        for tc in response.tool_calls:
-            tool_name: str = tc["name"]
-            tool_args: Dict = tc["args"]
-            tool_call_id: str = tc["id"]
-
-            if tool_name in _TOOL_MAP:
-                tool_result: str = _TOOL_MAP[tool_name].invoke(tool_args)
-            else:
-                tool_result = f"[오류] 알 수 없는 도구: {tool_name}"
-
-            messages.append(
-                ToolMessage(content=tool_result, tool_call_id=tool_call_id)
-            )
+        if response.tool_calls:
+            # 정식 파싱된 경우: ToolMessage로 1:1 주입
+            for tc in tool_calls:
+                tool_result: str = (
+                    _TOOL_MAP[tc["name"]].invoke(tc["args"])
+                    if tc["name"] in _TOOL_MAP
+                    else f"[오류] 알 수 없는 도구: {tc['name']}"
+                )
+                messages.append(ToolMessage(content=tool_result, tool_call_id=tc["id"]))
+        else:
+            # XML 폴백: tool_call_id 없으므로 HumanMessage로 결과 일괄 주입
+            results = []
+            for tc in tool_calls:
+                tool_result = (
+                    _TOOL_MAP[tc["name"]].invoke(tc["args"])
+                    if tc["name"] in _TOOL_MAP
+                    else f"[오류] 알 수 없는 도구: {tc['name']}"
+                )
+                results.append(f"[{tc['name']} 결과]\n{tool_result}")
+            messages.append(HumanMessage(
+                content="\n\n".join(results) + "\n\n위 검색 결과를 바탕으로 입론을 완성하세요."
+            ))
 
 
 # ── 메인 노드 ─────────────────────────────────────────────────────────────────
