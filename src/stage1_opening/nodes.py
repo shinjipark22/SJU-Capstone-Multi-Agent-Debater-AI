@@ -19,10 +19,12 @@ import re
 import uuid
 from typing import Any, Dict, List, Optional
 
+from ddgs import DDGS
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
+from src.stage1_opening.vector_db import query_vector_db
 from src.state import DebateEntry, DebateState
 
 
@@ -30,26 +32,41 @@ from src.state import DebateEntry, DebateState
 
 @tool
 def search_web(query: str) -> str:
-    """웹에서 최신 뉴스 및 정보를 검색합니다.
+    """웹에서 최신 뉴스 및 정보를 DuckDuckGo로 검색합니다.
 
     Args:
         query: 검색할 키워드 또는 질문
     """
-    # TODO: 실제 웹 검색 API(예: Tavily, SerpAPI) 연동
-    return "[웹 검색 결과] 최신 뉴스 요약입니다."
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=3))
+        if not results:
+            return "[웹 검색 결과] 관련 결과를 찾을 수 없습니다."
+        summaries = [
+            f"- {r['title']}: {r['body']}"
+            for r in results
+        ]
+        return "[웹 검색 결과]\n" + "\n".join(summaries)
+    except Exception as e:
+        return f"[웹 검색 오류] {e}"
 
 
 @tool
 def search_vector_db(query: str, topic: str, stance: str) -> str:
-    """통합 VectorDB에서 진영·주제 필터링을 적용하여 전문가 문서를 검색합니다.
+    """토론 전문가 문서 VectorDB에서 진영·주제 필터링을 적용하여 관련 근거를 검색합니다.
 
     Args:
         query:  검색할 내용 (자연어 질의)
         topic:  현재 토론 주제 (메타데이터 필터)
         stance: 검색할 진영 "PRO" 또는 "CON" (메타데이터 필터)
     """
-    # TODO: vector_db.py의 실제 VectorDB 로직으로 교체
-    return "[문서 검색 결과] 해당 진영과 주제에 맞는 전문가 문서입니다."
+    try:
+        docs = query_vector_db(query=query, topic=topic, stance=stance)
+        if not docs:
+            return "[문서 검색 결과] 관련 문서를 찾을 수 없습니다."
+        return "[문서 검색 결과]\n" + "\n".join(f"- {d}" for d in docs)
+    except Exception as e:
+        return f"[문서 검색 오류] {e}"
 
 
 # ── 도구 이름 → 함수 매핑 ──────────────────────────────────────────────────────
