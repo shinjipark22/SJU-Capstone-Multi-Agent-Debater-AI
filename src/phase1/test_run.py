@@ -6,14 +6,16 @@ test_run.py — Phase 1 입론 노드 독립 실행 테스트
     (또는 프로젝트 루트에서 PYTHONPATH=. python src/phase1/test_run.py)
 
 [테스트 시나리오]
+    - data/topics_20260323_processed.json 에서 TOPIC_ID로 주제 로드
     - 토론 포맷 2:2 (AI 3명: CON 2명 + PRO 1명, 사용자 PRO)
-    - topic: "AI가 인간의 일자리를 대체해야 한다"
     - 각 AI 에이전트가 입론을 순서대로 생성하는지 확인
     - debate_history 누적 및 phase 전환 검증
 """
 
+import json
 import sys
 import os
+from pathlib import Path
 
 # 프로젝트 루트를 sys.path에 추가 (직접 실행 시 대비)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -23,30 +25,39 @@ from src.state import AgentSnapshot, build_initial_state
 from src.phase1.nodes import opening_arguments_node
 
 
-# ── 테스트 픽스처 ─────────────────────────────────────────────────────────────
+# ── 테스트 설정 ───────────────────────────────────────────────────────────────
 
-SAMPLE_TOPIC = {
-    "id": "test_topic_001",
-    "title": "AI가 인간의 일자리를 대체해야 한다",
-    "pro": "AI 자동화는 생산성을 극대화하고 인류를 반복 노동에서 해방시킨다.",
-    "con": "AI 일자리 대체는 경제적 불평등을 심화시키고 사회 안전망을 붕괴시킨다.",
-    "description_long": (
-        "4차 산업혁명과 함께 AI 및 자동화 기술이 제조업·서비스업 전반에 도입되고 있다. "
-        "찬성 측은 인간이 창의적·고부가가치 업무에 집중할 수 있다고 주장하며, "
-        "반대 측은 전환 비용과 계층 간 격차를 우려한다."
-    ),
-}
-
+TOPIC_ID = "tech_001"          # data/topics_20260323_processed.json 에서 사용할 토픽 ID
 DEBATE_FORMAT = "2:2"
 USER_STANCE = "PRO"
 USER_INTENSITY = 3
 AGENT_INTENSITIES = [4, 2, 5]  # CON(강경), CON(온건), PRO(매우강경) — 2:2 포맷 AI 3명
 
+_DATA_PATH = Path(__file__).parent.parent.parent / "data" / "topics_20260323_processed.json"
+
+
+def _load_topic(topic_id: str) -> dict:
+    """topics_20260323_processed.json에서 topic_id에 해당하는 항목을 반환한다."""
+    if not _DATA_PATH.exists():
+        raise FileNotFoundError(f"데이터 파일을 찾을 수 없습니다: {_DATA_PATH}")
+
+    with _DATA_PATH.open(encoding="utf-8") as f:
+        data = json.load(f)
+
+    for category_topics in data.get("categories", {}).values():
+        for t in category_topics:
+            if t["id"] == topic_id:
+                return t
+
+    raise ValueError(f"topic ID '{topic_id}'를 찾을 수 없습니다.")
+
 
 def build_test_state():
     """테스트용 초기 DebateState를 생성한다."""
+    topic_dict = _load_topic(TOPIC_ID)
+
     personas = create_agents(
-        topic=SAMPLE_TOPIC,
+        topic=topic_dict,
         debate_format=DEBATE_FORMAT,
         user_stance=USER_STANCE,
         agent_intensities=AGENT_INTENSITIES,
@@ -64,13 +75,13 @@ def build_test_state():
     ]
 
     state = build_initial_state(
-        topic=SAMPLE_TOPIC["title"],
+        topic=topic_dict["title"],
         user_stance=USER_STANCE,
         user_intensity=USER_INTENSITY,
         agents=snapshots,
     )
 
-    return state, personas
+    return state, personas, topic_dict
 
 
 def print_separator(char: str = "─", width: int = 70) -> None:
@@ -84,8 +95,9 @@ def main():
 
     # ── 초기 State 구성 ───────────────────────────────────────────────────────
     print("\n[1] 초기 State 구성 중...")
-    state, personas = build_test_state()
+    state, personas, topic_dict = build_test_state()
 
+    print(f"  토픽 ID    : {topic_dict['id']}")
     print(f"  토론 주제  : {state['topic']}")
     print(f"  사용자 진영: {state['user_stance']}")
     print(f"  발언 순서  : {state['speaking_order']}")
