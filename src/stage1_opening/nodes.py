@@ -105,17 +105,25 @@ _llm_with_tools = _llm.bind_tools(_TOOLS)
 def _clean_response(content: str) -> str:
     """순수 입론 텍스트만 반환한다.
 
-    Qwen3.5는 <think>...</think> 안에 추론 과정을 출력하고,
-    </think> 이후에 실제 답변을 출력한다.
-    </think> 이후 텍스트를 추출하되, 없으면 <tool_call> 블록만 제거하여 반환한다.
+    처리 순서:
+    1. </think> 이후 텍스트 추출 (Qwen3.5 추론 블록 제거)
+    2. <tool_call> 블록 제거
+    3. CJK 한자(중국어/일본어 한자) 룰베이스 제거
+       - 한글과 붙어있는 한자: 한자만 삭제하여 단어를 이어붙임 (예: "结果的인" → "인")
+       - 독립된 한자 단어(공백으로 구분): 통째로 삭제
     """
-    # </think> 이후 텍스트 추출 (있을 경우)
+    # 1. </think> 이후 텍스트 추출
     if '</think>' in content:
         text = content.split('</think>', 1)[1]
     else:
         text = content
-    # 혹시 남아있는 <tool_call> 블록 제거
+    # 2. 남아있는 <tool_call> 블록 제거
     text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
+    # 3. CJK 한자 제거 (U+4E00–U+9FFF: 한중일 통합 한자 기본 범위)
+    #    패턴: 한자가 한글·공백 사이에 낀 경우 한자만 제거 (단어 연결 유지)
+    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+', '', text)
+    # 한자 제거로 생긴 연속 공백 정리
+    text = re.sub(r' {2,}', ' ', text)
     return text.strip()
 
 
