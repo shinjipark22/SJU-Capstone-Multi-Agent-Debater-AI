@@ -23,6 +23,7 @@ from ddgs import DDGS
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+from pydantic import ValidationError
 
 from src.stage1_opening.vector_db import query_vector_db
 from src.state import DebateEntry, DebateState
@@ -217,21 +218,25 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
         if response.tool_calls:
             # 정식 파싱된 경우: ToolMessage로 1:1 주입
             for tc in tool_calls:
-                tool_result: str = (
-                    _TOOL_MAP[tc["name"]].invoke(tc["args"])
-                    if tc["name"] in _TOOL_MAP
-                    else f"[오류] 알 수 없는 도구: {tc['name']}"
-                )
+                if tc["name"] not in _TOOL_MAP:
+                    tool_result: str = f"[오류] 알 수 없는 도구: {tc['name']}"
+                else:
+                    try:
+                        tool_result = _TOOL_MAP[tc["name"]].invoke(tc["args"])
+                    except (ValidationError, Exception) as e:
+                        tool_result = f"[도구 호출 오류] {tc['name']} 인자가 잘못되었습니다: {e}"
                 messages.append(ToolMessage(content=tool_result, tool_call_id=tc["id"]))
         else:
             # XML 폴백: tool_call_id 없으므로 HumanMessage로 결과 일괄 주입
             results = []
             for tc in tool_calls:
-                tool_result = (
-                    _TOOL_MAP[tc["name"]].invoke(tc["args"])
-                    if tc["name"] in _TOOL_MAP
-                    else f"[오류] 알 수 없는 도구: {tc['name']}"
-                )
+                if tc["name"] not in _TOOL_MAP:
+                    tool_result = f"[오류] 알 수 없는 도구: {tc['name']}"
+                else:
+                    try:
+                        tool_result = _TOOL_MAP[tc["name"]].invoke(tc["args"])
+                    except (ValidationError, Exception) as e:
+                        tool_result = f"[도구 호출 오류] {tc['name']} 인자가 잘못되었습니다: {e}"
                 results.append(f"[{tc['name']} 결과]\n{tool_result}")
             messages.append(HumanMessage(
                 content="\n\n".join(results) + "\n\n위 검색 결과를 바탕으로 입론을 완성하세요."
