@@ -134,14 +134,31 @@ def _clean_response(content: str) -> str:
     return text.strip()
 
 
+def _fix_malformed_json(raw: str) -> str:
+    """모델이 출력한 깨진 JSON을 정규화한다.
+
+    Qwen3.5는 JSON value 경계를 \\" (백슬래시+따옴표)로 잡는 경우가 있다:
+        "final_speech": \\"실제 텍스트\\"
+    이를 표준 JSON 형식으로 변환한다:
+        "final_speech": "실제 텍스트"
+    """
+    # ": \\"value\\"  →  ": "value"
+    fixed = re.sub(r':\s*\\"', ': "', raw)
+    # value\\" ,  또는 value\\" }  →  value" ,  또는 value" }
+    fixed = re.sub(r'\\"(\s*[,}\]])', r'"\1', fixed)
+    return fixed
+
+
 def _extract_final_speech(text: str) -> str:
     """JSON 응답에서 final_speech만 추출한다.
 
     [처리 순서]
     1. 마크다운 코드블록(```json ... ```) 제거
     2. 텍스트 전체가 JSON → final_speech 추출
-    3. 텍스트 중간에 JSON 블록 → 가장 큰 {…} 블록을 regex로 추출 후 파싱
-    4. 모든 파싱 실패 → "final_speech" 키워드 뒤의 값을 regex로 직접 추출
+    3. 텍스트 중간에 JSON 블록 → 가장 큰 {…} 추출
+       → 원본/이스케이프 정규화본 두 번 파싱 시도
+    4. 모든 파싱 실패 → "final_speech" 값만 regex로 직접 추출
+       → \" 경계와 " 경계 모두 대응
     5. 최종 폴백 → 원본 텍스트 그대로 반환
     """
     cleaned = text.strip()
@@ -161,19 +178,26 @@ def _extract_final_speech(text: str) -> str:
     # ── 3. 텍스트 중간에 JSON 블록 — 가장 큰 {…} 덩어리 추출 ──
     json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
     if json_match:
-        try:
-            data = json.loads(json_match.group())
-            if isinstance(data, dict) and "final_speech" in data:
-                return data["final_speech"]
-        except (json.JSONDecodeError, TypeError):
-            pass
+        raw_block = json_match.group()
+        # 원본 → 이스케이프 정규화본 순서로 파싱 시도
+        for candidate in [raw_block, _fix_malformed_json(raw_block)]:
+            try:
+                data = json.loads(candidate)
+                if isinstance(data, dict) and "final_speech" in data:
+                    return data["final_speech"]
+            except (json.JSONDecodeError, TypeError):
+                continue
 
     # ── 4. JSON 파싱 모두 실패 — "final_speech" 값만 regex로 직접 추출 ──
-    speech_match = re.search(
-        r'"final_speech"\s*:\s*"((?:[^"\\]|\\.)*)"', cleaned, re.DOTALL
-    )
-    if speech_match:
-        return speech_match.group(1).replace('\\"', '"').replace('\\n', '\n')
+    # 패턴 A: 표준 "value"  패턴 B: 깨진 \"value\" (Qwen3.5 특성)
+    for pattern in [
+        r'"final_speech"\s*:\s*"((?:[^"\\]|\\.)*)"',
+        r'"final_speech"\s*:\s*\\"((?:[^"\\]|\\.)*?)\\"',
+    ]:
+        speech_match = re.search(pattern, cleaned, re.DOTALL)
+        if speech_match:
+            extracted = speech_match.group(1)
+            return extracted.replace('\\"', '"').replace('\\n', '\n')
 
     # ── 5. 최종 폴백: 원본 텍스트 반환 ──
     return text
