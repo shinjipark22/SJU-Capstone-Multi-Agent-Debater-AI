@@ -57,6 +57,7 @@ class DebateEntry(TypedDict):
     content: str
     target_id: Optional[str]
     tool_calls_log: NotRequired[List[Dict[str, Any]]]  # 사용된 도구 목록 (디버깅용)
+    json_raw: NotRequired[Optional[str]]               # LLM JSON 원본 (reasoning 포함, 디버깅용)
 
 
 # ── 연쇄 논박 페어 타입 ───────────────────────────────────────────────────────
