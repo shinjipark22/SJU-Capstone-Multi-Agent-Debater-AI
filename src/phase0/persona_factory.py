@@ -138,7 +138,11 @@ def _build_system_prompt(
 [당신의 진영 — 절대 잊지 마라]
 당신은 {stance_kr}입니다.
 {"▶ 당신의 임무: 위 논제가 '참'임을 증명하라." if stance == "PRO" else "▶ 당신의 임무: 위 논제가 '거짓'임을 증명하라."}
-당신의 핵심 주장: "{my_claim}"
+
+  [찬성 측 입장] {pro}
+  [반대 측 입장] {con}
+
+당신의 핵심 주장 ({stance_kr}): "{my_claim}"
 상대방이 주장할 내용: "{opp_claim}"
 
 [팩트 원칙]
