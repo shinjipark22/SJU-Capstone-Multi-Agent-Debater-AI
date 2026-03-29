@@ -27,11 +27,11 @@ from src.stage1_opening.nodes import opening_arguments_node
 
 # ── 테스트 설정 ───────────────────────────────────────────────────────────────
 
-TOPIC_ID = "tech_001"          # data/topics_20260323_processed.json 에서 사용할 토픽 ID
+TOPIC_ID = "poli_002"          # data/topics_20260323_processed.json 에서 사용할 토픽 ID
 DEBATE_FORMAT = "2:2"
 USER_STANCE = "PRO"
 USER_INTENSITY = 3
-AGENT_INTENSITIES = [4, 2, 5]  # CON(강경), CON(온건), PRO(매우강경) — 2:2 포맷 AI 3명
+AGENT_INTENSITIES = [3, 2, 5]  # CON(강경), CON(온건), PRO(매우강경) — 2:2 포맷 AI 3명
 
 _DATA_PATH = Path(__file__).parent.parent.parent / "data" / "topics_20260323_processed.json"
 
