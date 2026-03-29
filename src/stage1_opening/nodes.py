@@ -101,6 +101,11 @@ _llm = ChatOpenAI(
     base_url="http://localhost:8000/v1",
     api_key="fake",          # vLLM은 API 키 불필요, 빈값 아닌 임의값 필요
     temperature=0.7,
+    extra_body={
+        # Qwen3.5 네이티브 thinking 모드 활성화
+        # 모든 추론을 <think>...</think> 안에 강제하여 출력에서 분리
+        "chat_template_kwargs": {"enable_thinking": True},
+    },
 )
 _llm_with_tools = _llm.bind_tools(_TOOLS)
 
@@ -235,7 +240,7 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
                         tool_result = f"[도구 호출 오류] {tc['name']} 인자가 잘못되었습니다: {e}"
                 results.append(f"[{tc['name']} 결과]\n{tool_result}")
             messages.append(HumanMessage(
-                content="\n\n".join(results) + "\n\n위 검색 결과를 바탕으로 입론을 완성하세요."
+                content="\n\n".join(results) + "\n\n위 검색 결과를 바탕으로 입론을 완성하세요. 분석은 <think> 안에, 발언만 밖에 출력하세요."
             ))
 
 
