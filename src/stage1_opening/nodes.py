@@ -107,30 +107,72 @@ _llm_with_tools = _llm.bind_tools(_TOOLS)
 
 # ── 응답 후처리 유틸리티 ───────────────────────────────────────────────────────
 
+# 독백(Monologue) 문단 탐지 — 실제 토론 발언에는 절대 등장하지 않는 시스템 메타 표현
+_PLANNING_RE = re.compile(
+    r'사용자가\s|'
+    r'검색\s*결과[를을]?\s*(분석|보[면니]|제공|기반)|'
+    r'제\s*(진영|역할|전략)[은는이가]|'
+    r'에이전트\s*\d|agent_\d|'
+    r'The user|I need to|Let me|From the|I should|'
+    r'search_web|search_vector_db|vector_db|'
+    r'합쇼체|혼잣말|출력\s*형식|JSON|'
+    r'(작성|분석)해[야서]|바탕으로.{0,10}(작성|전개|입론|논리)|'
+    r'마이크가\s*이미|'
+    r'입론을\s*시작|발언을\s*시작|'
+    r'활용할\s*수\s*있[는다]|'
+    r'논리[를을]?\s*(전개|구조화)|'
+    r'당신[은의]\s*(임무|주장|응답)|'
+    r'이제\s*이\s*결과|이\s*(내용|정보|데이터)[를을]\s*바탕|'
+    r'사용자의\s*지시|지시사항|'
+    r'마크다운\s*기호|인사말\s*없이|'
+    r'100%\s*한국어|'
+    r'^\s*\d+\.\s*(웹|벡터|vector|검색|제가|사용자|출력|현재)',
+    re.MULTILINE
+)
+
+
+def _strip_planning_preamble(text: str) -> str:
+    """모델이 실제 발언 전에 출력한 독백/계획 텍스트를 제거한다.
+
+    더블 개행으로 문단을 분리한 뒤, 시스템 메타 언어(에이전트 역할,
+    도구 이름, 출력 형식 등)가 포함된 앞쪽 문단을 건너뛰고
+    실제 토론 발언이 시작되는 지점부터 반환한다.
+    """
+    paragraphs = re.split(r'\n\s*\n', text.strip())
+    if not paragraphs:
+        return text
+
+    for i, para in enumerate(paragraphs):
+        if not _PLANNING_RE.search(para):
+            return '\n\n'.join(paragraphs[i:]).strip()
+
+    # 모든 문단이 독백 → 마지막 문단이라도 반환 (최후 폴백)
+    return paragraphs[-1].strip()
+
+
 def _clean_response(content: str) -> str:
-    """순수 입론 텍스트만 반환한다.
+    """순수 토론 발언 텍스트만 반환한다.
 
     처리 순서:
-    1. <think>...</think> 블록 전체 제거 (닫힌 경우)
-    2. 닫히지 않은 <think> 이후 내용 전체 제거 (모델이 thinking 중 출력이 끊긴 경우)
-    3. 남은 </think> 단독 태그 제거
-    4. <tool_call> 블록 제거
-    5. CJK 한자 룰베이스 제거
+    1. <think> 블록 제거
+    2. <tool_call> 블록 제거
+    3. CJK 한자 제거
+    4. 독백(Monologue) 문단 제거 — 시스템 메타 언어가 포함된 앞쪽 문단 삭제
     """
     text = content
-    # 1. 닫힌 <think>...</think> 블록 제거
+    # 1. <think> 블록 제거
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-    # 2. 닫히지 않은 <think> 이후 텍스트 전체 제거
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
-    # 3. 남은 </think> 단독 태그 제거
     text = text.replace('</think>', '')
-    # 4. <tool_call> 블록 제거
+    # 2. <tool_call> 블록 제거
     text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
-    # 5. CJK 한자 제거 (U+4E00–U+9FFF 등 3개 범위) — Language Leak 안전망
+    # 3. CJK 한자 제거
     text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+', '', text)
-    # 한자 제거로 생긴 연속 공백 정리
     text = re.sub(r' {2,}', ' ', text)
-    return text.strip()
+    text = text.strip()
+    # 4. 독백 문단 제거
+    text = _strip_planning_preamble(text)
+    return text
 
 
 def _parse_xml_tool_calls(content: str) -> List[Dict]:
@@ -169,11 +211,8 @@ def _build_opening_prompt(topic: str, stance: str, focus_area: str) -> str:
     """입론 요청 HumanMessage 본문을 생성한다."""
     stance_kr = "찬성(PRO)" if stance == "PRO" else "반대(CON)"
     return (
-        f"토론 주제: {topic}\n"
-        f"당신의 진영: {stance_kr} / 전문 분야: {focus_area}\n\n"
-        f"지금 즉시 search_web과 search_vector_db를 호출해 '{focus_area}' 관련 근거를 수집하라.\n"
-        f"검색 결과에 실제로 있는 수치와 사례만 사용해 입론을 작성하라. 없는 데이터는 절대 지어내지 마라.\n"
-        f"인사말 없이 첫 문장부터 바로 핵심 주장으로 시작하고, 마크다운 기호는 쓰지 마라."
+        f"search_web과 search_vector_db를 호출해 근거를 수집한 뒤, "
+        f"'{topic}'에 대한 {stance_kr} 입론을 작성하세요."
     )
 
 
