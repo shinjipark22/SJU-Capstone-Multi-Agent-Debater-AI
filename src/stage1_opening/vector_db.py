@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 from functools import lru_cache
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import chromadb
@@ -93,9 +94,16 @@ def _get_model() -> SentenceTransformer:
     return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 
 
+_CHROMA_PATH = str(Path(__file__).parent.parent.parent / "data" / "chroma_db")
+
+
 @lru_cache(maxsize=1)
 def _get_collection() -> chromadb.Collection:
-    """ChromaDB in-memory 컬렉션을 초기화하고 샘플 문서를 적재한다."""
+    """ChromaDB 퍼시스턴트 컬렉션을 초기화하고 샘플 문서를 적재한다.
+
+    data/chroma_db/ 디렉터리에 임베딩 결과를 저장하므로
+    최초 실행 후에는 임베딩 재계산 없이 즉시 로드된다.
+    """
     model = _get_model()
 
     # SentenceTransformer를 ChromaDB 커스텀 임베딩 함수로 래핑
@@ -103,7 +111,7 @@ def _get_collection() -> chromadb.Collection:
         def __call__(self, input: chromadb.Documents) -> chromadb.Embeddings:
             return model.encode(list(input), normalize_embeddings=True).tolist()
 
-    client = chromadb.Client()  # in-memory
+    client = chromadb.PersistentClient(path=_CHROMA_PATH)  # 디스크 저장
     collection = client.get_or_create_collection(
         name="debate_docs",
         embedding_function=_EF(),
