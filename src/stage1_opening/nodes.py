@@ -106,21 +106,22 @@ def _clean_response(content: str) -> str:
     """순수 입론 텍스트만 반환한다.
 
     처리 순서:
-    1. </think> 이후 텍스트 추출 (Qwen3.5 추론 블록 제거)
-    2. <tool_call> 블록 제거
-    3. CJK 한자(중국어/일본어 한자) 룰베이스 제거
-       - 한글과 붙어있는 한자: 한자만 삭제하여 단어를 이어붙임 (예: "结果的인" → "인")
-       - 독립된 한자 단어(공백으로 구분): 통째로 삭제
+    1. <think>...</think> 블록 전체 제거 (닫힌 경우)
+    2. 닫히지 않은 <think> 이후 내용 전체 제거 (모델이 thinking 중 출력이 끊긴 경우)
+    3. 남은 </think> 단독 태그 제거
+    4. <tool_call> 블록 제거
+    5. CJK 한자 룰베이스 제거
     """
-    # 1. </think> 이후 텍스트 추출
-    if '</think>' in content:
-        text = content.split('</think>', 1)[1]
-    else:
-        text = content
-    # 2. 남아있는 <tool_call> 블록 제거
+    text = content
+    # 1. 닫힌 <think>...</think> 블록 제거
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    # 2. 닫히지 않은 <think> 이후 텍스트 전체 제거
+    text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+    # 3. 남은 </think> 단독 태그 제거
+    text = text.replace('</think>', '')
+    # 4. <tool_call> 블록 제거
     text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
-    # 3. CJK 한자 제거 (U+4E00–U+9FFF: 한중일 통합 한자 기본 범위)
-    #    패턴: 한자가 한글·공백 사이에 낀 경우 한자만 제거 (단어 연결 유지)
+    # 5. CJK 한자 제거 (U+4E00–U+9FFF 등 3개 범위) — Language Leak 안전망
     text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+', '', text)
     # 한자 제거로 생긴 연속 공백 정리
     text = re.sub(r' {2,}', ' ', text)
