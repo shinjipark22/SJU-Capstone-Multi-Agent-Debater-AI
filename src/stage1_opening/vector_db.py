@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import hashlib
 from functools import lru_cache
-from typing import List
+from typing import List, Optional, Tuple
 
 import chromadb
 from sentence_transformers import SentenceTransformer
@@ -127,26 +127,54 @@ def _get_collection() -> chromadb.Collection:
 
 # ── 공개 검색 함수 ─────────────────────────────────────────────────────────────
 
-def query_vector_db(query: str, topic: str, stance: str, n_results: int = 2) -> List[str]:
+def query_vector_db(
+    query: str,
+    topic: str,
+    stance: str,
+    n_results: int = 2,
+    exclude_ids: Optional[List[str]] = None,
+) -> Tuple[List[str], List[str]]:
     """topic·stance 메타데이터 필터 + 의미 유사도 검색으로 관련 문서를 반환한다.
 
+    이미 다른 에이전트가 인용한 문서 ID를 exclude_ids로 전달하면
+    해당 문서를 건너뛰고 다음 순위 문서를 반환하여 에이전트 간 중복 인용을 방지한다.
+
     Args:
-        query:     검색 질의 (자연어)
-        topic:     메타데이터 필터 — 토론 주제 키워드
-        stance:    메타데이터 필터 — "PRO" 또는 "CON"
-        n_results: 반환할 문서 수
+        query:       검색 질의 (자연어)
+        topic:       메타데이터 필터 — 토론 주제 키워드
+        stance:      메타데이터 필터 — "PRO" 또는 "CON"
+        n_results:   반환할 문서 수
+        exclude_ids: 제외할 문서 ID 리스트 (이미 다른 에이전트가 사용한 문서)
 
     Returns:
-        관련 문서 텍스트 리스트 (없으면 빈 리스트)
+        (문서 텍스트 리스트, 문서 ID 리스트) — 둘 다 없으면 ([], [])
     """
     collection = _get_collection()
+    exclude_ids = exclude_ids or []
 
-    # topic 부분 일치를 위해 where 필터는 stance만 적용하고, topic은 query에 포함
+    # 제외 문서 수만큼 여유분을 더 fetch하여 필터링 후에도 n_results를 채울 수 있도록 함
+    fetch_n = min(n_results + len(exclude_ids), collection.count())
+
     results = collection.query(
         query_texts=[f"{topic} {query}"],
-        n_results=min(n_results, collection.count()),
+        n_results=max(1, fetch_n),
         where={"stance": stance},
+        include=["documents", "ids"],
     )
 
-    docs: List[str] = results.get("documents", [[]])[0]
-    return docs
+    all_docs: List[str] = results.get("documents", [[]])[0]
+    all_ids: List[str] = results.get("ids", [[]])[0]
+
+    # 이미 사용된 문서 ID 제외
+    exclude_set = set(exclude_ids)
+    filtered = [
+        (doc, doc_id)
+        for doc, doc_id in zip(all_docs, all_ids)
+        if doc_id not in exclude_set
+    ][:n_results]
+
+    if not filtered:
+        return [], []
+
+    docs, ids = zip(*filtered)
+    return list(docs), list(ids)

@@ -28,6 +28,11 @@ from src.stage1_opening.vector_db import query_vector_db
 from src.state import DebateEntry, DebateState
 
 
+# ── 세션 중복 문서 추적 (에이전트 간 동일 문서 중복 인용 방지) ─────────────────────
+# opening_arguments_node 진입 시 초기화되며, search_vector_db 호출마다 갱신된다.
+_used_doc_ids: set = set()
+
+
 # ── 도구 정의 ─────────────────────────────────────────────────────────────────
 
 @tool
@@ -54,6 +59,7 @@ def search_web(query: str) -> str:
 @tool
 def search_vector_db(query: str, topic: str, stance: str) -> str:
     """토론 전문가 문서 VectorDB에서 진영·주제 필터링을 적용하여 관련 근거를 검색합니다.
+    이미 다른 에이전트가 인용한 문서는 자동으로 제외하여 중복 인용을 방지합니다.
 
     Args:
         query:  검색할 내용 (자연어 질의)
@@ -61,9 +67,16 @@ def search_vector_db(query: str, topic: str, stance: str) -> str:
         stance: 검색할 진영 "PRO" 또는 "CON" (메타데이터 필터)
     """
     try:
-        docs = query_vector_db(query=query, topic=topic, stance=stance)
+        docs, ids = query_vector_db(
+            query=query,
+            topic=topic,
+            stance=stance,
+            exclude_ids=list(_used_doc_ids),
+        )
         if not docs:
             return "[문서 검색 결과] 관련 문서를 찾을 수 없습니다."
+        # 반환된 문서 ID를 세션 추적 세트에 등록하여 이후 에이전트가 중복 인용하지 않도록 함
+        _used_doc_ids.update(ids)
         return "[문서 검색 결과]\n" + "\n".join(f"- {d}" for d in docs)
     except Exception as e:
         return f"[문서 검색 오류] {e}"
@@ -224,6 +237,9 @@ def opening_arguments_node(state: DebateState) -> DebateState:
     Returns:
         debate_history가 누적되고 phase가 "chained_rebuttal"(2단계 연쇄 논박)로 변경된 DebateState
     """
+    global _used_doc_ids
+    _used_doc_ids = set()  # 새 토론 세션 시작 시 문서 추적 초기화
+
     topic: str = state["topic"]
     history: List[DebateEntry] = list(state["debate_history"])
     current_turn: int = state["current_turn"]

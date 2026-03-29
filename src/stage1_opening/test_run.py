@@ -163,10 +163,7 @@ def main():
             print(f"\n  [사용된 도구] 없음")
 
         print(f"\n  입론 내용:\n")
-        # 긴 텍스트는 80자 단위로 출력
-        content = entry["content"]
-        for i in range(0, len(content), 80):
-            print(f"    {content[i:i+80]}")
+        print(entry["content"])
         print()
 
     print_separator("═")
