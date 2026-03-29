@@ -15,9 +15,13 @@ nodes.py — 1단계: 입론(Opening Arguments) 노드
 
 from __future__ import annotations
 
+import json
+import logging
 import re
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 from ddgs import DDGS
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -80,7 +84,8 @@ def search_vector_db(query: str, topic: str, stance: str) -> str:
         _used_doc_ids.update(ids)
         return "[문서 검색 결과]\n" + "\n".join(f"- {d}" for d in docs)
     except Exception as e:
-        return f"[문서 검색 오류] {e}"
+        logger.warning("[search_vector_db] 도구 실행 오류: %s", e)
+        return "[문서 검색 결과] 관련된 구체적인 데이터를 찾을 수 없습니다. 웹 검색을 시도하세요."
 
 
 # ── 도구 이름 → 함수 매핑 ──────────────────────────────────────────────────────
@@ -127,6 +132,40 @@ def _clean_response(content: str) -> str:
     # 한자 제거로 생긴 연속 공백 정리
     text = re.sub(r' {2,}', ' ', text)
     return text.strip()
+
+
+def _extract_final_speech(text: str) -> str:
+    """JSON 응답에서 final_speech만 추출한다.
+
+    모델이 JSON 형식을 지켰으면 final_speech를 꺼내고,
+    실패하면 원본 텍스트를 그대로 반환한다 (폴백).
+    """
+    cleaned = text.strip()
+    # 마크다운 코드블록 제거 (모델이 ```json ... ``` 을 붙이는 경우 대비)
+    cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
+    cleaned = re.sub(r'\s*```\s*$', '', cleaned)
+    cleaned = cleaned.strip()
+
+    # 1차: 전체 텍스트가 JSON인 경우
+    try:
+        data = json.loads(cleaned)
+        if isinstance(data, dict) and "final_speech" in data:
+            return data["final_speech"]
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # 2차: 텍스트 중간에 JSON 블록이 있는 경우
+    json_match = re.search(r'\{[^{}]*"final_speech"\s*:\s*".*?"[^{}]*\}', cleaned, re.DOTALL)
+    if json_match:
+        try:
+            data = json.loads(json_match.group())
+            if "final_speech" in data:
+                return data["final_speech"]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # 폴백: JSON 파싱 실패 시 원본 반환
+    return text
 
 
 def _parse_xml_tool_calls(content: str) -> List[Dict]:
@@ -206,7 +245,10 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
 
         if not tool_calls:
             # 더 이상 도구 호출 없음 → 최종 답변 반환
-            return _clean_response(content), tool_calls_log
+            # 1) <think> / CJK 등 정리 → 2) JSON에서 final_speech 추출
+            cleaned = _clean_response(content)
+            final = _extract_final_speech(cleaned)
+            return final, tool_calls_log
 
         # ── 도구 호출 로그 수집 ───────────────────────────────────────────────
         for tc in tool_calls:

@@ -15,9 +15,12 @@ vector_db.py — 토론 전문가 문서 VectorDB (ChromaDB 기반)
 from __future__ import annotations
 
 import hashlib
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 import chromadb
 from sentence_transformers import SentenceTransformer
@@ -163,12 +166,26 @@ def query_vector_db(
     # 제외 문서 수만큼 여유분을 더 fetch하여 필터링 후에도 n_results를 채울 수 있도록 함
     fetch_n = min(n_results + len(exclude_ids), collection.count())
 
-    results = collection.query(
-        query_texts=[f"{topic} {query}"],
-        n_results=max(1, fetch_n),
-        where={"stance": stance},
-        include=["documents", "ids"],
-    )
+    # ChromaDB는 n_results > stance 필터 후 실제 문서 수일 때 예외를 던진다.
+    # 1차 시도 실패 시 n_results를 줄여 재시도한다.
+    try:
+        results = collection.query(
+            query_texts=[f"{topic} {query}"],
+            n_results=max(1, fetch_n),
+            where={"stance": stance},
+            include=["documents", "ids"],
+        )
+    except Exception:
+        try:
+            results = collection.query(
+                query_texts=[f"{topic} {query}"],
+                n_results=1,
+                where={"stance": stance},
+                include=["documents", "ids"],
+            )
+        except Exception as e:
+            logger.warning("[vector_db] query 실패 (stance=%s): %s", stance, e)
+            return [], []
 
     all_docs: List[str] = results.get("documents", [[]])[0]
     all_ids: List[str] = results.get("ids", [[]])[0]
