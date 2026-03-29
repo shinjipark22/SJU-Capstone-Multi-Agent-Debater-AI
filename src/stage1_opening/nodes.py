@@ -191,13 +191,40 @@ def _parse_xml_tool_calls(content: str) -> List[Dict]:
 
 # ── 내부 유틸리티 ─────────────────────────────────────────────────────────────
 
-def _build_opening_prompt(topic: str, stance: str, focus_area: str) -> str:
+def _build_opening_prompt(topic: str, stance: str, focus_area: str, stance_num: int) -> str:
     """입론 요청 HumanMessage 본문을 생성한다."""
     stance_kr = "찬성(PRO)" if stance == "PRO" else "반대(CON)"
-    return (
-        f"search_web과 search_vector_db를 호출해 근거를 수집한 뒤, "
-        f"'{topic}'에 대한 {stance_kr} 입론을 작성하세요."
-    )
+    stance_label = "찬성" if stance == "PRO" else "반대"
+    agent_name = f"{stance_label} 에이전트{stance_num}"
+    return f"""search_web과 search_vector_db를 호출해 근거를 수집한 뒤, '{topic}'에 대한 {stance_kr} 입론을 작성하세요.
+
+[출력 형식]
+반드시 아래 JSON 형태로만 응답하세요:
+{{"reasoning": "검색 결과 분석, 논리 구성 계획 (이 부분은 관중에게 보이지 않습니다)", "speech": "아래 구조를 따르는 최종 토론 발언"}}
+
+speech는 마크다운 형식으로 작성하세요. ## 소제목 뒤에는 반드시 줄바꿈 후 본문을 작성하세요.
+**강조 표시**는 핵심적인 문장에 사용하되, 남용하지 마세요.
+
+speech의 구조:
+## 인사말
+자신의 이름은 "{agent_name}"이며, 논제에 대한 입장을 간결하게 밝힌다.
+## 입장 표명
+핵심 주장을 한 문장으로 명확하게 선언한다.
+## 논거 1: (소제목)
+원인 → 메커니즘 → 결과 구조로 근거를 전개한다.
+## 논거 2: (소제목)
+다른 각도에서 주장을 보강한다.
+## 논거 3: (소제목)
+상대방 예상 반론에 선제 대응한다.
+## 결론
+논거를 종합하고, 핵심 주장을 힘 있게 재확인한다.
+
+[진영 고수 규칙]
+1. 스탠스 고정: 무조건 {stance_kr} 입장만 방어하라. 상대 진영 논리에 동조하거나 타협하는 것은 절대 금지.
+2. 불리한 정보 반박: 검색 결과에 당신의 진영에 불리한 내용이 있다면 절대 수용하지 마라. 반드시 "일각에서는 ~라 우려하지만" 형태의 예상 반론으로 삼아 철저히 논파하라.
+3. 결론 일관성: 모든 발언의 마지막은 반드시 {stance_kr} 입장을 강력히 재확인하며 끝내라.
+
+[주의] 한자(漢字), 일본어, 아랍 문자 등 외국 문자 사용 금지. 반드시 한글로만 작성하세요."""
 
 
 def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
@@ -300,17 +327,24 @@ def opening_arguments_node(state: DebateState) -> DebateState:
     # speaking_order에서 AI 에이전트만 추출 (user 제외, 순서 유지)
     ai_speaker_ids = [sid for sid in state["speaking_order"] if sid != "user"]
 
+    # 진영별 번호 카운터 (찬성 에이전트1~3, 반대 에이전트1~3)
+    _stance_counter: Dict[str, int] = {"PRO": 0, "CON": 0}
+
     print(f"\n[1단계: 입론] 발언 순서: {ai_speaker_ids}\n")
 
     for speaker_id in ai_speaker_ids:
         agent = agent_map[speaker_id]
+        _stance_counter[agent["stance"]] += 1
+        _stance_num = _stance_counter[agent["stance"]]
+        _stance_label = "찬성" if agent["stance"] == "PRO" else "반대"
+        _display_name = f"{_stance_label} 에이전트{_stance_num}"
 
-        print(f"  [{speaker_id} | {agent['stance']}] 입론 생성 중...")
+        print(f"  [{_display_name}] 입론 생성 중...")
 
         # 메시지 구성: 페르소나 주입 + 입론 요청
         messages = [
             SystemMessage(content=agent["system_prompt"]),
-            HumanMessage(content=_build_opening_prompt(topic, agent["stance"], agent["focus_area"])),
+            HumanMessage(content=_build_opening_prompt(topic, agent["stance"], agent["focus_area"], _stance_num)),
         ]
 
         # 도구 실행 루프 → 최종 입론 텍스트 + 도구 사용 로그
@@ -329,7 +363,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         history.append(entry)
         current_turn += 1
 
-        print(f"  [{speaker_id}] 입론 완료 (turn={entry['turn']})\n")
+        print(f"  [{_display_name}] 입론 완료 (turn={entry['turn']})\n")
 
     # 모든 AI 입론 완료 → 2단계 연쇄 논박으로 전환
     print("[1단계: 입론] 완료 → 2단계 연쇄 논박(chained_rebuttal)으로 전환\n")
