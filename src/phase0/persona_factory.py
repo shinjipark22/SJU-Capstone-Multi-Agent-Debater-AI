@@ -169,7 +169,6 @@ def _build_system_prompt(
 당신의 주장: "{my_claim}"
 상대방의 주장: "{opp_claim}"
 분석 시각: {focus_area}
-강경도: {profile['label']} — {profile['style']}
 """
     return prompt.strip()
 
