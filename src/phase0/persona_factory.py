@@ -134,7 +134,11 @@ def _build_system_prompt(
 당신의 주장: "{my_claim}"
 상대방의 주장: "{opp_claim}"
 분석 시각: {focus_area}
-강경도: {profile['label']} — {profile['style']}"""
+강경도: {profile['label']} — {profile['style']}
+
+[출력 형식]
+모든 분석·계획·검색 결과 정리는 반드시 <think>...</think> 태그 안에 작성하세요.
+</think> 태그 밖에는 오직 관중에게 전달할 토론 발언만 출력하세요."""
     return prompt.strip()
 
 
