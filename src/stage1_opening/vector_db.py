@@ -173,7 +173,7 @@ def query_vector_db(
             query_texts=[f"{topic} {query}"],
             n_results=max(1, fetch_n),
             where={"stance": stance},
-            include=["documents", "ids"],
+            include=["documents", "metadatas"],
         )
     except Exception:
         try:
@@ -181,7 +181,7 @@ def query_vector_db(
                 query_texts=[f"{topic} {query}"],
                 n_results=1,
                 where={"stance": stance},
-                include=["documents", "ids"],
+                include=["documents", "metadatas"],
             )
         except Exception as e:
             logger.warning("[vector_db] query 실패 (stance=%s): %s", stance, e)

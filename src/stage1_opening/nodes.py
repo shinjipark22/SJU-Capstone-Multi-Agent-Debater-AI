@@ -137,16 +137,20 @@ def _clean_response(content: str) -> str:
 def _extract_final_speech(text: str) -> str:
     """JSON 응답에서 final_speech만 추출한다.
 
-    모델이 JSON 형식을 지켰으면 final_speech를 꺼내고,
-    실패하면 원본 텍스트를 그대로 반환한다 (폴백).
+    [처리 순서]
+    1. 마크다운 코드블록(```json ... ```) 제거
+    2. 텍스트 전체가 JSON → final_speech 추출
+    3. 텍스트 중간에 JSON 블록 → 가장 큰 {…} 블록을 regex로 추출 후 파싱
+    4. 모든 파싱 실패 → "final_speech" 키워드 뒤의 값을 regex로 직접 추출
+    5. 최종 폴백 → 원본 텍스트 그대로 반환
     """
     cleaned = text.strip()
-    # 마크다운 코드블록 제거 (모델이 ```json ... ``` 을 붙이는 경우 대비)
+    # ── 1. 마크다운 코드블록 제거 ──
     cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
     cleaned = re.sub(r'\s*```\s*$', '', cleaned)
     cleaned = cleaned.strip()
 
-    # 1차: 전체 텍스트가 JSON인 경우
+    # ── 2. 전체 텍스트가 JSON인 경우 ──
     try:
         data = json.loads(cleaned)
         if isinstance(data, dict) and "final_speech" in data:
@@ -154,17 +158,24 @@ def _extract_final_speech(text: str) -> str:
     except (json.JSONDecodeError, TypeError):
         pass
 
-    # 2차: 텍스트 중간에 JSON 블록이 있는 경우
-    json_match = re.search(r'\{[^{}]*"final_speech"\s*:\s*".*?"[^{}]*\}', cleaned, re.DOTALL)
+    # ── 3. 텍스트 중간에 JSON 블록 — 가장 큰 {…} 덩어리 추출 ──
+    json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
     if json_match:
         try:
             data = json.loads(json_match.group())
-            if "final_speech" in data:
+            if isinstance(data, dict) and "final_speech" in data:
                 return data["final_speech"]
         except (json.JSONDecodeError, TypeError):
             pass
 
-    # 폴백: JSON 파싱 실패 시 원본 반환
+    # ── 4. JSON 파싱 모두 실패 — "final_speech" 값만 regex로 직접 추출 ──
+    speech_match = re.search(
+        r'"final_speech"\s*:\s*"((?:[^"\\]|\\.)*)"', cleaned, re.DOTALL
+    )
+    if speech_match:
+        return speech_match.group(1).replace('\\"', '"').replace('\\n', '\n')
+
+    # ── 5. 최종 폴백: 원본 텍스트 반환 ──
     return text
 
 
