@@ -168,7 +168,8 @@ def _build_opening_prompt(topic: str, stance: str, focus_area: str) -> str:
         f"당신의 진영: {stance_kr} / 전문 분야: {focus_area}\n\n"
         f"지금 즉시 search_web과 search_vector_db를 호출해 '{focus_area}' 관련 근거를 수집하라.\n"
         f"검색 결과에 실제로 있는 수치와 사례만 사용해 입론을 작성하라. 없는 데이터는 절대 지어내지 마라.\n"
-        f"인사말 없이 첫 문장부터 바로 핵심 주장으로 시작하고, 마크다운 기호는 쓰지 마라."
+        f"인사말 없이 첫 문장부터 바로 핵심 주장으로 시작하고, 마크다운 기호는 쓰지 마라.\n"
+        f"반드시 '~입니다', '~습니다' 체(합쇼체)로만 작성하라."
     )
 
 
