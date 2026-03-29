@@ -163,6 +163,7 @@ def _build_opening_prompt(topic: str, stance: str, focus_area: str) -> str:
     """입론 요청 HumanMessage 본문을 생성한다."""
     stance_kr = "찬성(PRO)" if stance == "PRO" else "반대(CON)"
     return (
+        f"[필수] 반드시 한국어로만 작성하라. 중국어 한자를 단 한 글자도 쓰지 마라.\n\n"
         f"토론 주제: {topic}\n"
         f"당신의 진영: {stance_kr} / 전문 분야: {focus_area}\n\n"
         f"지금 즉시 search_web과 search_vector_db를 호출해 '{focus_area}' 관련 근거를 수집하라.\n"
