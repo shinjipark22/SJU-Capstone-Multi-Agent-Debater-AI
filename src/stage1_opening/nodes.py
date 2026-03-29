@@ -117,14 +117,29 @@ _llm_json = ChatOpenAI(
 
 # ── 응답 후처리 유틸리티 ───────────────────────────────────────────────────────
 
-def _extract_speech_from_json(content: str) -> str:
-    """JSON 응답에서 speech 필드만 추출한다.
+def _postprocess_speech(text: str) -> str:
+    """speech 후처리: 제목 레벨 통일 + 한자/외국 문자 제거."""
+    # 1. 제목 정규화: #로 시작하는 줄의 prefix를 '## '로 통일
+    #    ## ## / #︳## / ### / #### 등 모든 변형을 처리
+    text = re.sub(r'^#+[^가-힣a-zA-Z0-9\n]*(?=[가-힣a-zA-Z])', '## ', text, flags=re.MULTILINE)
+    # 2. 소제목(## 로 시작하는 줄)에서 볼드 마크다운(*, **) 제거
+    text = re.sub(r'^(## .*)$', lambda m: m.group(1).replace('*', ''), text, flags=re.MULTILINE)
+    # 3. 분석 라벨 제거 (원인:, 메커니즘:, 결과:)
+    text = re.sub(r'(?:원인|메커니즘|결과)\s*[:：]\s*', '', text)
+    # 4. 한자·일본어 등 외국 문자 제거
+    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff]+', '', text)
+    text = re.sub(r' {2,}', ' ', text)
+    return text
 
-    vLLM의 response_format: json_object로 강제했으므로
-    content는 유효한 JSON이어야 한다.
-    파싱 실패 시 원본에서 <think> 등만 제거하여 반환 (폴백).
+
+def _extract_speech_from_json(content: str) -> Tuple[str, str]:
+    """JSON 응답에서 speech 필드를 추출하고, 제목 레벨을 통일하여 반환한다.
+
+    Returns:
+        (speech, json_raw) — speech는 후처리된 발언, json_raw는 LLM 원본 응답
     """
-    text = content.strip()
+    json_raw = content.strip()
+    text = json_raw
 
     # 1. <think> 블록 제거 (JSON 모드에서도 CoT가 나올 수 있음)
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
@@ -137,7 +152,7 @@ def _extract_speech_from_json(content: str) -> str:
         if isinstance(data, dict) and "speech" in data:
             speech = data["speech"]
             logger.info("[CoT reasoning] %s", data.get("reasoning", "")[:100])
-            return speech
+            return _postprocess_speech(speech), json_raw
     except (json.JSONDecodeError, TypeError):
         pass
 
@@ -147,16 +162,14 @@ def _extract_speech_from_json(content: str) -> str:
         try:
             data = json.loads(json_match.group())
             if isinstance(data, dict) and "speech" in data:
-                return data["speech"]
+                return _postprocess_speech(data["speech"]), json_raw
         except (json.JSONDecodeError, TypeError):
             pass
 
-    # 4. 최종 폴백: <tool_call>, CJK 제거 후 원본 반환
+    # 4. 최종 폴백: <tool_call> 제거 후 원본 반환
     logger.warning("[_extract_speech_from_json] JSON 파싱 실패, 원본 텍스트 반환")
     text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
-    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+', '', text)
-    text = re.sub(r' {2,}', ' ', text)
-    return text.strip()
+    return _postprocess_speech(text.strip()), json_raw
 
 
 def _parse_xml_tool_calls(content: str) -> List[Dict]:
@@ -240,8 +253,7 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
         messages: [SystemMessage, HumanMessage, ...] 초기 메시지 리스트 (in-place 확장됨)
 
     Returns:
-        (순수 입론 텍스트, 사용된 도구 로그 리스트)
-        도구 로그 항목: {"name": str, "args": dict}
+        (순수 입론 텍스트, JSON 원본 응답, 사용된 도구 로그 리스트)
     """
     tool_calls_log: List[Dict] = []
 
@@ -263,7 +275,8 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
             ))
             json_response: AIMessage = _llm_json.invoke(messages)
             json_content: str = json_response.content if isinstance(json_response.content, str) else str(json_response.content)
-            return _extract_speech_from_json(json_content), tool_calls_log
+            speech, json_raw = _extract_speech_from_json(json_content)
+            return speech, json_raw, tool_calls_log
 
         # ── 도구 호출 로그 수집 ───────────────────────────────────────────────
         for tc in tool_calls:
@@ -347,8 +360,8 @@ def opening_arguments_node(state: DebateState) -> DebateState:
             HumanMessage(content=_build_opening_prompt(topic, agent["stance"], agent["focus_area"], _stance_num)),
         ]
 
-        # 도구 실행 루프 → 최종 입론 텍스트 + 도구 사용 로그
-        final_text, tool_calls_log = _run_tool_calling_loop(messages)
+        # 도구 실행 루프 → 최종 입론 텍스트 + JSON 원본 + 도구 사용 로그
+        final_text, json_raw, tool_calls_log = _run_tool_calling_loop(messages)
 
         # DebateHistory에 누적
         entry: DebateEntry = DebateEntry(
@@ -359,6 +372,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
             content=final_text,
             target_id=None,
             tool_calls_log=tool_calls_log,
+            json_raw=json_raw,
         )
         history.append(entry)
         current_turn += 1
