@@ -5,7 +5,7 @@ persona_factory.py — 동적 AI 에이전트 페르소나 생성 (Phase 0)
 강경도에 맞는 시스템 프롬프트를 생성한다.
 """
 
-from typing import List, Literal, Dict, Optional, Tuple
+from typing import List, Literal, Dict, Optional
 from dataclasses import dataclass, field
 
 
@@ -41,20 +41,21 @@ INTENSITY_PROFILES: Dict[int, Dict[str, str]] = {
 # ── 진영 내 논증 전문 분야 (에이전트 번호 순서대로 순환 할당) ─────────────────────
 # 같은 진영 에이전트끼리 동일한 검색어·논거를 중복 사용하는 문제를 방지한다.
 # 에이전트 수가 정의된 수보다 많으면 인덱스를 순환(modulo)하여 재사용한다.
-FOCUS_AREAS: Dict[str, List[str]] = {
-    # 어떤 토론 주제에도 적용 가능한 범용 논증 각도
-    # 에이전트 번호 순서대로 순환 할당 (modulo)
-    "PRO": [
-        "실증적 데이터와 통계 중심: 해당 주제를 지지하는 수치, 연구 결과, 설문 데이터를 발굴하여 논증하라.",
-        "사례·현장 증거 중심: 실제 시행 사례, 성공 사례, 현장 증언을 바탕으로 효과를 입증하라.",
-        "장기적 가치·미래 비전 중심: 사회·환경·문화적 장기 편익과 미래 방향성을 논거로 제시하라.",
-    ],
-    "CON": [
-        "실증적 데이터와 통계 중심: 해당 주제의 부작용을 보여주는 수치, 연구 결과, 설문 데이터를 발굴하여 반박하라.",
-        "사회적 형평성·취약 계층 중심: 피해 집단, 불평등 심화, 윤리적 문제점을 구체적 근거로 반박하라.",
-        "역사적 선례·정책 실패 중심: 유사한 시도의 역사적 실패 사례와 제도적 한계를 근거로 반박하라.",
-    ],
-}
+# PRO/CON 구분 없이 에이전트 번호 순서대로 순환 할당되는 순수 '분석 시각' 리스트.
+# 같은 진영이라도 서로 다른 관점에서 논거를 구성하도록 강제한다.
+FOCUS_AREAS: List[str] = [
+    # 1. 경제·산업적 시각
+    "경제적 효용과 산업 파급력 관점: 비용 대비 편익, 거시 경제 지표(GDP, 고용률 등), 시장 경쟁력, "
+    "자원 배분의 효율성 등 '자본과 산업'의 관점에서 사안을 분석하는 시각.",
+
+    # 2. 사회·윤리적 시각
+    "사회적 영향과 윤리적 타당성 관점: 대중의 삶의 질, 계층 간 형평성, 인간의 기본권, 대중의 수용성 및 "
+    "사회적 갈등 등 '인간과 사회 구조'에 미치는 영향을 중심으로 분석하는 시각.",
+
+    # 3. 제도·환경적 시각
+    "거시적 지속가능성과 제도적 리스크 관점: 법적/정책적 실현 가능성, 생태계 및 환경적 파급력, "
+    "장기적 지속가능성, 역사적 선례 등 '시스템과 거시적 환경'의 관점에서 분석하는 시각.",
+]
 
 # ── 토론 포맷별 AI 진영 분배 규칙 ────────────────────────────────────────────
 # Key: (debate_format, user_stance)
@@ -194,17 +195,14 @@ def create_agents(
         )
 
     agents: List[AgentPersona] = []
-    # 진영별 내부 인덱스를 따로 추적하여 같은 진영 에이전트에 서로 다른 focus_area 부여
-    stance_counters: Dict[str, int] = {"PRO": 0, "CON": 0}
 
     for idx, (stance, intensity) in enumerate(zip(stance_list, agent_intensities), start=1):
         agent_id = f"agent_{idx}"
         profile = INTENSITY_PROFILES[intensity]
 
-        # 진영 내 순번으로 focus_area 순환 할당
-        focus_idx = stance_counters[stance] % len(FOCUS_AREAS[stance])
-        focus_area = FOCUS_AREAS[stance][focus_idx]
-        stance_counters[stance] += 1
+        # 에이전트 전체 순번(0-based)으로 분석 시각을 순환 할당
+        # PRO/CON 구분 없이 agent_1→시각0, agent_2→시각1, agent_3→시각2, ...
+        focus_area = FOCUS_AREAS[(idx - 1) % len(FOCUS_AREAS)]
 
         role_description = (
             f"{('찬성' if stance == 'PRO' else '반대')} 진영 | "
