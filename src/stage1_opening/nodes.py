@@ -15,6 +15,7 @@ nodes.py — 1단계: 입론(Opening Arguments) 노드
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import uuid
@@ -96,39 +97,63 @@ _TOOL_MAP: Dict[str, Any] = {t.name: t for t in _TOOLS}
 # vLLM OpenAI-compatible 서버를 사용한다.
 # 서버 실행: vllm serve Qwen/Qwen3.5-9B --port 8000
 
-_llm = ChatOpenAI(
+_LLM_KWARGS = dict(
     model="Qwen/Qwen3.5-9B",
     base_url="http://localhost:8000/v1",
     api_key="fake",          # vLLM은 API 키 불필요, 빈값 아닌 임의값 필요
     temperature=0.7,
 )
+
+# 도구 호출용 (일반 모드)
+_llm = ChatOpenAI(**_LLM_KWARGS)
 _llm_with_tools = _llm.bind_tools(_TOOLS)
+
+# 최종 발언 생성용 (JSON 강제 모드 — vLLM 토큰 레벨에서 JSON 구조 보장)
+_llm_json = ChatOpenAI(
+    **_LLM_KWARGS,
+    model_kwargs={"response_format": {"type": "json_object"}},
+)
 
 
 # ── 응답 후처리 유틸리티 ───────────────────────────────────────────────────────
 
-def _clean_response(content: str) -> str:
-    """순수 토론 발언 텍스트만 반환한다.
+def _extract_speech_from_json(content: str) -> str:
+    """JSON 응답에서 speech 필드만 추출한다.
 
-    Qwen3.5의 CoT를 <think> 태그 안에 유도한 뒤,
-    태그 밖 텍스트(= 실제 발언)만 추출한다.
-
-    처리 순서:
-    1. <think>...</think> 블록 제거 (CoT 추론 과정)
-    2. 닫히지 않은 <think> 이후 전체 제거
-    3. <tool_call> 블록 제거
-    4. CJK 한자 제거
+    vLLM의 response_format: json_object로 강제했으므로
+    content는 유효한 JSON이어야 한다.
+    파싱 실패 시 원본에서 <think> 등만 제거하여 반환 (폴백).
     """
-    text = content
-    # 1. 닫힌 <think>...</think> 블록 제거
+    text = content.strip()
+
+    # 1. <think> 블록 제거 (JSON 모드에서도 CoT가 나올 수 있음)
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-    # 2. 닫히지 않은 <think> 이후 전체 제거
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
-    # 3. 남은 </think> 단독 태그 제거
-    text = text.replace('</think>', '')
-    # 4. <tool_call> 블록 제거
+    text = text.replace('</think>', '').strip()
+
+    # 2. JSON 파싱 → speech 추출
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict) and "speech" in data:
+            speech = data["speech"]
+            logger.info("[CoT reasoning] %s", data.get("reasoning", "")[:100])
+            return speech
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # 3. 폴백: JSON 블록 추출 재시도
+    json_match = re.search(r'\{.*\}', text, re.DOTALL)
+    if json_match:
+        try:
+            data = json.loads(json_match.group())
+            if isinstance(data, dict) and "speech" in data:
+                return data["speech"]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # 4. 최종 폴백: <tool_call>, CJK 제거 후 원본 반환
+    logger.warning("[_extract_speech_from_json] JSON 파싱 실패, 원본 텍스트 반환")
     text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
-    # 5. CJK 한자 제거
     text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+', '', text)
     text = re.sub(r' {2,}', ' ', text)
     return text.strip()
@@ -201,8 +226,17 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
         tool_calls = list(response.tool_calls) if response.tool_calls else _parse_xml_tool_calls(content)
 
         if not tool_calls:
-            # 더 이상 도구 호출 없음 → 최종 답변 반환
-            return _clean_response(content), tool_calls_log
+            # 더 이상 도구 호출 없음 → JSON 모드로 최종 발언 생성
+            # 도구 호출 루프에서 쌓인 메시지(시스템+검색결과)를 그대로 이어받아
+            # {"reasoning": "...", "speech": "..."} 형태로 구조화 출력
+            messages.append(response)
+            messages.append(HumanMessage(
+                content='위 검색 결과를 바탕으로 입론을 작성하세요. '
+                        '반드시 {"reasoning": "분석 과정", "speech": "최종 발언"} JSON으로만 출력하세요.'
+            ))
+            json_response: AIMessage = _llm_json.invoke(messages)
+            json_content: str = json_response.content if isinstance(json_response.content, str) else str(json_response.content)
+            return _extract_speech_from_json(json_content), tool_calls_log
 
         # ── 도구 호출 로그 수집 ───────────────────────────────────────────────
         for tc in tool_calls:
