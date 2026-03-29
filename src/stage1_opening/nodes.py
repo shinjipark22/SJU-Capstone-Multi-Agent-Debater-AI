@@ -143,16 +143,10 @@ def _build_opening_prompt(topic: str, stance: str, focus_area: str) -> str:
     stance_kr = "찬성(PRO)" if stance == "PRO" else "반대(CON)"
     return (
         f"토론 주제: {topic}\n"
-        f"당신의 진영: {stance_kr}\n"
-        f"당신의 전문 분야: {focus_area}\n\n"
-        f"지금 당장 search_web과 search_vector_db 도구를 호출해서 근거를 수집하라.\n"
-        f"검색어는 반드시 '{focus_area}'와 직결되는 각도로 작성하라.\n"
-        f"도구 결과를 받은 뒤, 그 안에 실제로 존재하는 수치와 사실만 사용해 입론을 작성하라.\n"
-        f"검색 결과에 없는 통계나 연구를 절대 만들어내지 마라.\n\n"
-        f"입론은 실제 토론 단상에서 말하는 연설 대본 형식으로 작성하라.\n"
-        f"마크다운 기호(##, **, * 등)는 일절 사용하지 마라.\n"
-        f"주장, 검색된 근거, 예상 반론 대응 순서로 구어체로 전개하라.\n"
-        f"'{focus_area}' 관점에서만 논거를 전개하고, 다른 에이전트가 다룰 영역과 중복되지 않도록 하라."
+        f"당신의 진영: {stance_kr} / 전문 분야: {focus_area}\n\n"
+        f"지금 즉시 search_web과 search_vector_db를 호출해 '{focus_area}' 관련 근거를 수집하라.\n"
+        f"검색 결과에 실제로 있는 수치와 사례만 사용해 입론을 작성하라. 없는 데이터는 절대 지어내지 마라.\n"
+        f"인사말 없이 첫 문장부터 바로 핵심 주장으로 시작하고, 마크다운 기호는 쓰지 마라."
     )
 
 
