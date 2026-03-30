@@ -5,6 +5,8 @@ TOPIC_ID × DEBATE_FORMAT × AGENT_INTENSITIES 모든 조합을 순회하며
 opening_arguments_node를 실행하고, 결과를 JSON 파일로 저장한다.
 루브릭 평가용 데이터 생성 스크립트.
 
+vLLM 서버 2개(포트 8000, 8001)를 사용하여 테스트 케이스를 절반씩 병렬 실행한다.
+
 실행:
     python -m src.stage1_opening.batch_test_run
     (또는 PYTHONPATH=. python src/stage1_opening/batch_test_run.py)
@@ -14,14 +16,11 @@ import json
 import sys
 import os
 import traceback
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-
-from src.phase0.persona_factory import create_agents
-from src.state import AgentSnapshot, build_initial_state
-from src.stage1_opening.nodes import opening_arguments_node
 
 
 # ── 경로 설정 ────────────────────────────────────────────────────────────────
@@ -63,6 +62,8 @@ INTENSITY_PROFILES: dict[str, list[list[int]]] = {
     ],
 }
 
+VLLM_PORTS = [8000, 8001]
+
 USER_STANCE = "PRO"
 USER_INTENSITY = 3
 
@@ -94,14 +95,25 @@ def _build_test_case_id(topic_id: str, fmt: str, intensities: list[int]) -> str:
     return f"{topic_id}__{fmt.replace(':', 'v')}__{_intensities_tag(intensities)}"
 
 
-# ── 단일 테스트 실행 ─────────────────────────────────────────────────────────
+# ── 워커 프로세스에서 실행되는 함수 ──────────────────────────────────────────
 
-def run_single_test(
-    topic_dict: dict,
-    debate_format: str,
-    intensities: list[int],
-) -> dict:
-    """단일 조합에 대해 입론 노드를 실행하고 결과를 dict로 반환한다."""
+def _run_worker(task: dict) -> dict:
+    """
+    별도 프로세스에서 실행된다.
+    VLLM_BASE_URL 환경변수를 설정한 뒤 nodes 모듈을 임포트하여
+    해당 포트의 vLLM 서버를 사용한다.
+    """
+    os.environ["VLLM_BASE_URL"] = f"http://localhost:{task['port']}/v1"
+
+    # 환경변수 설정 후 임포트해야 올바른 base_url이 적용된다
+    from src.phase0.persona_factory import create_agents
+    from src.state import AgentSnapshot, build_initial_state
+    from src.stage1_opening.nodes import opening_arguments_node
+
+    topic_dict = task["topic_dict"]
+    debate_format = task["debate_format"]
+    intensities = task["intensities"]
+    case_id = task["case_id"]
 
     personas = create_agents(
         topic=topic_dict,
@@ -131,7 +143,6 @@ def run_single_test(
 
     result_state = opening_arguments_node(state)
 
-    # 에이전트 메타데이터
     agents_meta = [
         {
             "agent_id": p.agent_id,
@@ -143,7 +154,6 @@ def run_single_test(
         for p in personas
     ]
 
-    # debate_history 직렬화
     history_entries = []
     for entry in result_state["debate_history"]:
         history_entries.append({
@@ -157,6 +167,7 @@ def run_single_test(
         })
 
     return {
+        "case_id": case_id,
         "topic_id": topic_dict["id"],
         "topic_title": topic_dict["title"],
         "debate_format": debate_format,
@@ -186,70 +197,84 @@ def main():
                 test_cases.append((topic_id, fmt, intensities))
 
     total = len(test_cases)
+    num_workers = len(VLLM_PORTS)
+
     print(f"{'═' * 70}")
     print(f" 입론(Opening Arguments) 배치 테스트")
     print(f" 총 {total}개 조합 | 토픽 {len(ALL_TOPIC_IDS)}개 × 포맷 {len(DEBATE_FORMATS)}개 × 강경도 프로파일")
+    print(f" vLLM 서버 {num_workers}개 병렬 실행 (포트: {VLLM_PORTS})")
     print(f" 저장 경로: {run_dir}")
     print(f"{'═' * 70}\n")
 
-    summary: list[dict] = []
-    success_count = 0
-    fail_count = 0
-
-    for idx, (topic_id, fmt, intensities) in enumerate(test_cases, start=1):
-        case_id = _build_test_case_id(topic_id, fmt, intensities)
-        print(f"[{idx}/{total}] {case_id} ... ", end="", flush=True)
-
+    # 워커 태스크 생성 — 라운드로빈으로 포트 배분
+    worker_tasks = []
+    for idx, (topic_id, fmt, intensities) in enumerate(test_cases):
         topic_dict = topic_map.get(topic_id)
         if topic_dict is None:
-            print("SKIP (토픽 없음)")
-            summary.append({
-                "case_id": case_id,
-                "topic_id": topic_id,
-                "debate_format": fmt,
-                "agent_intensities": intensities,
-                "status": "skipped",
-                "error": f"토픽 '{topic_id}'를 찾을 수 없음",
-            })
-            fail_count += 1
             continue
+        case_id = _build_test_case_id(topic_id, fmt, intensities)
+        port = VLLM_PORTS[idx % num_workers]
+        worker_tasks.append({
+            "case_id": case_id,
+            "topic_dict": topic_dict,
+            "debate_format": fmt,
+            "intensities": intensities,
+            "port": port,
+            "index": idx,
+        })
 
-        try:
-            result = run_single_test(topic_dict, fmt, intensities)
-            result["case_id"] = case_id
-            result["timestamp"] = timestamp
+    summary: list[dict] = []
+    all_results: list[dict] = []
+    success_count = 0
+    fail_count = 0
+    done_count = 0
 
-            # 개별 결과 JSON 저장
-            out_path = run_dir / f"{case_id}.json"
-            with out_path.open("w", encoding="utf-8") as f:
-                json.dump(result, f, ensure_ascii=False, indent=2)
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        future_to_task = {
+            executor.submit(_run_worker, task): task
+            for task in worker_tasks
+        }
 
-            num_args = len(result["opening_arguments"])
-            print(f"OK (입론 {num_args}개)")
+        for future in as_completed(future_to_task):
+            task = future_to_task[future]
+            case_id = task["case_id"]
+            done_count += 1
 
-            summary.append({
-                "case_id": case_id,
-                "topic_id": topic_id,
-                "debate_format": fmt,
-                "agent_intensities": intensities,
-                "status": "success",
-                "num_arguments": num_args,
-                "file": str(out_path.name),
-            })
-            success_count += 1
+            try:
+                result = future.result()
+                result["timestamp"] = timestamp
 
-        except Exception as e:
-            print(f"FAIL ({e})")
-            summary.append({
-                "case_id": case_id,
-                "topic_id": topic_id,
-                "debate_format": fmt,
-                "agent_intensities": intensities,
-                "status": "failed",
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-            })
-            fail_count += 1
+                out_path = run_dir / f"{case_id}.json"
+                with out_path.open("w", encoding="utf-8") as f:
+                    json.dump(result, f, ensure_ascii=False, indent=2)
+
+                num_args = len(result["opening_arguments"])
+                print(f"[{done_count}/{total}] {case_id} → OK (입론 {num_args}개) [port {task['port']}]")
+
+                all_results.append(result)
+                summary.append({
+                    "case_id": case_id,
+                    "topic_id": task["topic_dict"]["id"],
+                    "debate_format": task["debate_format"],
+                    "agent_intensities": task["intensities"],
+                    "status": "success",
+                    "num_arguments": num_args,
+                    "file": str(out_path.name),
+                })
+                success_count += 1
+
+            except Exception as e:
+                print(f"[{done_count}/{total}] {case_id} → FAIL ({e}) [port {task['port']}]")
+                summary.append({
+                    "case_id": case_id,
+                    "topic_id": task["topic_dict"]["id"],
+                    "debate_format": task["debate_format"],
+                    "agent_intensities": task["intensities"],
+                    "status": "failed",
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                })
+                fail_count += 1
 
     # ── 요약 저장 ─────────────────────────────────────────────────────────────
     summary_data = {
@@ -263,6 +288,7 @@ def main():
             "intensity_profiles": INTENSITY_PROFILES,
             "user_stance": USER_STANCE,
             "user_intensity": USER_INTENSITY,
+            "vllm_ports": VLLM_PORTS,
         },
         "results": summary,
     }
@@ -271,10 +297,16 @@ def main():
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary_data, f, ensure_ascii=False, indent=2)
 
+    # ── 전체 결과 통합 파일 저장 ──────────────────────────────────────────────
+    all_results_path = run_dir / "all_results.json"
+    with all_results_path.open("w", encoding="utf-8") as f:
+        json.dump(all_results, f, ensure_ascii=False, indent=2)
+
     print(f"\n{'═' * 70}")
     print(f" 배치 테스트 완료")
     print(f" 성공: {success_count} / {total}  |  실패: {fail_count} / {total}")
     print(f" 결과 디렉토리: {run_dir}")
+    print(f" 통합 결과    : {all_results_path}")
     print(f" 요약 파일    : {summary_path}")
     print(f"{'═' * 70}")
 
