@@ -38,6 +38,53 @@ INTENSITY_PROFILES: Dict[int, Dict[str, str]] = {
     },
 }
 
+# ── 카테고리별 논증 분석 시각 (에이전트 번호 순서대로 순환 할당) ──────────────────
+# 같은 진영 에이전트끼리 동일한 검색어·논거를 중복 사용하는 문제를 방지한다.
+# 에이전트 수가 정의된 수보다 많으면 인덱스를 순환(modulo)하여 재사용한다.
+# 토픽 ID 접두사(tech/econ/poli/env)로 카테고리를 판별하여 해당 분야에 특화된 시각을 할당한다.
+FOCUS_AREAS: Dict[str, List[str]] = {
+    "tech": [
+        "기술적 실현 가능성과 혁신성 관점: 현재 기술 수준, 구현 난이도, 기술 성숙도, "
+        "기존 기술 대비 차별점 등 '기술 자체의 역량과 한계'를 중심으로 분석하는 시각.",
+
+        "산업 생태계와 경쟁력 관점: 시장 구조 변화, 기업·스타트업 생태계 파급력, 일자리 대체·창출, "
+        "글로벌 기술 패권 경쟁 등 '산업과 경제'에 미치는 영향을 중심으로 분석하는 시각.",
+
+        "윤리·사회적 수용성 관점: 개인정보·프라이버시, 알고리즘 편향, 디지털 격차, "
+        "인간 자율성 침해 등 '기술이 인간과 사회에 미치는 부작용'을 중심으로 분석하는 시각.",
+    ],
+    "econ": [
+        "거시경제 효과와 성장 관점: GDP·고용률·물가 등 거시 지표 변화, 경기 부양 vs 위축 효과, "
+        "국가 재정 건전성 등 '국가 경제 전반'에 미치는 영향을 중심으로 분석하는 시각.",
+
+        "시장 구조와 공정성 관점: 독과점·진입 장벽, 소비자 후생, 중소기업 영향, "
+        "소득 불평등 등 '시장 참여자 간 이해관계'를 중심으로 분석하는 시각.",
+
+        "국제 통상과 지정학적 관점: 무역 수지, 공급망 재편, 경제 제재·관세, "
+        "국가 간 협력·갈등 등 '글로벌 경제 질서'에 미치는 영향을 중심으로 분석하는 시각.",
+    ],
+    "poli": [
+        "민주주의와 기본권 관점: 표현의 자유, 참정권, 사법 독립, 권력 분립, "
+        "소수자 권리 등 '민주적 가치와 시민 권리'를 중심으로 분석하는 시각.",
+
+        "정책 실효성과 제도 관점: 입법·행정 실현 가능성, 정책 비용 대비 효과, "
+        "기존 제도와의 정합성, 집행 역량 등 '정책의 현실적 작동 가능성'을 중심으로 분석하는 시각.",
+
+        "사회 통합과 갈등 관점: 계층·세대·지역 간 갈등, 여론 양극화, 사회적 신뢰, "
+        "공동체 결속력 등 '사회 구성원 간 관계'에 미치는 영향을 중심으로 분석하는 시각.",
+    ],
+    "env": [
+        "생태계와 환경 영향 관점: 탄소 배출, 생물 다양성, 자원 고갈, 오염 수준, "
+        "기후변화 기여도 등 '자연환경에 대한 직접적 영향'을 중심으로 분석하는 시각.",
+
+        "과학적 근거와 기술적 대안 관점: 연구 데이터의 신뢰성, 과학적 합의 수준, "
+        "대체 기술 존재 여부, 측정·검증 방법론 등 '과학적 사실과 기술적 해법'을 중심으로 분석하는 시각.",
+
+        "제도·경제적 지속가능성 관점: 환경 규제 실효성, 녹색 산업 경쟁력, 전환 비용, "
+        "국제 환경 협약 이행 등 '지속가능한 발전을 위한 제도와 경제 구조'를 중심으로 분석하는 시각.",
+    ],
+}
+
 # ── 토론 포맷별 AI 진영 분배 규칙 ────────────────────────────────────────────
 # Key: (debate_format, user_stance)
 # Value: AI 에이전트 진영 리스트 (순서대로 할당)
@@ -74,6 +121,7 @@ class AgentPersona:
     intensity: int
     role_description: str
     system_prompt: str
+    focus_area: str  # 논증 전문 분야 (같은 진영 내 다양성 확보)
     # Phase 1에서 메모리·도구 등 확장 필드를 추가할 수 있도록 여유 슬롯 확보
     metadata: Dict = field(default_factory=dict)
 
@@ -85,6 +133,7 @@ def _build_system_prompt(
     title: str,
     pro: str,
     con: str,
+    focus_area: str,
     description: Optional[str] = None,
 ) -> str:
     """강경도와 진영에 맞는 시스템 프롬프트를 생성한다.
@@ -103,34 +152,23 @@ def _build_system_prompt(
     my_claim = pro if stance == "PRO" else con
     opp_claim = con if stance == "PRO" else pro
 
-    desc_block = f"\n[논제 배경]\n{description}\n" if description else ""
+    desc_block = f"\n[논제 배경]\n{description}\n\n" if description else "\n"
 
-    prompt = f"""당신은 토론 AI 에이전트 '{agent_id}'입니다.
+    prompt = f"""[언어 규칙 — 최우선 원칙]
+- 모든 출력은 반드시 100% 한국어(한글 + 숫자 + 마크다운 기호)로만 작성하세요.
+- 한자(漢字), 일본어(ひらがな/カタカナ), 아랍 문자 등 외국 문자를 절대 사용하지 마세요.
+- 영어는 고유명사(GDP, AI, IMF 등)만 허용합니다.
+- 이 규칙을 어기면 출력 전체가 무효 처리됩니다.
 
-[토론 논제]
-{title}
-{desc_block}
-[찬성(PRO) 입장] {pro}
-[반대(CON) 입장] {con}
+당신은 {stance_kr} 토론자입니다. ~입니다/~습니다 합쇼체를 사용합니다.
 
-[당신의 진영]
-{stance_kr} — "{my_claim}"
+논제: {title}{desc_block}
+찬성 입장: {pro}
+반대 입장: {con}
 
-[행동 원칙 — 모든 강경도 공통]
-1. 인격 존중: 상대방의 인격과 가치를 존중하며 논점을 공격하되 사람을 공격하지 않는다.
-2. 감정 배제: 분노·조롱·비하 등 감정적 표현을 사용하지 않는다.
-3. 논리 중심: 모든 주장은 근거와 추론으로 뒷받침되어야 한다.
-4. 협력적 진리 탐구: 토론의 최종 목적은 승리가 아니라 최적의 synthesis(합의점) 도출이다.
-
-[즉시 목표]
-"{my_claim}"의 입장에서 논리적 주장을 펼치고, 상대방의 "{opp_claim}" 논거를 비판적으로 분석하여 반박한다.
-
-[최종 목표]
-토론 전 과정을 통해 양측 논거의 장단점을 파악하고, 최적의 synthesis를 공동으로 도출한다.
-
-[논증 스타일 — 강경도 {intensity}: {profile['label']}]
-- 전략: {profile['style']}
-- 어조: {profile['tone']}
+당신의 주장: "{my_claim}"
+상대방의 주장: "{opp_claim}"
+분석 시각: {focus_area}
 """
     return prompt.strip()
 
@@ -162,6 +200,11 @@ def create_agents(
     con = topic["con"]
     description = topic.get("description_long")
 
+    # 토픽 ID 접두사로 카테고리 판별 (예: "tech_001" → "tech")
+    topic_id: str = topic.get("id", "")
+    category = topic_id.split("_")[0] if "_" in topic_id else ""
+    focus_list = FOCUS_AREAS.get(category, list(FOCUS_AREAS.values())[0])
+
     stance_list = STANCE_DISTRIBUTION[(debate_format, user_stance)]
 
     # 길이 검증 (models.py에서도 검증하지만 factory 독립 사용 대비 이중 방어)
@@ -172,15 +215,20 @@ def create_agents(
         )
 
     agents: List[AgentPersona] = []
+
     for idx, (stance, intensity) in enumerate(zip(stance_list, agent_intensities), start=1):
         agent_id = f"agent_{idx}"
         profile = INTENSITY_PROFILES[intensity]
+
+        # 에이전트 전체 순번(0-based)으로 분석 시각을 순환 할당
+        focus_area = focus_list[(idx - 1) % len(focus_list)]
+
         role_description = (
             f"{('찬성' if stance == 'PRO' else '반대')} 진영 | "
             f"강경도 {intensity} ({profile['label']})"
         )
         system_prompt = _build_system_prompt(
-            agent_id, stance, intensity, title, pro, con, description
+            agent_id, stance, intensity, title, pro, con, focus_area, description
         )
 
         agents.append(
@@ -190,6 +238,7 @@ def create_agents(
                 intensity=intensity,
                 role_description=role_description,
                 system_prompt=system_prompt,
+                focus_area=focus_area,
             )
         )
 
