@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
@@ -97,9 +98,11 @@ _TOOL_MAP: Dict[str, Any] = {t.name: t for t in _TOOLS}
 # vLLM OpenAI-compatible 서버를 사용한다.
 # 서버 실행: vllm serve Qwen/Qwen3.5-9B --port 8000
 
+_VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
+
 _LLM_KWARGS = dict(
     model="Qwen/Qwen3.5-9B",
-    base_url="http://localhost:8000/v1",
+    base_url=_VLLM_BASE_URL,
     api_key="fake",          # vLLM은 API 키 불필요, 빈값 아닌 임의값 필요
     temperature=0.7,
 )

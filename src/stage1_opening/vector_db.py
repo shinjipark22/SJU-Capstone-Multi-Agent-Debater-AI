@@ -94,7 +94,7 @@ _SAMPLE_DOCS = [
 
 @lru_cache(maxsize=1)
 def _get_model() -> SentenceTransformer:
-    return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+    return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2", device="cpu")
 
 
 _CHROMA_PATH = str(Path(__file__).parent.parent.parent / "data" / "chroma_db")
