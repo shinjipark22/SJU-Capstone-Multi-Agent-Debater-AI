@@ -77,6 +77,63 @@ _NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
 
 # ── 토픽별 영문 키워드 매핑 ────────────────────────────────────────────────────
 # 국제 이슈가 많아 영문 검색이 품질/양 모두 유리함
+# ── 토픽별 공신력 출처 매핑 ────────────────────────────────────────────────────
+# 각 토픽에서 실제로 유효한 기관/학술 사이트만 타겟
+_TOPIC_AUTHORITY_SITES: Dict[str, List[str]] = {
+    # ── 기술/AI ────────────────────────────────────────────
+    "tech_001": [  # AI와 일자리
+        "site:weforum.org", "site:oecd.org", "site:ilo.org",
+        "site:imf.org", "site:mckinsey.com", "site:brookings.edu",
+    ],
+    "tech_002": [  # 데이터센터 vs 환경규제
+        "site:iea.org", "site:weforum.org", "site:oecd.org",
+        "site:energy.ec.europa.eu", "site:nature.com",
+    ],
+    "tech_003": [  # AI 안전 vs 성능
+        "site:weforum.org", "site:oecd.org", "site:nature.com",
+        "site:arxiv.org", "site:reuters.com",
+    ],
+    # ── 경제/산업 ──────────────────────────────────────────
+    "econ_001": [  # 이란 전쟁 경제 충격
+        "site:imf.org", "site:worldbank.org", "site:brookings.edu",
+        "site:sipri.org", "site:csis.org", "site:iea.org",
+    ],
+    "econ_002": [  # 트럼프 관세/스태그플레이션
+        "site:imf.org", "site:oecd.org", "site:worldbank.org",
+        "site:wto.org", "site:piie.com", "site:brookings.edu",
+    ],
+    "econ_003": [  # 중동 위기 식량 vs 원유
+        "site:fao.org", "site:worldbank.org", "site:imf.org",
+        "site:iea.org", "site:wfp.org", "site:sipri.org",
+    ],
+    # ── 정치/사회 ──────────────────────────────────────────
+    "poli_001": [  # 펜타곤 언론 접근 제한
+        "site:amnesty.org", "site:hrw.org", "site:rsf.org",
+        "site:brookings.edu", "site:csis.org", "site:aclu.org",
+    ],
+    "poli_002": [  # 인도 녹색강철
+        "site:worldbank.org", "site:oecd.org", "site:iea.org",
+        "site:weforum.org", "site:nature.com", "site:sciencedirect.com",
+    ],
+    "poli_003": [  # 인도 GM 작물
+        "site:fao.org", "site:who.int", "site:nature.com",
+        "site:sciencedirect.com", "site:pmc.ncbi.nlm.nih.gov",
+    ],
+    # ── 과학/환경 ──────────────────────────────────────────
+    "env_001": [  # 기후난민 원인
+        "site:unhcr.org", "site:internal-displacement.org", "site:ipcc.ch",
+        "site:worldbank.org", "site:nature.com", "site:thelancet.com",
+    ],
+    "env_002": [  # 인플레이션 원인 (에너지 vs 기후)
+        "site:imf.org", "site:ecb.europa.eu", "site:iea.org",
+        "site:oecd.org", "site:worldbank.org", "site:nature.com",
+    ],
+    "env_003": [  # 기후위기 대응 (정치참여 vs 교육)
+        "site:thelancet.com", "site:undp.org", "site:ipcc.ch",
+        "site:unep.org", "site:nature.com", "site:weforum.org",
+    ],
+}
+
 _TOPIC_EN_KEYWORDS: Dict[str, List[str]] = {
     "tech_001": ["AI job creation vs job displacement", "artificial intelligence employment impact"],
     "tech_002": ["data center energy regulation vs AI infrastructure", "data center environmental impact"],
@@ -120,30 +177,17 @@ def generate_search_queries(topic: dict) -> List[str]:
         else title
     )
 
-    # ── 1순위: 공신력 출처 (국제기구·학술·공공기관) ─────────
-    # 이 쿼리들이 먼저 실행되어 report/paper 자료를 확보한다
+    # ── 1순위: 토픽별 공신력 출처 ────────────────────────────
+    # 각 토픽에 실제로 유효한 기관만 타겟하여 검색 품질 극대화
     queries: List[str] = []
 
-    _AUTHORITY_SITES = [
-        "site:weforum.org",       # 세계경제포럼
-        "site:oecd.org",          # OECD
-        "site:imf.org",           # IMF
-        "site:worldbank.org",     # 세계은행
-        "site:ilo.org",           # 국제노동기구
-        "site:unep.org",          # 유엔환경계획
-        "site:nature.com",        # Nature
-        "site:sciencedirect.com", # Elsevier 학술
-    ]
     en_keywords = _TOPIC_EN_KEYWORDS.get(topic_id, [])
-    if en_keywords:
-        core_kw = en_keywords[0]
-        for site in _AUTHORITY_SITES:
-            queries.append(f"{site} {core_kw}")
+    authority_sites = _TOPIC_AUTHORITY_SITES.get(topic_id, [])
 
-    # 한국 공공기관
-    queries.append(f"{short_title} site:bok.or.kr")     # 한국은행
-    queries.append(f"{short_title} site:kdi.re.kr")     # KDI
-    queries.append(f"{short_title} site:kostat.go.kr")  # 통계청
+    if en_keywords and authority_sites:
+        core_kw = en_keywords[0]
+        for site in authority_sites:
+            queries.append(f"{site} {core_kw}")
 
     # ── 2순위: 영문 일반 쿼리 ────────────────────────────
     for kw in en_keywords:
@@ -181,11 +225,21 @@ _AUTHORITY_DOMAINS: Dict[str, str] = {
     "weforum.org": "report", "oecd.org": "report", "imf.org": "report",
     "worldbank.org": "report", "ilo.org": "report", "unep.org": "report",
     "who.int": "report", "undp.org": "report", "iea.org": "report",
-    "ipcc.ch": "report",
+    "ipcc.ch": "report", "fao.org": "report", "wfp.org": "report",
+    "wto.org": "report", "unhcr.org": "report",
+    "internal-displacement.org": "report",
+    "energy.ec.europa.eu": "report", "ecb.europa.eu": "report",
+    # 싱크탱크 → report
+    "brookings.edu": "report", "sipri.org": "report", "csis.org": "report",
+    "piie.com": "report", "mckinsey.com": "report",
+    # 인권·언론자유 기관 → report
+    "amnesty.org": "report", "hrw.org": "report", "rsf.org": "report",
+    "aclu.org": "report",
     # 학술 → paper
     "nature.com": "paper", "sciencedirect.com": "paper", "springer.com": "paper",
     "pmc.ncbi.nlm.nih.gov": "paper", "arxiv.org": "paper",
     "scholar.google.com": "paper", "riss.kr": "paper",
+    "thelancet.com": "paper",
     # 한국 공공기관 → report
     "bok.or.kr": "report", "kdi.re.kr": "report", "kostat.go.kr": "report",
     "kosis.kr": "report", "nrc.re.kr": "report",
