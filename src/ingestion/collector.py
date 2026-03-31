@@ -349,6 +349,8 @@ def _search_naver_news(query: str, max_results: int = 5) -> List[Dict]:
         resp.raise_for_status()
         data = resp.json()
 
+        import re as _re
+
         articles = []
         for item in data.get("items", []):
             # 원본 링크로 본문 추출 시도
@@ -357,16 +359,15 @@ def _search_naver_news(query: str, max_results: int = 5) -> List[Dict]:
 
             if not text:
                 # 폴백: API의 description 사용
-                import re
-                desc = re.sub(r'<[^>]+>', '', item.get("description", ""))
-                title = re.sub(r'<[^>]+>', '', item.get("title", ""))
+                desc = _re.sub(r'<[^>]+>', '', item.get("description", ""))
+                title = _re.sub(r'<[^>]+>', '', item.get("title", ""))
                 if len(desc) > 80:
                     text = f"{title}. {desc}"
 
             if text and len(text) > 100:
                 articles.append({
                     "url": url,
-                    "title": re.sub(r'<[^>]+>', '', item.get("title", "")),
+                    "title": _re.sub(r'<[^>]+>', '', item.get("title", "")),
                     "text": text,
                     "source_type": _classify_source_type(url),
                     "source": "naver",
