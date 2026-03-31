@@ -15,7 +15,7 @@ Usage:
     VLLM_BASE_URL=http://localhost:8001/v1 python -m src.ingestion.run
 
 사전 조건:
-    - vLLM 서버 가동 중 (라벨링 단계에서 사용)
+    - OPENAI_API_KEY 환경변수 설정 (라벨링에 GPT-4o-mini 사용)
     - 인터넷 연결 (웹 검색 + 기사 추출)
     - (권장) pip install trafilatura — 기사 본문 추출 품질 향상
 """

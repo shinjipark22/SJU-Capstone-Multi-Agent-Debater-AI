@@ -1,13 +1,16 @@
 """
 labeler.py — LLM 기반 메타데이터 라벨링
 
-각 청크에 stance, stance_score, claim_type을 vLLM(Qwen3.5) 기반으로 자동 부여한다.
-JSON 강제 모드를 사용하며, 3단계 폴백 파싱을 적용한다.
+각 청크에 stance, stance_score, claim_type을 GPT-4o-mini 기반으로 자동 부여한다.
+일회성 전처리이므로 외부 API를 사용하여 JSON 출력 안정성과 라벨링 품질을 확보한다.
 
 [라벨 필드]
     - stance: PRO | CON | NEUTRAL
     - stance_score: -1.0 ~ +1.0 (PRO=양수, CON=음수)
     - claim_type: claim | evidence | statistic | example | counterargument | expert_opinion
+
+[비용]
+    GPT-4o-mini 기준 240건 ≈ $0.3 이하
 """
 
 from __future__ import annotations
@@ -22,18 +25,21 @@ from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 
-_VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
-
-_labeler_llm = None  # lazy init — vLLM 서버가 없을 때 import 에러 방지
+_labeler_llm = None  # lazy init
 
 
 def _get_llm() -> ChatOpenAI:
     global _labeler_llm
     if _labeler_llm is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "OPENAI_API_KEY 환경변수가 설정되지 않았습니다. "
+                "export OPENAI_API_KEY=sk-... 로 설정하세요."
+            )
         _labeler_llm = ChatOpenAI(
-            model="Qwen/Qwen3.5-9B",
-            base_url=_VLLM_BASE_URL,
-            api_key="fake",
+            model="gpt-4o-mini",
+            api_key=api_key,
             temperature=0.2,
             model_kwargs={"response_format": {"type": "json_object"}},
         )

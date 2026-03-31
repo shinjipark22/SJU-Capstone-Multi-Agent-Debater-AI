@@ -30,7 +30,10 @@ _COLLECTION_NAME = "debate_docs_v2"
 @lru_cache(maxsize=1)
 def _get_model() -> SentenceTransformer:
     """임베딩 모델을 로드한다 (프로세스당 1회)."""
-    return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2", device="cpu")
+    import torch
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info("[loader] 임베딩 디바이스: %s", device)
+    return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2", device=device)
 
 
 @lru_cache(maxsize=1)
