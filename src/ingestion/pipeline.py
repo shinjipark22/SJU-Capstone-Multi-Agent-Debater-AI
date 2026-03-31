@@ -1,12 +1,18 @@
 """
 pipeline.py — 전체 ingestion 파이프라인 오케스트레이터
 
-[파이프라인 단계]
+[파이프라인 단계 (v2)]
     1. collect  : 토픽별 웹 검색 + 기사 본문 추출
-    2. chunk    : 논증 단위 청킹 (150~400자)
-    3. label    : LLM 기반 stance/claim_type 라벨링
+    2. clean    : HTML 잡음·깨진 문자열 제거
+    3. extract  : LLM이 기사를 통째로 읽고 논증 추출 (기존 chunk+label 대체)
     4. select   : PRO/CON 균형 맞춰 목표 수만큼 선별
     5. load     : ChromaDB 적재
+
+[v1 대비 변경점]
+    - chunker.py + labeler.py → extractor.py (LLM 기반 논증 추출)
+    - cleaner.py 추가 (텍스트 전처리)
+    - GPT가 기사를 통째로 읽으므로 네비게이션 노이즈 자동 무시
+    - 기사당 2~3개의 고품질 논증 생성
 
 각 단계의 중간 결과를 data/ingestion_results/에 JSON으로 저장하여 검증 가능하게 한다.
 """
@@ -19,8 +25,8 @@ from pathlib import Path
 from typing import Dict, List
 
 from src.ingestion.collector import collect_for_topic
-from src.ingestion.chunker import chunk_text
-from src.ingestion.labeler import label_chunk
+from src.ingestion.cleaner import clean_text
+from src.ingestion.extractor import extract_arguments
 from src.ingestion.loader import upsert_documents
 
 logger = logging.getLogger(__name__)
@@ -62,71 +68,75 @@ def process_topic(topic: dict, target_chunks: int = 20) -> List[Dict]:
         print(f"  [SKIP] 수집된 기사가 없습니다.")
         return []
 
-    # ── 2단계: 청킹 ──────────────────────────────────────────────────────────
-    all_chunks: List[Dict] = []
+    # ── 2단계: 텍스트 전처리 ─────────────────────────────────────────────────
+    cleaned_articles: List[Dict] = []
     for article in raw_articles:
-        chunks = chunk_text(article["text"])
-        for chunk in chunks:
-            all_chunks.append({
-                "text": chunk,
+        cleaned = clean_text(article["text"])
+        if cleaned:
+            cleaned_articles.append({**article, "text": cleaned})
+
+    _save_json(cleaned_articles, _RESULTS_DIR / f"{topic_id}_2_cleaned.json")
+    skipped = len(raw_articles) - len(cleaned_articles)
+    print(f"  [2/5] 전처리: {len(cleaned_articles)}개 통과, {skipped}개 제거")
+
+    if not cleaned_articles:
+        print(f"  [SKIP] 전처리 후 남은 기사가 없습니다.")
+        return []
+
+    # ── 3단계: LLM 논증 추출 ─────────────────────────────────────────────────
+    all_arguments: List[Dict] = []
+    for i, article in enumerate(cleaned_articles):
+        arguments = extract_arguments(article["text"], topic)
+        for arg in arguments:
+            all_arguments.append({
+                **arg,
                 "source_url": article.get("url", ""),
                 "source_name": article.get("title", ""),
                 "source_type": article.get("source_type", "news"),
-            })
-    _save_json(all_chunks, _RESULTS_DIR / f"{topic_id}_2_chunks.json")
-    print(f"  [2/5] 청킹: {len(all_chunks)}개 청크")
-
-    if not all_chunks:
-        print(f"  [SKIP] 청크가 없습니다.")
-        return []
-
-    # ── 3단계: 라벨링 ────────────────────────────────────────────────────────
-    labeled: List[Dict] = []
-    fail_count = 0
-    for i, chunk_data in enumerate(all_chunks):
-        labels = label_chunk(chunk_data["text"], topic)
-        if labels:
-            labeled.append({
-                **chunk_data,
-                **labels,
                 "category": category,
                 "topic": title,
                 "topic_id": topic_id,
                 "language": "ko",
             })
-        else:
-            fail_count += 1
 
-        # 진행률 표시 (10개마다)
-        if (i + 1) % 10 == 0:
-            print(f"  [3/5] 라벨링 진행: {i + 1}/{len(all_chunks)}")
+        if (i + 1) % 5 == 0:
+            print(f"  [3/5] 논증 추출 진행: {i + 1}/{len(cleaned_articles)} 기사, "
+                  f"누적 {len(all_arguments)}개 논증")
 
-    _save_json(labeled, _RESULTS_DIR / f"{topic_id}_3_labeled.json")
-    print(f"  [3/5] 라벨링: {len(labeled)}개 성공, {fail_count}개 실패")
+    _save_json(all_arguments, _RESULTS_DIR / f"{topic_id}_3_arguments.json")
+    print(f"  [3/5] 논증 추출: {len(all_arguments)}개 (기사 {len(cleaned_articles)}개에서)")
 
-    if not labeled:
-        print(f"  [SKIP] 라벨링된 청크가 없습니다.")
+    if not all_arguments:
+        print(f"  [SKIP] 추출된 논증이 없습니다.")
         return []
 
-    # ── 4단계: 선별 (PRO/CON 균형) ───────────────────────────────────────────
-    pro_docs = [d for d in labeled if d["stance"] == "PRO"]
-    con_docs = [d for d in labeled if d["stance"] == "CON"]
-    neutral_docs = [d for d in labeled if d["stance"] == "NEUTRAL"]
+    # ── 4단계: 선별 (PRO/CON 균형 + relevance 우선) ──────────────────────────
+    pro_docs = [d for d in all_arguments if d["stance"] == "PRO"]
+    con_docs = [d for d in all_arguments if d["stance"] == "CON"]
+    neutral_docs = [d for d in all_arguments if d["stance"] == "NEUTRAL"]
 
-    # 강한 stance부터 선택
-    pro_sorted = sorted(pro_docs, key=lambda d: abs(d["stance_score"]), reverse=True)
-    con_sorted = sorted(con_docs, key=lambda d: abs(d["stance_score"]), reverse=True)
+    # relevance × stance_score로 정렬 (관련성 높고 입장이 명확한 것 우선)
+    pro_sorted = sorted(
+        pro_docs,
+        key=lambda d: d["relevance_score"] * abs(d["stance_score"]),
+        reverse=True,
+    )
+    con_sorted = sorted(
+        con_docs,
+        key=lambda d: d["relevance_score"] * abs(d["stance_score"]),
+        reverse=True,
+    )
 
     half = target_chunks // 2
     selected: List[Dict] = []
     selected.extend(pro_sorted[:half])
     selected.extend(con_sorted[:half])
 
-    # 남는 슬롯을 중립 또는 나머지로 채움
     remaining = target_chunks - len(selected)
     if remaining > 0:
         extras = neutral_docs + pro_sorted[half:] + con_sorted[half:]
-        selected.extend(extras[:remaining])
+        extras_sorted = sorted(extras, key=lambda d: d["relevance_score"], reverse=True)
+        selected.extend(extras_sorted[:remaining])
 
     selected = selected[:target_chunks]
 
@@ -157,7 +167,7 @@ def run_pipeline(topics: List[dict], target_per_topic: int = 20) -> Dict:
     total_loaded = 0
 
     print(f"\n{'#'*60}")
-    print(f"# Ingestion Pipeline — {len(topics)}개 토픽, 토픽당 {target_per_topic}개")
+    print(f"# Ingestion Pipeline v2 — {len(topics)}개 토픽, 토픽당 {target_per_topic}개")
     print(f"{'#'*60}")
 
     for topic in topics:
@@ -171,7 +181,6 @@ def run_pipeline(topics: List[dict], target_per_topic: int = 20) -> Dict:
             all_results[topic_id] = []
             print(f"  [ERROR] {topic_id}: {e}")
 
-    # 전체 요약 저장
     summary = {
         "total_topics": len(topics),
         "total_documents": total_loaded,
