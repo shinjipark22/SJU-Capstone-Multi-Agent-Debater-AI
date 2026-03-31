@@ -120,45 +120,10 @@ def generate_search_queries(topic: dict) -> List[str]:
         else title
     )
 
-    queries = [
-        # ── 한국어: 찬반 근거 ────────────────────────────
-        f"{title} 찬성 근거",
-        f"{title} 반대 근거",
-        f'"{pro}" 연구 결과',
-        f'"{con}" 연구 결과',
+    # ── 1순위: 공신력 출처 (국제기구·학술·공공기관) ─────────
+    # 이 쿼리들이 먼저 실행되어 report/paper 자료를 확보한다
+    queries: List[str] = []
 
-        # ── 한국어: 통계/데이터 ──────────────────────────
-        f"{short_title} 통계 수치 보고서",
-        f"{short_title} 2024 2025 2026 데이터",
-
-        # ── 한국어: 배경 지식 ────────────────────────────
-        f"{short_title} 배경 현황 분석",
-        f"{short_title} 원인 구조 메커니즘",
-
-        # ── 한국어: 유사 사례 ────────────────────────────
-        f"{short_title} 해외 사례 비교",
-        f"{short_title} 성공 실패 사례",
-
-        # ── 한국어: 전문가 의견 ──────────────────────────
-        f"{short_title} 전문가 학자 견해",
-        f"{short_title} 국제기구 보고서",
-
-        # ── 한국어: 반론/논쟁 ────────────────────────────
-        f"{pro} 비판 반론",
-        f"{con} 비판 반론",
-    ]
-
-    if desc_first and len(desc_first) > 20:
-        queries.append(f"{desc_first[:60]} 관련 논의")
-
-    # ── 영문 쿼리 ────────────────────────────────────────
-    en_keywords = _TOPIC_EN_KEYWORDS.get(topic_id, [])
-    for kw in en_keywords:
-        queries.append(f"{kw} statistics report 2024 2025 2026")
-        queries.append(f"{kw} pros and cons evidence")
-
-    # ── 공신력 출처 타겟 쿼리 ─────────────────────────────
-    # 국제기구·학술·정부 기관 자료를 직접 검색
     _AUTHORITY_SITES = [
         "site:weforum.org",       # 세계경제포럼
         "site:oecd.org",          # OECD
@@ -169,8 +134,9 @@ def generate_search_queries(topic: dict) -> List[str]:
         "site:nature.com",        # Nature
         "site:sciencedirect.com", # Elsevier 학술
     ]
+    en_keywords = _TOPIC_EN_KEYWORDS.get(topic_id, [])
     if en_keywords:
-        core_kw = en_keywords[0]  # 첫 번째 키워드가 가장 대표적
+        core_kw = en_keywords[0]
         for site in _AUTHORITY_SITES:
             queries.append(f"{site} {core_kw}")
 
@@ -178,6 +144,32 @@ def generate_search_queries(topic: dict) -> List[str]:
     queries.append(f"{short_title} site:bok.or.kr")     # 한국은행
     queries.append(f"{short_title} site:kdi.re.kr")     # KDI
     queries.append(f"{short_title} site:kostat.go.kr")  # 통계청
+
+    # ── 2순위: 영문 일반 쿼리 ────────────────────────────
+    for kw in en_keywords:
+        queries.append(f"{kw} statistics report 2024 2025 2026")
+        queries.append(f"{kw} pros and cons evidence")
+
+    # ── 3순위: 한국어 쿼리 (뉴스 등 보충) ────────────────
+    queries.extend([
+        f"{title} 찬성 근거",
+        f"{title} 반대 근거",
+        f'"{pro}" 연구 결과',
+        f'"{con}" 연구 결과',
+        f"{short_title} 통계 수치 보고서",
+        f"{short_title} 2024 2025 2026 데이터",
+        f"{short_title} 배경 현황 분석",
+        f"{short_title} 원인 구조 메커니즘",
+        f"{short_title} 해외 사례 비교",
+        f"{short_title} 성공 실패 사례",
+        f"{short_title} 전문가 학자 견해",
+        f"{short_title} 국제기구 보고서",
+        f"{pro} 비판 반론",
+        f"{con} 비판 반론",
+    ])
+
+    if desc_first and len(desc_first) > 20:
+        queries.append(f"{desc_first[:60]} 관련 논의")
 
     return queries
 
