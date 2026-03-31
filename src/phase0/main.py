@@ -24,6 +24,9 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# 인메모리 세션 스토어
+_session_store: dict = {}
+
 
 @app.post("/debate/init", response_model=DebateInitResponse)
 def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
@@ -74,6 +77,7 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
             intensity=p.intensity,
             role_description=p.role_description,
             system_prompt=p.system_prompt,
+            focus_area=p.focus_area,
         )
         for p in personas
     ]
@@ -88,6 +92,7 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
 
     # ── 5. 응답 구성 ─────────────────────────────────────────────────────────
     session_id = generate_session_id()
+    _session_store[session_id] = initial_state
 
     agent_info_list = [
         AgentInfo(
@@ -103,7 +108,6 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
         session_id=session_id,
         topic=request.topic,
         agents=agent_info_list,
-        initial_state=dict(initial_state),
         message="Debate workflow initialized successfully.",
     )
 

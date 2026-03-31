@@ -87,5 +87,4 @@ class DebateInitResponse(BaseModel):
     session_id: str
     topic: str
     agents: List[AgentInfo]
-    initial_state: Dict[str, Any]
     message: str
