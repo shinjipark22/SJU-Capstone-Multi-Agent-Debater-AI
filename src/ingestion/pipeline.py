@@ -28,6 +28,7 @@ from src.ingestion.collector import collect_for_topic
 from src.ingestion.cleaner import clean_text
 from src.ingestion.extractor import extract_arguments
 from src.ingestion.loader import upsert_documents
+from src.ingestion.source_config import get_source_metadata
 
 # ── 토픽별 검색용 짧은 키워드 (문장형 title 대신 retrieval에 최적화) ────────────
 _TOPIC_SHORT_LABELS: dict = {
@@ -106,16 +107,20 @@ def process_topic(topic: dict, target_chunks: int = 20) -> List[Dict]:
     all_arguments: List[Dict] = []
     for i, article in enumerate(cleaned_articles):
         arguments = extract_arguments(article["text"], topic)
+        source_url = article.get("url", "")
+        source_meta = get_source_metadata(source_url)
+
         for arg in arguments:
             all_arguments.append({
                 **arg,
-                "source_url": article.get("url", ""),
+                "source_url": source_url,
                 "source_name": article.get("title", ""),
                 "source_type": article.get("source_type", "news"),
                 "category": category,
                 "topic": short_topic,
                 "topic_id": topic_id,
                 "language": "ko",
+                **source_meta,  # primary_domain, secondary_domains, credibility_tier, bias_type
             })
 
         if (i + 1) % 5 == 0:

@@ -81,6 +81,11 @@ def upsert_documents(documents: List[Dict]) -> int:
             "source_name": doc.get("source_name", ""),
             "source_url": doc.get("source_url", ""),
             "language": doc.get("language", "ko"),
+            # 출처 메타데이터 (가중치 기반 retrieval용)
+            "primary_domain": doc.get("primary_domain", ""),
+            "secondary_domains": doc.get("secondary_domains", ""),
+            "credibility_tier": int(doc.get("credibility_tier", 3)),
+            "bias_type": doc.get("bias_type", "media"),
             "ingested_at": datetime.now().isoformat(),
         }
 
