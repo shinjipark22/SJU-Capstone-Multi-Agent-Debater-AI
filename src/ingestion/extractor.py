@@ -124,8 +124,13 @@ claim_type 기준:
 - expert_opinion: 전문가·기관 의견 인용"""
 
     try:
+        from langchain_core.messages import HumanMessage, SystemMessage
         llm = _get_llm()
-        response = llm.invoke(prompt)
+        messages = [
+            SystemMessage(content="You are a debate research assistant. Always respond in JSON format."),
+            HumanMessage(content=prompt),
+        ]
+        response = llm.invoke(messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
 
         # JSON 파싱 (3단계 폴백)
