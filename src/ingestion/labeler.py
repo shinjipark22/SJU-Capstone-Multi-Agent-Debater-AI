@@ -21,7 +21,10 @@ import os
 import re
 from typing import Dict, List, Optional
 
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+
+load_dotenv()  # 프로젝트 루트의 .env 파일에서 OPENAI_API_KEY 로드
 
 logger = logging.getLogger(__name__)
 
