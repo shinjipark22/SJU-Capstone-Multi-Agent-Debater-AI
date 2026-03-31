@@ -335,20 +335,19 @@ def opening_arguments_node(state: DebateState) -> DebateState:
 
     topic: str = state["topic"]
     history: List[DebateEntry] = list(state["debate_history"])
-    current_turn: int = state["current_turn"]
 
     # agent_id → AgentSnapshot 빠른 조회
     agent_map = {a["agent_id"]: a for a in state["agents"]}
 
-    # speaking_order에서 AI 에이전트만 추출 (user 제외, 순서 유지)
-    ai_speaker_ids = [sid for sid in state["speaking_order"] if sid != "user"]
-
     # 진영별 번호 카운터 (찬성 에이전트1~3, 반대 에이전트1~3)
     _stance_counter: Dict[str, int] = {"PRO": 0, "CON": 0}
 
-    print(f"\n[1단계: 입론] 발언 순서: {ai_speaker_ids}\n")
+    print(f"\n[1단계: 입론] 발언 순서: {state['speaking_order']}\n")
 
-    for speaker_id in ai_speaker_ids:
+    for idx, speaker_id in enumerate(state["speaking_order"]):
+        if speaker_id == "user":
+            continue  # 사용자 턴은 API를 통해 별도 처리
+
         agent = agent_map[speaker_id]
         _stance_counter[agent["stance"]] += 1
         _stance_num = _stance_counter[agent["stance"]]
@@ -368,7 +367,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
 
         # DebateHistory에 누적
         entry: DebateEntry = DebateEntry(
-            turn=current_turn,
+            turn=idx,
             speaker_id=speaker_id,
             stance=agent["stance"],
             phase="opening",
@@ -378,19 +377,21 @@ def opening_arguments_node(state: DebateState) -> DebateState:
             json_raw=json_raw,
         )
         history.append(entry)
-        current_turn += 1
 
         print(f"  [{_display_name}] 입론 완료 (turn={entry['turn']})\n")
 
-    # 모든 AI 입론 완료 → 2단계 연쇄 논박으로 전환
-    print("[1단계: 입론] 완료 → 2단계 연쇄 논박(chained_rebuttal)으로 전환\n")
+    # history를 turn 기준으로 정렬 (speaking_order 순서 보장)
+    history.sort(key=lambda e: e["turn"])
+
+    # 모든 AI 입론 완료 → 사용자 입론 대기
+    print("[1단계: 입론] AI 에이전트 입론 완료 → 사용자 입론 대기\n")
 
     return DebateState(
         **{
             **state,
             "debate_history": history,
-            "current_turn": current_turn,
-            "current_speaker_index": len(ai_speaker_ids),  # user 직전 위치
-            "phase": "chained_rebuttal",
+            "current_turn": len(state["speaking_order"]),
+            "current_speaker_index": len(state["speaking_order"]),
+            "phase": "opening",  # 사용자 입론 완료 전까지 phase 유지
         }
     )
