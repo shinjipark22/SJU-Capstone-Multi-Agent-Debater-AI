@@ -88,7 +88,7 @@ def label_chunk(chunk: str, topic: dict) -> Optional[Dict]:
         topic: topics.json 항목 (title, pro, con 포함)
 
     Returns:
-        {"stance", "stance_score", "claim_type"} 또는 실패 시 None
+        {"stance", "stance_score", "claim_type", "relevance_score"} 또는 실패/저품질 시 None
     """
     title = topic["title"]
     pro = topic.get("pro", "")
@@ -105,7 +105,7 @@ def label_chunk(chunk: str, topic: dict) -> Optional[Dict]:
 {chunk}
 
 [출력 형식]
-{{"stance": "PRO 또는 CON 또는 NEUTRAL", "stance_score": -1.0에서 1.0 사이 실수, "claim_type": "아래 중 하나"}}
+{{"stance": "PRO 또는 CON 또는 NEUTRAL", "stance_score": -1.0에서 1.0 사이 실수, "claim_type": "아래 중 하나", "relevance_score": 0.0에서 1.0 사이 실수}}
 
 판단 기준:
 - stance: 텍스트가 찬성 주장을 지지하면 PRO, 반대 주장을 지지하면 CON, 어느 쪽도 아니면 NEUTRAL
@@ -116,7 +116,12 @@ def label_chunk(chunk: str, topic: dict) -> Optional[Dict]:
   statistic = 수치·통계 데이터
   example = 실제 사례·케이스
   counterargument = 상대 논리에 대한 반박
-  expert_opinion = 전문가·기관 의견 인용"""
+  expert_opinion = 전문가·기관 의견 인용
+- relevance_score: 이 텍스트가 위 토론 논제에 얼마나 관련 있는지 평가
+  1.0 = 논제를 직접 다루는 핵심 근거
+  0.7~0.9 = 논제와 밀접하게 관련된 배경/사례
+  0.4~0.6 = 간접적으로 관련 있음
+  0.0~0.3 = 관련 없거나 광고/잡음"""
 
     try:
         llm = _get_llm()
@@ -144,10 +149,19 @@ def label_chunk(chunk: str, topic: dict) -> Optional[Dict]:
         if claim_type not in VALID_CLAIM_TYPES:
             claim_type = "evidence"
 
+        relevance_score = float(data.get("relevance_score", 0.5))
+        relevance_score = max(0.0, min(1.0, relevance_score))
+
+        # 품질 필터: relevance_score가 0.4 미만이면 버린다
+        if relevance_score < 0.4:
+            logger.info("[labeler] 저품질 청크 필터링 (relevance=%.2f)", relevance_score)
+            return None
+
         return {
             "stance": stance,
             "stance_score": round(stance_score, 2),
             "claim_type": claim_type,
+            "relevance_score": round(relevance_score, 2),
         }
 
     except Exception as e:
