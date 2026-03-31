@@ -29,6 +29,22 @@ from src.ingestion.cleaner import clean_text
 from src.ingestion.extractor import extract_arguments
 from src.ingestion.loader import upsert_documents
 
+# ── 토픽별 검색용 짧은 키워드 (문장형 title 대신 retrieval에 최적화) ────────────
+_TOPIC_SHORT_LABELS: dict = {
+    "tech_001": "AI 일자리 창출 vs 대체",
+    "tech_002": "데이터센터 환경규제 vs AI 인프라",
+    "tech_003": "AI 안전성 vs 모델 성능",
+    "econ_001": "이란 전쟁 경제 충격 미국 중동 개입",
+    "econ_002": "트럼프 관세 스태그플레이션 제조업",
+    "econ_003": "중동 위기 식량안보 vs 원유공급",
+    "poli_001": "펜타곤 언론 접근 제한 언론자유",
+    "poli_002": "인도 녹색강철 의무화 산업독점",
+    "poli_003": "인도 GM작물 식량안보 vs 농업전통",
+    "env_001": "기후난민 원인 내전 빈곤 vs 기후변화",
+    "env_002": "인플레이션 에너지정책 vs 기후변화",
+    "env_003": "기후위기 대응 정치참여 vs 과학교육",
+}
+
 logger = logging.getLogger(__name__)
 
 _RESULTS_DIR = Path(__file__).parent.parent.parent / "data" / "ingestion_results"
@@ -84,6 +100,9 @@ def process_topic(topic: dict, target_chunks: int = 20) -> List[Dict]:
         return []
 
     # ── 3단계: LLM 논증 추출 ─────────────────────────────────────────────────
+    # topic 필드는 검색 최적화를 위해 짧은 키워드 사용
+    short_topic = _TOPIC_SHORT_LABELS.get(topic_id, title)
+
     all_arguments: List[Dict] = []
     for i, article in enumerate(cleaned_articles):
         arguments = extract_arguments(article["text"], topic)
@@ -94,7 +113,7 @@ def process_topic(topic: dict, target_chunks: int = 20) -> List[Dict]:
                 "source_name": article.get("title", ""),
                 "source_type": article.get("source_type", "news"),
                 "category": category,
-                "topic": title,
+                "topic": short_topic,
                 "topic_id": topic_id,
                 "language": "ko",
             })
@@ -110,10 +129,32 @@ def process_topic(topic: dict, target_chunks: int = 20) -> List[Dict]:
         print(f"  [SKIP] 추출된 논증이 없습니다.")
         return []
 
-    # ── 4단계: 선별 (PRO/CON 균형 + relevance 우선) ──────────────────────────
-    pro_docs = [d for d in all_arguments if d["stance"] == "PRO"]
-    con_docs = [d for d in all_arguments if d["stance"] == "CON"]
-    neutral_docs = [d for d in all_arguments if d["stance"] == "NEUTRAL"]
+    # ── 4단계: 중복 제거 + 선별 (PRO/CON 균형) ────────────────────────────────
+
+    # 4-a. 의미 중복 제거 (텍스트 앞 80자가 70% 이상 겹치면 중복으로 판단)
+    def _is_duplicate(new_text: str, existing: List[Dict], threshold: float = 0.7) -> bool:
+        new_prefix = new_text[:80].lower()
+        for doc in existing:
+            existing_prefix = doc["text"][:80].lower()
+            # 간단한 문자 겹침 비율 계산
+            common = sum(1 for a, b in zip(new_prefix, existing_prefix) if a == b)
+            if len(new_prefix) > 0 and common / len(new_prefix) > threshold:
+                return True
+        return False
+
+    deduped: List[Dict] = []
+    for arg in all_arguments:
+        if not _is_duplicate(arg["text"], deduped):
+            deduped.append(arg)
+
+    dup_removed = len(all_arguments) - len(deduped)
+    if dup_removed > 0:
+        print(f"  [4/5] 중복 제거: {dup_removed}개 제거, {len(deduped)}개 남음")
+
+    # 4-b. PRO/CON 균형 선별
+    pro_docs = [d for d in deduped if d["stance"] == "PRO"]
+    con_docs = [d for d in deduped if d["stance"] == "CON"]
+    neutral_docs = [d for d in deduped if d["stance"] == "NEUTRAL"]
 
     # relevance × stance_score로 정렬 (관련성 높고 입장이 명확한 것 우선)
     pro_sorted = sorted(
