@@ -75,10 +75,28 @@ _NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
 _NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
 
 
+# ── 토픽별 영문 키워드 매핑 ────────────────────────────────────────────────────
+# 국제 이슈가 많아 영문 검색이 품질/양 모두 유리함
+_TOPIC_EN_KEYWORDS: Dict[str, List[str]] = {
+    "tech_001": ["AI job creation vs job displacement", "artificial intelligence employment impact"],
+    "tech_002": ["data center energy regulation vs AI infrastructure", "data center environmental impact"],
+    "tech_003": ["AI safety vs model performance", "AI ethics trustworthiness competitiveness"],
+    "econ_001": ["Iran war economic impact US Middle East intervention", "Iran geopolitical conflict global economy"],
+    "econ_002": ["Trump tariff policy stagflation", "US tariff manufacturing reshoring impact"],
+    "econ_003": ["Middle East crisis food security vs oil supply", "global food insecurity conflict"],
+    "poli_001": ["Pentagon press access restriction freedom of press", "military media access First Amendment"],
+    "poli_002": ["India green steel mandatory procurement", "green steel policy industry monopoly"],
+    "poli_003": ["India GM crop food security vs agriculture tradition", "genetically modified crops debate"],
+    "env_001": ["climate refugee vs conflict poverty migration", "climate change displacement cause"],
+    "env_002": ["inflation energy policy vs climate change", "energy price inflation cause"],
+    "env_003": ["climate crisis political participation vs science education", "climate action civic engagement"],
+}
+
+
 # ── 검색 쿼리 생성 ────────────────────────────────────────────────────────────
 
 def generate_search_queries(topic: dict) -> List[str]:
-    """토픽 정보를 기반으로 다각적 검색 쿼리를 생성한다.
+    """토픽 정보를 기반으로 한국어 + 영어 다각적 검색 쿼리를 생성한다.
 
     [쿼리 카테고리]
         - 찬반 근거:   직접적인 찬성/반대 논거
@@ -87,11 +105,13 @@ def generate_search_queries(topic: dict) -> List[str]:
         - 유사 사례:    해외/과거 사례
         - 전문가 의견:  기관/학자 발언
         - 반론:        상대방 예상 반론과 그에 대한 재반박
+        - 영문 검색:    국제 이슈 대응 (Tavily에서 특히 효과적)
     """
     title = topic["title"]
     pro = topic.get("pro", "")
     con = topic.get("con", "")
     desc = topic.get("description_long", "")
+    topic_id = topic.get("id", "")
 
     desc_first = desc.split("\n")[0].strip() if desc else ""
     short_title = (
@@ -101,35 +121,41 @@ def generate_search_queries(topic: dict) -> List[str]:
     )
 
     queries = [
-        # ── 찬반 근거 ────────────────────────────────────
+        # ── 한국어: 찬반 근거 ────────────────────────────
         f"{title} 찬성 근거",
         f"{title} 반대 근거",
         f'"{pro}" 연구 결과',
         f'"{con}" 연구 결과',
 
-        # ── 통계/데이터 ──────────────────────────────────
+        # ── 한국어: 통계/데이터 ──────────────────────────
         f"{short_title} 통계 수치 보고서",
         f"{short_title} 2024 2025 2026 데이터",
 
-        # ── 배경 지식 ────────────────────────────────────
+        # ── 한국어: 배경 지식 ────────────────────────────
         f"{short_title} 배경 현황 분석",
         f"{short_title} 원인 구조 메커니즘",
 
-        # ── 유사 사례 ────────────────────────────────────
+        # ── 한국어: 유사 사례 ────────────────────────────
         f"{short_title} 해외 사례 비교",
         f"{short_title} 성공 실패 사례",
 
-        # ── 전문가 의견 ──────────────────────────────────
+        # ── 한국어: 전문가 의견 ──────────────────────────
         f"{short_title} 전문가 학자 견해",
         f"{short_title} 국제기구 보고서",
 
-        # ── 반론/논쟁 ────────────────────────────────────
+        # ── 한국어: 반론/논쟁 ────────────────────────────
         f"{pro} 비판 반론",
         f"{con} 비판 반론",
     ]
 
     if desc_first and len(desc_first) > 20:
         queries.append(f"{desc_first[:60]} 관련 논의")
+
+    # ── 영문 쿼리 ────────────────────────────────────────
+    en_keywords = _TOPIC_EN_KEYWORDS.get(topic_id, [])
+    for kw in en_keywords:
+        queries.append(f"{kw} statistics report 2024 2025 2026")
+        queries.append(f"{kw} pros and cons evidence")
 
     return queries
 
