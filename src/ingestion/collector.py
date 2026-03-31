@@ -157,7 +157,55 @@ def generate_search_queries(topic: dict) -> List[str]:
         queries.append(f"{kw} statistics report 2024 2025 2026")
         queries.append(f"{kw} pros and cons evidence")
 
+    # ── 공신력 출처 타겟 쿼리 ─────────────────────────────
+    # 국제기구·학술·정부 기관 자료를 직접 검색
+    _AUTHORITY_SITES = [
+        "site:weforum.org",       # 세계경제포럼
+        "site:oecd.org",          # OECD
+        "site:imf.org",           # IMF
+        "site:worldbank.org",     # 세계은행
+        "site:ilo.org",           # 국제노동기구
+        "site:unep.org",          # 유엔환경계획
+        "site:nature.com",        # Nature
+        "site:sciencedirect.com", # Elsevier 학술
+    ]
+    if en_keywords:
+        core_kw = en_keywords[0]  # 첫 번째 키워드가 가장 대표적
+        for site in _AUTHORITY_SITES:
+            queries.append(f"{site} {core_kw}")
+
+    # 한국 공공기관
+    queries.append(f"{short_title} site:bok.or.kr")     # 한국은행
+    queries.append(f"{short_title} site:kdi.re.kr")     # KDI
+    queries.append(f"{short_title} site:kostat.go.kr")  # 통계청
+
     return queries
+
+
+# ── 출처 유형 자동 판별 ───────────────────────────────────────────────────────
+
+_AUTHORITY_DOMAINS: Dict[str, str] = {
+    # 국제기구 → report
+    "weforum.org": "report", "oecd.org": "report", "imf.org": "report",
+    "worldbank.org": "report", "ilo.org": "report", "unep.org": "report",
+    "who.int": "report", "undp.org": "report", "iea.org": "report",
+    "ipcc.ch": "report",
+    # 학술 → paper
+    "nature.com": "paper", "sciencedirect.com": "paper", "springer.com": "paper",
+    "pmc.ncbi.nlm.nih.gov": "paper", "arxiv.org": "paper",
+    "scholar.google.com": "paper", "riss.kr": "paper",
+    # 한국 공공기관 → report
+    "bok.or.kr": "report", "kdi.re.kr": "report", "kostat.go.kr": "report",
+    "kosis.kr": "report", "nrc.re.kr": "report",
+}
+
+
+def _classify_source_type(url: str) -> str:
+    """URL 도메인을 기반으로 source_type을 판별한다."""
+    for domain, stype in _AUTHORITY_DOMAINS.items():
+        if domain in url:
+            return stype
+    return "news"
 
 
 # ── URL 본문 추출 ─────────────────────────────────────────────────────────────
@@ -228,7 +276,7 @@ def _search_tavily(query: str, max_results: int = 5) -> List[Dict]:
                     "url": r.get("url", ""),
                     "title": r.get("title", ""),
                     "text": text,
-                    "source_type": "news",
+                    "source_type": _classify_source_type(r.get("url", "")),
                     "source": "tavily",
                 })
         return articles
@@ -274,7 +322,7 @@ def _search_naver_news(query: str, max_results: int = 5) -> List[Dict]:
                     "url": url,
                     "title": re.sub(r'<[^>]+>', '', item.get("title", "")),
                     "text": text,
-                    "source_type": "news",
+                    "source_type": _classify_source_type(url),
                     "source": "naver",
                 })
         return articles
@@ -308,7 +356,7 @@ def _search_ddgs(query: str, max_results: int = 3) -> List[Dict]:
                     "url": url,
                     "title": r.get("title", ""),
                     "text": text,
-                    "source_type": "news",
+                    "source_type": _classify_source_type(url),
                     "source": "ddgs",
                 })
         return articles
