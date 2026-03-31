@@ -109,7 +109,7 @@ def generate_search_queries(topic: dict) -> List[str]:
 
         # ── 통계/데이터 ──────────────────────────────────
         f"{short_title} 통계 수치 보고서",
-        f"{short_title} 2024 2025 데이터",
+        f"{short_title} 2024 2025 2026 데이터",
 
         # ── 배경 지식 ────────────────────────────────────
         f"{short_title} 배경 현황 분석",
