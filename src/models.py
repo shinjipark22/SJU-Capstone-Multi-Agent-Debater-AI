@@ -5,7 +5,7 @@ models.py — FastAPI 입력 스키마 및 응답 모델 (Phase 0)
 LangGraph 초기화에 필요한 구조로 정의한다.
 """
 
-from typing import List, Literal, Any, Dict
+from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, field_validator, model_validator
 
 
@@ -88,4 +88,38 @@ class DebateInitResponse(BaseModel):
     topic: str
     agents: List[AgentInfo]
     initial_state: Dict[str, Any]
+    message: str
+
+
+# ── Stage 1: 입론 API 모델 ──────────────────────────────────────────────────────
+
+class UserOpeningRequest(BaseModel):
+    """사용자 입론 제출 요청."""
+
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("입론 내용은 비어 있을 수 없습니다.")
+        return v.strip()
+
+
+class OpeningRunResponse(BaseModel):
+    """AI 입론 생성 응답."""
+
+    session_id: str
+    phase: str
+    user_turn: int
+    debate_history: List[Dict[str, Any]]
+    message: str
+
+
+class UserOpeningResponse(BaseModel):
+    """사용자 입론 제출 응답."""
+
+    session_id: str
+    phase: str
+    debate_history: List[Dict[str, Any]]
     message: str

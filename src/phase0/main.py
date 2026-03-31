@@ -7,13 +7,24 @@ main.py — FastAPI 애플리케이션 진입점 (Phase 0)
 
 import json
 from pathlib import Path
+from typing import Dict
 
 from fastapi import FastAPI, HTTPException
 
-from src.models import DebateInitRequest, DebateInitResponse, AgentInfo
+from src.models import (
+    AgentInfo,
+    DebateInitRequest,
+    DebateInitResponse,
+    OpeningRunResponse,
+    UserOpeningRequest,
+    UserOpeningResponse,
+)
 from src.phase0.persona_factory import create_agents, AgentPersona
+from src.stage1_opening.nodes import opening_arguments_node
 from src.state import (
     AgentSnapshot,
+    DebateEntry,
+    DebateState,
     build_initial_state,
     generate_session_id,
 )
@@ -23,6 +34,9 @@ app = FastAPI(
     description="LangGraph 기반 멀티 에이전트 토론 시스템 API",
     version="0.1.0",
 )
+
+# ── 세션 저장소 (인메모리) ──────────────────────────────────────────────────────
+_sessions: Dict[str, DebateState] = {}
 
 
 @app.post("/debate/init", response_model=DebateInitResponse)
@@ -74,6 +88,7 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
             intensity=p.intensity,
             role_description=p.role_description,
             system_prompt=p.system_prompt,
+            focus_area=p.focus_area,
         )
         for p in personas
     ]
@@ -98,6 +113,8 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
         )
         for p in personas
     ]
+
+    _sessions[session_id] = initial_state
 
     return DebateInitResponse(
         session_id=session_id,
@@ -126,3 +143,128 @@ def get_topics():
 def health_check():
     """서버 상태 확인."""
     return {"status": "ok", "phase": "0"}
+
+
+# ── Stage 1: 입론 엔드포인트 ─────────────────────────────────────────────────────
+
+@app.post("/debate/{session_id}/opening/run", response_model=OpeningRunResponse)
+def run_opening_arguments(session_id: str) -> OpeningRunResponse:
+    """AI 에이전트들의 입론을 생성한다.
+
+    speaking_order에 따라 모든 AI 에이전트가 순차적으로 입론을 생성한다.
+    사용자(user) 턴은 건너뛰며, POST /debate/{session_id}/opening/user로 별도 제출해야 한다.
+    """
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = _sessions[session_id]
+
+    if state["phase"] != "opening":
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 phase가 '{state['phase']}'입니다. 'opening' 단계에서만 실행 가능합니다.",
+        )
+
+    # AI 입론이 이미 생성되었는지 확인
+    ai_openings = [
+        e for e in state["debate_history"]
+        if e["phase"] == "opening" and e["speaker_id"] != "user"
+    ]
+    if ai_openings:
+        raise HTTPException(status_code=400, detail="AI 입론이 이미 생성되었습니다.")
+
+    updated_state = opening_arguments_node(state)
+    _sessions[session_id] = updated_state
+
+    # 사용자 턴 위치 확인
+    user_turn = next(
+        (i for i, sid in enumerate(updated_state["speaking_order"]) if sid == "user"),
+        -1,
+    )
+
+    return OpeningRunResponse(
+        session_id=session_id,
+        phase=updated_state["phase"],
+        user_turn=user_turn,
+        debate_history=[dict(e) for e in updated_state["debate_history"]],
+        message=f"AI 에이전트 입론 완료. 사용자 입론을 제출하세요. (turn={user_turn})",
+    )
+
+
+@app.post("/debate/{session_id}/opening/user", response_model=UserOpeningResponse)
+def submit_user_opening(
+    session_id: str,
+    request: UserOpeningRequest,
+) -> UserOpeningResponse:
+    """사용자의 입론을 제출한다.
+
+    사용자 입론은 speaking_order상의 위치에 해당하는 turn 번호로 기록된다.
+    모든 발언자(AI + 사용자)의 입론이 완료되면 phase가 'chained_rebuttal'로 전환된다.
+    """
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = _sessions[session_id]
+
+    if state["phase"] != "opening":
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 phase가 '{state['phase']}'입니다. 'opening' 단계에서만 제출 가능합니다.",
+        )
+
+    # 사용자 입론 중복 제출 방지
+    if any(e["speaker_id"] == "user" and e["phase"] == "opening" for e in state["debate_history"]):
+        raise HTTPException(status_code=400, detail="사용자 입론이 이미 제출되었습니다.")
+
+    # 사용자의 speaking_order 내 턴 번호 확인
+    user_turn = next(
+        (i for i, sid in enumerate(state["speaking_order"]) if sid == "user"),
+        None,
+    )
+    if user_turn is None:
+        raise HTTPException(status_code=500, detail="speaking_order에서 사용자를 찾을 수 없습니다.")
+
+    # 사용자 DebateEntry 생성
+    entry = DebateEntry(
+        turn=user_turn,
+        speaker_id="user",
+        stance=state["user_stance"],
+        phase="opening",
+        content=request.content,
+        target_id=None,
+    )
+
+    history = list(state["debate_history"])
+    history.append(entry)
+    history.sort(key=lambda e: e["turn"])
+
+    # 모든 발언자 입론 완료 여부 확인 → phase 전환
+    opening_count = len([e for e in history if e["phase"] == "opening"])
+    all_done = opening_count >= len(state["speaking_order"])
+    next_phase: str = "chained_rebuttal" if all_done else "opening"
+
+    updated_state = DebateState(**{
+        **state,
+        "debate_history": history,
+        "phase": next_phase,
+    })
+    _sessions[session_id] = updated_state
+
+    msg = "사용자 입론이 제출되었습니다."
+    if all_done:
+        msg += " 모든 입론이 완료되어 2단계 연쇄 논박(chained_rebuttal)으로 전환합니다."
+
+    return UserOpeningResponse(
+        session_id=session_id,
+        phase=next_phase,
+        debate_history=[dict(e) for e in history],
+        message=msg,
+    )
+
+
+@app.get("/debate/{session_id}/state")
+def get_debate_state(session_id: str):
+    """현재 토론 세션 상태를 반환한다."""
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+    return dict(_sessions[session_id])
