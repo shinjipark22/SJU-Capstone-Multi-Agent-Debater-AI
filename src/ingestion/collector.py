@@ -87,11 +87,27 @@ def _extract_with_bs4(html: str) -> Optional[str]:
 
 def extract_text_from_url(url: str, timeout: int = 10) -> Optional[str]:
     """URL에서 기사 본문을 추출한다. trafilatura → BS4 순으로 폴백."""
-    try:
-        resp = requests.get(url, timeout=timeout, headers=_REQUEST_HEADERS)
-        resp.raise_for_status()
-    except Exception as e:
-        logger.warning("[collector] HTTP 요청 실패 (%s): %s", url[:60], e)
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    resp = None
+    for verify in (True, False):
+        try:
+            resp = requests.get(
+                url, timeout=timeout, headers=_REQUEST_HEADERS, verify=verify,
+            )
+            resp.raise_for_status()
+            break
+        except requests.exceptions.SSLError:
+            if verify:
+                continue  # SSL 실패 → verify=False로 재시도
+            logger.warning("[collector] SSL 재시도도 실패 (%s)", url[:60])
+            return None
+        except Exception as e:
+            logger.warning("[collector] HTTP 요청 실패 (%s): %s", url[:60], e)
+            return None
+
+    if resp is None:
         return None
 
     # trafilatura 우선
