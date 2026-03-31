@@ -44,19 +44,59 @@ _REQUEST_HEADERS = {
 # ── 검색 쿼리 생성 ────────────────────────────────────────────────────────────
 
 def generate_search_queries(topic: dict) -> List[str]:
-    """토픽의 찬/반/중립 관점으로 다양한 검색 쿼리를 생성한다."""
+    """토픽 정보를 기반으로 다각적 검색 쿼리를 생성한다.
+
+    [쿼리 카테고리]
+        - 찬반 근거:   직접적인 찬성/반대 논거
+        - 통계/데이터:  수치 기반 근거
+        - 배경 지식:    논제의 맥락과 역사
+        - 유사 사례:    해외/과거 사례
+        - 전문가 의견:  기관/학자 발언
+        - 반론:        상대방 예상 반론과 그에 대한 재반박
+    """
     title = topic["title"]
     pro = topic.get("pro", "")
     con = topic.get("con", "")
+    desc = topic.get("description_long", "")
 
-    return [
-        f"{title} 찬성 근거 데이터",
-        f"{title} 반대 근거 데이터",
-        f"{title} 통계 연구 결과",
-        f"{title} 전문가 의견",
-        f"{pro} 사례",
-        f"{con} 사례",
+    # description_long에서 핵심 키워드를 추출 (첫 문장)
+    desc_first = desc.split("\n")[0].strip() if desc else ""
+    # 짧은 제목 추출 (주어 부분만)
+    short_title = title.split("은 ")[0] if "은 " in title else title.split("의 ")[0] if "의 " in title else title
+
+    queries = [
+        # ── 찬반 근거 ────────────────────────────────────
+        f"{title} 찬성 근거",
+        f"{title} 반대 근거",
+        f'"{pro}" 연구 결과',
+        f'"{con}" 연구 결과',
+
+        # ── 통계/데이터 ──────────────────────────────────
+        f"{short_title} 통계 수치 보고서",
+        f"{short_title} 2024 2025 데이터",
+
+        # ── 배경 지식 ────────────────────────────────────
+        f"{short_title} 배경 현황 분석",
+        f"{short_title} 원인 구조 메커니즘",
+
+        # ── 유사 사례 ────────────────────────────────────
+        f"{short_title} 해외 사례 비교",
+        f"{short_title} 성공 실패 사례",
+
+        # ── 전문가 의견 ──────────────────────────────────
+        f"{short_title} 전문가 학자 견해",
+        f"{short_title} 국제기구 보고서",
+
+        # ── 반론/논쟁 ────────────────────────────────────
+        f"{pro} 비판 반론",
+        f"{con} 비판 반론",
     ]
+
+    # description이 있으면 맥락 기반 쿼리 추가
+    if desc_first and len(desc_first) > 20:
+        queries.append(f"{desc_first[:60]} 관련 논의")
+
+    return queries
 
 
 # ── URL 본문 추출 ─────────────────────────────────────────────────────────────
