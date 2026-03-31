@@ -123,3 +123,38 @@ class UserOpeningResponse(BaseModel):
     phase: str
     debate_history: List[Dict[str, Any]]
     message: str
+
+
+# ── Stage 2: 연쇄 논박 API 모델 ─────────────────────────────────────────────────
+
+class UserRebuttalRequest(BaseModel):
+    """사용자 연쇄 논박 제출 요청."""
+
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("논박 내용은 비어 있을 수 없습니다.")
+        return v.strip()
+
+
+class RebuttalRunResponse(BaseModel):
+    """AI 연쇄 논박 생성 응답."""
+
+    session_id: str
+    phase: str
+    rebuttal_pairs: List[Dict[str, Any]]
+    pending_user_rounds: List[Dict[str, Any]]
+    debate_history: List[Dict[str, Any]]
+    message: str
+
+
+class UserRebuttalResponse(BaseModel):
+    """사용자 연쇄 논박 제출 응답."""
+
+    session_id: str
+    phase: str
+    debate_history: List[Dict[str, Any]]
+    message: str
