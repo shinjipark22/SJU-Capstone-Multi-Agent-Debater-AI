@@ -53,8 +53,8 @@ def main() -> None:
     parser.add_argument(
         "--count",
         type=int,
-        default=20,
-        help="토픽당 목표 청크 수 (기본 20)",
+        default=50,
+        help="토픽당 목표 청크 수 (기본 50)",
     )
     args = parser.parse_args()
 
