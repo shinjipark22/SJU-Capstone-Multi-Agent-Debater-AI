@@ -243,6 +243,17 @@ speech의 구조:
 [주의] 한자(漢字), 일본어, 아랍 문자 등 외국 문자 사용 금지. 반드시 한글로만 작성하세요."""
 
 
+_MAX_TOOL_ROUNDS = 3       # 도구 호출 최대 라운드 수 (무한 루프 방지)
+_MAX_TOOL_RESULT_CHARS = 800  # 도구 결과 최대 길이 (컨텍스트 폭발 방지)
+
+
+def _truncate_tool_result(result: str, max_chars: int = _MAX_TOOL_RESULT_CHARS) -> str:
+    """도구 결과가 너무 길면 잘라낸다."""
+    if len(result) <= max_chars:
+        return result
+    return result[:max_chars] + "\n\n[결과가 길어 일부만 표시됩니다]"
+
+
 def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
     """도구 실행 루프: tool_calls가 없을 때까지 모델 ↔ 도구를 반복 호출한다.
 
@@ -251,6 +262,7 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
     2. 비어 있으면 content 내 <tool_call> XML 폴백 파싱 (Qwen3.5 호환)
     3. 도구가 없으면 최종 답변으로 판단 → <think>/<tool_call> 블록 제거 후 반환
     4. 도구가 있으면 실행 후 결과를 메시지에 주입하고 반복
+    5. 최대 라운드 수 초과 시 강제로 최종 발언 생성으로 전환
 
     Args:
         messages: [SystemMessage, HumanMessage, ...] 초기 메시지 리스트 (in-place 확장됨)
@@ -259,6 +271,7 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
         (순수 입론 텍스트, JSON 원본 응답, 사용된 도구 로그 리스트)
     """
     tool_calls_log: List[Dict] = []
+    round_count = 0
 
     while True:
         response: AIMessage = _llm_with_tools.invoke(messages)
@@ -267,10 +280,10 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
         # ── 도구 호출 감지: 정식 파싱 우선, 없으면 XML 폴백 ──────────────────
         tool_calls = list(response.tool_calls) if response.tool_calls else _parse_xml_tool_calls(content)
 
-        if not tool_calls:
-            # 더 이상 도구 호출 없음 → JSON 모드로 최종 발언 생성
-            # 도구 호출 루프에서 쌓인 메시지(시스템+검색결과)를 그대로 이어받아
-            # {"reasoning": "...", "speech": "..."} 형태로 구조화 출력
+        if not tool_calls or round_count >= _MAX_TOOL_ROUNDS:
+            # 더 이상 도구 호출 없음 (또는 최대 라운드 초과) → JSON 모드로 최종 발언 생성
+            if round_count >= _MAX_TOOL_ROUNDS and tool_calls:
+                logger.info("[tool_loop] 최대 도구 호출 라운드(%d) 도달, 최종 발언 생성으로 전환", _MAX_TOOL_ROUNDS)
             messages.append(response)
             messages.append(HumanMessage(
                 content='위 검색 결과를 바탕으로 입론을 작성하세요. '
@@ -285,6 +298,8 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
         for tc in tool_calls:
             tool_calls_log.append({"name": tc["name"], "args": tc["args"]})
 
+        round_count += 1
+
         # ── 도구 실행 및 결과 주입 ────────────────────────────────────────────
         messages.append(response)
 
@@ -298,7 +313,7 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
                         tool_result = _TOOL_MAP[tc["name"]].invoke(tc["args"])
                     except (ValidationError, Exception) as e:
                         tool_result = f"[도구 호출 오류] {tc['name']} 인자가 잘못되었습니다: {e}"
-                messages.append(ToolMessage(content=tool_result, tool_call_id=tc["id"]))
+                messages.append(ToolMessage(content=_truncate_tool_result(tool_result), tool_call_id=tc["id"]))
         else:
             # XML 폴백: tool_call_id 없으므로 HumanMessage로 결과 일괄 주입
             results = []
@@ -310,7 +325,7 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
                         tool_result = _TOOL_MAP[tc["name"]].invoke(tc["args"])
                     except (ValidationError, Exception) as e:
                         tool_result = f"[도구 호출 오류] {tc['name']} 인자가 잘못되었습니다: {e}"
-                results.append(f"[{tc['name']} 결과]\n{tool_result}")
+                results.append(f"[{tc['name']} 결과]\n{_truncate_tool_result(tool_result)}")
             messages.append(HumanMessage(
                 content="\n\n".join(results) + "\n\n위 검색 결과를 바탕으로 입론을 완성하세요."
             ))
