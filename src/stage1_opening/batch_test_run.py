@@ -62,7 +62,7 @@ INTENSITY_PROFILES: dict[str, list[list[int]]] = {
     ],
 }
 
-VLLM_PORTS = [8000, 8001, 8002, 8003]
+VLLM_PORTS = [8000, 8001]
 
 USER_STANCE = "PRO"
 USER_INTENSITY = 3
