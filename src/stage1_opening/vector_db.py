@@ -29,6 +29,12 @@ _COLLECTION_NAME = "debate_docs_v2"
 # 공신력 등급별 가중치
 _CREDIBILITY_WEIGHTS = {1: 1.0, 2: 0.85, 3: 0.7}
 
+# 도메인 가중치
+_DOMAIN_WEIGHTS = {"primary": 1.0, "secondary": 0.7, "cross": 0.4}
+
+# Multi-domain 슬롯 비율
+_DOMAIN_RATIO = {"primary": 0.6, "cross": 0.3, "other": 0.1}
+
 
 @lru_cache(maxsize=1)
 def _get_model() -> SentenceTransformer:
@@ -115,6 +121,15 @@ def query_vector_db(
     all_ids: List[str] = results.get("ids", [[]])[0]
     all_metas: list = results.get("metadatas", [[]])[0]
 
+    # ── 쿼리 카테고리 추출 (topic_id 접두사 or 빈 문자열) ────────────────────
+    # topic 필드에서 카테고리를 유추할 수 없으므로 메타데이터의 category 사용
+    query_category = ""
+    for m in all_metas[:5]:
+        cat = m.get("category", "")
+        if cat:
+            query_category = cat
+            break
+
     # ── 가중치 점수 산정 + exclude 필터 ──────────────────────────────────────
     exclude_set = set(exclude_ids)
     scored = []
@@ -123,27 +138,71 @@ def query_vector_db(
         if doc_id in exclude_set:
             continue
 
+        meta = all_metas[idx] if idx < len(all_metas) else {}
+
         # ChromaDB는 cosine 유사도 순으로 반환 → 역순위를 유사도 proxy로 사용
         similarity_proxy = 1.0 / (1 + idx * 0.1)
 
         # 공신력 가중치
-        meta = all_metas[idx] if idx < len(all_metas) else {}
         tier = int(meta.get("credibility_tier", 3))
         cred_weight = _CREDIBILITY_WEIGHTS.get(tier, 0.7)
 
-        final_score = similarity_proxy * cred_weight
+        # 도메인 가중치
+        primary = meta.get("primary_domain", "")
+        secondary_str = meta.get("secondary_domains", "")
+        if primary == query_category:
+            domain_weight = _DOMAIN_WEIGHTS["primary"]
+        elif query_category and query_category in secondary_str:
+            domain_weight = _DOMAIN_WEIGHTS["secondary"]
+        else:
+            domain_weight = _DOMAIN_WEIGHTS["cross"]
+
+        final_score = similarity_proxy * cred_weight * domain_weight
         scored.append((final_score, idx))
 
-    # 점수 내림차순 정렬
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # 상위 n_results 반환
-    selected = scored[:n_results]
+    # ── Multi-domain 슬롯 배분 ───────────────────────────────────────────────
+    n_primary = max(1, int(n_results * _DOMAIN_RATIO["primary"]))
+    n_cross = max(1, int(n_results * _DOMAIN_RATIO["cross"]))
+    n_other = n_results - n_primary - n_cross
 
-    if not selected:
+    primary_slots = []
+    cross_slots = []
+    other_slots = []
+
+    for _, idx in scored:
+        meta = all_metas[idx] if idx < len(all_metas) else {}
+        primary = meta.get("primary_domain", "")
+        secondary_str = meta.get("secondary_domains", "")
+
+        if primary == query_category and len(primary_slots) < n_primary:
+            primary_slots.append(idx)
+        elif query_category and query_category in secondary_str and len(cross_slots) < n_cross:
+            cross_slots.append(idx)
+        elif len(other_slots) < n_other:
+            other_slots.append(idx)
+
+        if len(primary_slots) + len(cross_slots) + len(other_slots) >= n_results:
+            break
+
+    # 슬롯이 덜 찼으면 나머지에서 채움
+    selected_indices = primary_slots + cross_slots + other_slots
+    if len(selected_indices) < n_results:
+        used = set(selected_indices)
+        for _, idx in scored:
+            if idx not in used:
+                selected_indices.append(idx)
+                used.add(idx)
+            if len(selected_indices) >= n_results:
+                break
+
+    selected_indices = selected_indices[:n_results]
+
+    if not selected_indices:
         return [], []
 
-    docs = [all_docs[idx] for _, idx in selected]
-    ids = [all_ids[idx] for _, idx in selected]
+    docs = [all_docs[idx] for idx in selected_indices]
+    ids = [all_ids[idx] for idx in selected_indices]
 
     return docs, ids
