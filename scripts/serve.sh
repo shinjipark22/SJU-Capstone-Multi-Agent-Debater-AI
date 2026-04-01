@@ -28,6 +28,6 @@ vllm serve "$MODEL" \
     --port "$PORT" \
     --enforce-eager \
     --tensor-parallel-size 2 \
-    --max-model-len 32768 \
+    --max-model-len 65536 \
     --enable-auto-tool-choice \
     --tool-call-parser hermes
