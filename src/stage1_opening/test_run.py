@@ -129,15 +129,16 @@ def main():
     )
     print(f"  ✅ debate_history 길이: {len(history)}개 (AI 에이전트 수와 일치)")
 
-    # phase 전환 검증
-    assert result_state["phase"] == "chained_rebuttal", (
-        f"❌ phase 전환 실패: 기대 'chained_rebuttal', 실제 '{result_state['phase']}'"
+    # phase 검증: 사용자 입론 대기 중이므로 "opening" 유지가 정상
+    assert result_state["phase"] == "opening", (
+        f"❌ phase 불일치: 기대 'opening' (사용자 입론 대기), 실제 '{result_state['phase']}'"
     )
-    print(f"  ✅ phase 전환: '{state['phase']}' → '{result_state['phase']}'")
+    print(f"  ✅ phase 유지: '{result_state['phase']}' (사용자 입론 대기 중)")
 
-    # current_turn 증가 검증
-    assert result_state["current_turn"] == ai_count, (
-        f"❌ current_turn 불일치: 기대 {ai_count}, 실제 {result_state['current_turn']}"
+    # current_turn 증가 검증: speaking_order 전체 길이 (사용자 턴 포함)
+    expected_turn = len(result_state["speaking_order"])
+    assert result_state["current_turn"] == expected_turn, (
+        f"❌ current_turn 불일치: 기대 {expected_turn}, 실제 {result_state['current_turn']}"
     )
     print(f"  ✅ current_turn: {result_state['current_turn']} (발언 횟수와 일치)")
 
