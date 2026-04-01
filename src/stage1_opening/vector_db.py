@@ -32,8 +32,8 @@ _CREDIBILITY_WEIGHTS = {1: 1.0, 2: 0.85, 3: 0.7}
 # 도메인 가중치
 _DOMAIN_WEIGHTS = {"primary": 1.0, "secondary": 0.7, "cross": 0.4}
 
-# Multi-domain 슬롯 비율
-_DOMAIN_RATIO = {"primary": 0.6, "cross": 0.3, "other": 0.1}
+# Multi-domain 슬롯 비율 (보수적: 같은 분야 위주 + cross 보충)
+_DOMAIN_RATIO = {"primary": 0.8, "cross": 0.2, "other": 0.0}
 
 
 @lru_cache(maxsize=1)
