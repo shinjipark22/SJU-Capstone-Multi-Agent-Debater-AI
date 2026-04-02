@@ -121,9 +121,8 @@ _llm_json = ChatOpenAI(
 # ── 응답 후처리 유틸리티 ───────────────────────────────────────────────────────
 
 def _postprocess_speech(text: str) -> str:
-    """speech 후처리: 제목 레벨 통일 + 한자/외국 문자 제거."""
+    """speech 후처리: 구조 강제 + 볼드 정규화 + 외국 문자 제거."""
     # 1. 제목 정규화: #로 시작하는 줄의 prefix를 '## '로 통일
-    #    ## ## / #︳## / ### / #### 등 모든 변형을 처리
     text = re.sub(r'^#+[^가-힣a-zA-Z0-9\n]*(?=[가-힣a-zA-Z])', '## ', text, flags=re.MULTILINE)
     # 2. 소제목(## 로 시작하는 줄)에서 볼드 마크다운(*, **) 제거
     text = re.sub(r'^(## .*)$', lambda m: m.group(1).replace('*', ''), text, flags=re.MULTILINE)
@@ -132,6 +131,20 @@ def _postprocess_speech(text: str) -> str:
     # 4. 한자·일본어 등 외국 문자 제거
     text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff]+', '', text)
     text = re.sub(r' {2,}', ' ', text)
+    # 5. 논거 3 이후 강제 잘라내기 (## 결론은 보존)
+    match = re.search(r'^## 논거\s*3', text, re.MULTILINE)
+    if match:
+        # 논거 3 시작부터 ## 결론 직전까지 제거
+        conclusion = re.search(r'^## 결론', text[match.start():], re.MULTILINE)
+        if conclusion:
+            text = text[:match.start()] + text[match.start() + conclusion.start():]
+        else:
+            # 결론이 없으면 논거 3부터 끝까지 제거
+            text = text[:match.start()]
+    # 6. 볼드 마크다운 정규화: ****(4개), ***(3개) → **(2개)
+    text = re.sub(r'\*{3,}([^*]+?)\*{3,}', r'**\1**', text)
+    # 7. 빈 볼드(****, ** ** 등) 제거
+    text = re.sub(r'\*{2,}\s*\*{2,}', '', text)
     return text
 
 
