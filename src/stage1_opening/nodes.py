@@ -126,8 +126,8 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'^#+[^가-힣a-zA-Z0-9\n]*(?=[가-힣a-zA-Z])', '## ', text, flags=re.MULTILINE)
     # 2. 소제목(## 로 시작하는 줄)에서 볼드 마크다운(*, **) 제거
     text = re.sub(r'^(## .*)$', lambda m: m.group(1).replace('*', ''), text, flags=re.MULTILINE)
-    # 3. 분석 라벨 제거 (원인:, 메커니즘:, 결과:)
-    text = re.sub(r'(?:원인|메커니즘|결과)\s*[:：]\s*', '', text)
+    # 3. 분석 라벨 제거 (원인:, 메커니즘:, 결과: — 볼드 포함)
+    text = re.sub(r'\*{0,2}(?:원인|메커니즘|결과)\*{0,2}\s*[:：]\s*', '', text)
     # 4. 한자·일본어 등 외국 문자 제거
     text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff]+', '', text)
     text = re.sub(r' {2,}', ' ', text)
@@ -233,6 +233,7 @@ def _build_opening_prompt(topic: str, stance: str, focus_area: str, stance_num: 
 
 speech는 마크다운 형식으로 작성하세요. ## 소제목 뒤에는 반드시 줄바꿈 후 본문을 작성하세요.
 **강조 표시**는 핵심적인 문장에 사용하되, 남용하지 마세요.
+상대는 고등학생입니다. 따라서 speech의 내용은 고등학생 수준에 맞게 간결하게 작성하세요.
 
 speech의 구조:
 ## 인사말
