@@ -7,20 +7,20 @@ main.py — FastAPI 애플리케이션 진입점 (Phase 0)
 
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Generator
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 
 from src.models import (
     AgentInfo,
     DebateInitRequest,
     DebateInitResponse,
-    OpeningRunResponse,
     UserOpeningRequest,
     UserOpeningResponse,
 )
 from src.phase0.persona_factory import create_agents, AgentPersona
-from src.stage1_opening.nodes import opening_arguments_node
+from src.stage1_opening.nodes import opening_arguments_stream
 from src.state import (
     AgentSnapshot,
     DebateEntry,
@@ -147,11 +147,12 @@ def health_check():
 
 # ── Stage 1: 입론 엔드포인트 ─────────────────────────────────────────────────────
 
-@app.post("/debate/{session_id}/opening/run", response_model=OpeningRunResponse)
-def run_opening_arguments(session_id: str) -> OpeningRunResponse:
-    """AI 에이전트들의 입론을 생성한다.
+@app.get("/debate/{session_id}/opening/run")
+def run_opening_arguments(session_id: str) -> StreamingResponse:
+    """AI 에이전트 입론을 SSE로 스트리밍한다.
 
-    speaking_order에 따라 모든 AI 에이전트가 순차적으로 입론을 생성한다.
+    에이전트 하나 완료될 때마다 DebateEntry를 SSE 이벤트로 전송한다.
+    모든 에이전트 완료 시 {"type": "done"} 이벤트를 전송한다.
     사용자(user) 턴은 건너뛰며, POST /debate/{session_id}/opening/user로 별도 제출해야 한다.
     """
     if session_id not in _sessions:
@@ -165,7 +166,6 @@ def run_opening_arguments(session_id: str) -> OpeningRunResponse:
             detail=f"현재 phase가 '{state['phase']}'입니다. 'opening' 단계에서만 실행 가능합니다.",
         )
 
-    # AI 입론이 이미 생성되었는지 확인
     ai_openings = [
         e for e in state["debate_history"]
         if e["phase"] == "opening" and e["speaker_id"] != "user"
@@ -173,22 +173,31 @@ def run_opening_arguments(session_id: str) -> OpeningRunResponse:
     if ai_openings:
         raise HTTPException(status_code=400, detail="AI 입론이 이미 생성되었습니다.")
 
-    updated_state = opening_arguments_node(state)
-    _sessions[session_id] = updated_state
+    def event_stream() -> Generator[str, None, None]:
+        history = list(state["debate_history"])
+        for entry in opening_arguments_stream(state):
+            history.append(entry)
+            payload = {
+                "turn": entry["turn"],
+                "speaker_id": entry["speaker_id"],
+                "stance": entry["stance"],
+                "phase": entry["phase"],
+                "content": entry["content"],
+                "target_id": entry["target_id"],
+            }
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-    # 사용자 턴 위치 확인
-    user_turn = next(
-        (i for i, sid in enumerate(updated_state["speaking_order"]) if sid == "user"),
-        -1,
-    )
+        # 세션 상태 업데이트
+        history.sort(key=lambda e: e["turn"])
+        _sessions[session_id] = DebateState(**{
+            **state,
+            "debate_history": history,
+            "current_turn": len(state["speaking_order"]),
+            "current_speaker_index": len(state["speaking_order"]),
+        })
+        yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
-    return OpeningRunResponse(
-        session_id=session_id,
-        phase=updated_state["phase"],
-        user_turn=user_turn,
-        debate_history=[dict(e) for e in updated_state["debate_history"]],
-        message=f"AI 에이전트 입론 완료. 사용자 입론을 제출하세요. (turn={user_turn})",
-    )
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.post("/debate/{session_id}/opening/user", response_model=UserOpeningResponse)

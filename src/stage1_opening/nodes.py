@@ -318,6 +318,47 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
 
 # ── 메인 노드 ─────────────────────────────────────────────────────────────────
 
+def opening_arguments_stream(state: DebateState):
+    """입론을 에이전트 하나씩 생성하며 DebateEntry를 yield한다 (SSE용).
+
+    opening_arguments_node와 동일한 로직이지만,
+    에이전트 하나 완료될 때마다 즉시 yield하여 스트리밍을 지원한다.
+    """
+    global _used_doc_ids
+    _used_doc_ids = set()
+
+    topic: str = state["topic"]
+    agent_map = {a["agent_id"]: a for a in state["agents"]}
+    _stance_counter: Dict[str, int] = {"PRO": 0, "CON": 0}
+
+    for idx, speaker_id in enumerate(state["speaking_order"]):
+        if speaker_id == "user":
+            continue
+
+        agent = agent_map[speaker_id]
+        _stance_counter[agent["stance"]] += 1
+        _stance_num = _stance_counter[agent["stance"]]
+
+        messages = [
+            SystemMessage(content=agent["system_prompt"]),
+            HumanMessage(content=_build_opening_prompt(topic, agent["stance"], agent["focus_area"], _stance_num)),
+        ]
+
+        final_text, json_raw, tool_calls_log = _run_tool_calling_loop(messages)
+
+        entry: DebateEntry = DebateEntry(
+            turn=idx,
+            speaker_id=speaker_id,
+            stance=agent["stance"],
+            phase="opening",
+            content=final_text,
+            target_id=None,
+            tool_calls_log=tool_calls_log,
+            json_raw=json_raw,
+        )
+        yield entry
+
+
 def opening_arguments_node(state: DebateState) -> DebateState:
     """1단계 입론 노드.
 

@@ -87,7 +87,6 @@ class DebateInitResponse(BaseModel):
     session_id: str
     topic: str
     agents: List[AgentInfo]
-    initial_state: Dict[str, Any]
     message: str
 
 
@@ -104,16 +103,6 @@ class UserOpeningRequest(BaseModel):
         if not v.strip():
             raise ValueError("입론 내용은 비어 있을 수 없습니다.")
         return v.strip()
-
-
-class OpeningRunResponse(BaseModel):
-    """AI 입론 생성 응답."""
-
-    session_id: str
-    phase: str
-    user_turn: int
-    debate_history: List[Dict[str, Any]]
-    message: str
 
 
 class UserOpeningResponse(BaseModel):
