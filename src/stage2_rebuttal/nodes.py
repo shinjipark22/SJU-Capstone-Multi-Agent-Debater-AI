@@ -31,6 +31,7 @@ from pydantic import ValidationError
 # ── 입론 단계에서 정의한 도구·LLM·유틸리티 재사용 ─────────────────────────────────
 import src.stage1_opening.nodes as _opening_mod
 from src.stage1_opening.nodes import (
+    _invoke_with_retry,
     _llm_json,
     _llm_with_tools,
     _parse_xml_tool_calls,
@@ -108,31 +109,59 @@ def _run_rebuttal_loop(messages: List, target_id: str) -> Tuple[str, str, List[D
         (speech, json_raw, tool_calls_log)
     """
     tool_calls_log: List[Dict] = []
+    round_count = 0
 
     while True:
-        response: AIMessage = _llm_with_tools.invoke(messages)
+        response: AIMessage = _invoke_with_retry(_llm_with_tools, messages, label="rebuttal_loop")
         content: str = response.content if isinstance(response.content, str) else str(response.content)
 
         # ── 도구 호출 감지: 정식 파싱 우선, 없으면 XML 폴백 ──────────────────
         tool_calls = list(response.tool_calls) if response.tool_calls else _parse_xml_tool_calls(content)
 
-        if not tool_calls:
-            # 더 이상 도구 호출 없음 → JSON 모드로 최종 반박 생성
+        # ── 도구 미사용 시 강제 재요청 (최소 1회 검색 보장) ────────────────
+        if not tool_calls and round_count == 0:
+            logger.warning("[rebuttal_loop] 첫 응답에서 도구 호출 없음, 검색 강제 요청")
             messages.append(response)
             messages.append(HumanMessage(
-                content='위 검색 결과를 바탕으로 연쇄 논박을 작성하세요. '
-                        '반드시 {"reasoning": "분석 과정", '
-                        f'"target_agent": "{target_id}", '
-                        '"speech": "최종 발언"} JSON으로만 출력하세요.'
+                content='반드시 search_web 또는 search_vector_db를 호출하여 근거를 검색하세요. '
+                        '검색 없이 논박을 작성하면 안 됩니다.'
             ))
-            json_response: AIMessage = _llm_json.invoke(messages)
+            round_count += 1
+            continue
+
+        if not tool_calls or round_count >= 3:
+            # 더 이상 도구 호출 없음 (또는 최대 라운드 초과) → JSON 모드로 최종 반박 생성
+            if round_count >= 3 and tool_calls:
+                logger.info("[rebuttal_loop] 최대 도구 호출 라운드 도달, 최종 발언 생성으로 전환")
+            messages.append(response)
+            json_prompt = ('위 검색 결과를 바탕으로 연쇄 논박을 작성하세요. '
+                           '반드시 {"reasoning": "분석 과정", '
+                           f'"target_agent": "{target_id}", '
+                           '"speech": "최종 발언"} JSON으로만 출력하세요.')
+            messages.append(HumanMessage(content=json_prompt))
+            json_response: AIMessage = _invoke_with_retry(_llm_json, messages, label="rebuttal_json")
             json_content: str = json_response.content if isinstance(json_response.content, str) else str(json_response.content)
             speech, _, json_raw = _extract_rebuttal_from_json(json_content)
+
+            # speech가 비어 있거나 구조가 깨진 경우 1회 재시도
+            if not speech.strip() or '### 상대방 주장 요약' not in speech:
+                logger.warning("[rebuttal_loop] speech 누락 또는 구조 불량, 재생성 시도")
+                messages.append(AIMessage(content=json_content))
+                messages.append(HumanMessage(
+                    content='speech가 올바르지 않습니다. 반드시 "### 상대방 주장 요약"으로 시작하는 '
+                            '논박을 작성하세요. {"speech": "최종 발언"} JSON으로만 출력하세요.'
+                ))
+                retry_response: AIMessage = _invoke_with_retry(_llm_json, messages, label="rebuttal_retry")
+                retry_content: str = retry_response.content if isinstance(retry_response.content, str) else str(retry_response.content)
+                speech, _, json_raw = _extract_rebuttal_from_json(retry_content)
+
             return speech, json_raw, tool_calls_log
 
         # ── 도구 호출 로그 수집 ───────────────────────────────────────────────
         for tc in tool_calls:
             tool_calls_log.append({"name": tc["name"], "args": tc["args"]})
+
+        round_count += 1
 
         # ── 도구 실행 및 결과 주입 ────────────────────────────────────────────
         messages.append(response)
@@ -185,37 +214,38 @@ def _build_rebuttal_prompt(
     target_speech: str,
     target_stance: str,
     stance_num: int,
+    target_stance_num: int,
     is_response: bool,
 ) -> str:
     """반박 요청 HumanMessage 본문을 생성한다."""
     stance_kr = "찬성(PRO)" if stance == "PRO" else "반대(CON)"
     stance_label = "찬성" if stance == "PRO" else "반대"
     agent_name = f"{stance_label} 에이전트{stance_num}"
-    target_stance_kr = "찬성(PRO)" if target_stance == "PRO" else "반대(CON)"
+    target_stance_label = "찬성" if target_stance == "PRO" else "반대"
+    target_display = f"{target_stance_label} 에이전트{target_stance_num}" if target_id != "user" else "사용자"
 
     action = "방어 및 재반박" if is_response else "공격 반박"
 
-    return f"""search_web과 search_vector_db를 호출해 근거를 수집한 뒤, '{topic}'에 대해 {target_id}의 발언을 {action}하는 연쇄 논박을 작성하세요.
+    return f"""search_web과 search_vector_db를 호출해 근거를 수집한 뒤, '{topic}'에 대해 {target_display}의 발언을 {action}하는 연쇄 논박을 작성하세요.
 
-[상대방 발언 — {target_id} ({target_stance_kr})]
+[상대방 발언 — {target_display}]
 {target_speech}
 
 [출력 형식]
 반드시 아래 JSON 형태로만 응답하세요:
 {{"reasoning": "상대 발언 분석, 반박 전략 구상 (이 부분은 관중에게 보이지 않습니다)", "target_agent": "{target_id}", "speech": "아래 구조를 따르는 최종 토론 발언"}}
 
-speech는 마크다운 형식으로 작성하세요. ## 소제목 뒤에는 반드시 줄바꿈 후 본문을 작성하세요.
+speech는 마크다운 형식으로 작성하세요. ### 소제목 뒤에는 반드시 줄바꿈 후 본문을 작성하세요.
 **강조 표시**는 핵심적인 문장에 사용하되, 남용하지 마세요.
 
 speech의 구조:
-## 상대방 주장 요약
-{target_id}의 핵심 주장과 논거를 1~2문장으로 요약한다.
-## 모순 및 허점 지적
-상대 논리의 모순점, 비약, 근거 부족을 구체적으로 지적한다.
-## 근거 기반 반박
-검색 결과를 바탕으로 상대 주장을 논파한다.
-## 내 주장 강화
-{stance_kr} 진영의 입장을 재강화하며 마무리한다.
+### 상대방 주장 요약
+{target_display}의 핵심 주장과 논거를 1~2문장으로 요약한다.
+### 모순 및 허점 지적
+상대 논리의 모순점, 비약, 근거 부족을 3줄 이내로 지적한다.
+### 근거 기반 반박
+검색 결과를 바탕으로 상대 주장을 3줄 이내로 논파한다.
+
 
 [진영 고수 규칙]
 1. 스탠스 고정: {stance_kr} 입장을 끝까지 방어하라. 최종 결론이 바뀌어서는 안 된다.
@@ -249,6 +279,7 @@ def generate_ai_rebuttal(
     agent: Dict,
     target_id: str,
     stance_num: int,
+    target_stance_num: int,
     current_turn: int,
     is_response: bool,
 ) -> DebateEntry:
@@ -257,13 +288,14 @@ def generate_ai_rebuttal(
     노드 내부 루프와 API 핸들러(사용자 공격 후 AI 응답 생성) 양쪽에서 사용한다.
 
     Args:
-        topic:        토론 주제
-        history:      현재까지의 debate_history (타겟 발언 조회용)
-        agent:        발언할 AI 에이전트 스냅샷 (AgentSnapshot dict)
-        target_id:    반박 대상 speaker_id
-        stance_num:   진영 내 번호 (표시용)
-        current_turn: 할당할 turn 번호
-        is_response:  True면 방어/재반박, False면 공격 반박
+        topic:             토론 주제
+        history:           현재까지의 debate_history (타겟 발언 조회용)
+        agent:             발언할 AI 에이전트 스냅샷 (AgentSnapshot dict)
+        target_id:         반박 대상 speaker_id
+        stance_num:        발언자의 진영 내 번호 (표시용)
+        target_stance_num: 타겟의 진영 내 번호 (표시용)
+        current_turn:      할당할 turn 번호
+        is_response:       True면 방어/재반박, False면 공격 반박
 
     Returns:
         생성된 DebateEntry
@@ -278,7 +310,7 @@ def generate_ai_rebuttal(
         SystemMessage(content=agent["system_prompt"]),
         HumanMessage(content=_build_rebuttal_prompt(
             topic, agent["stance"], target_id, target_speech,
-            target_stance, stance_num, is_response,
+            target_stance, stance_num, target_stance_num, is_response,
         )),
     ]
 
@@ -352,12 +384,14 @@ def chained_rebuttal_node(state: DebateState) -> DebateState:
 
             print(f"  [라운드 {round_num}] 공격: {display_name} → {target_id}")
 
+            target_snum = stance_nums.get(target_id, 0)
             entry = generate_ai_rebuttal(
                 topic=topic,
                 history=history,
                 agent=agent,
                 target_id=target_id,
                 stance_num=stance_nums[attacker_id],
+                target_stance_num=target_snum,
                 current_turn=current_turn,
                 is_response=False,
             )
@@ -379,12 +413,14 @@ def chained_rebuttal_node(state: DebateState) -> DebateState:
 
             print(f"  [라운드 {round_num}] 응답: {display_name} ← {attacker_id}")
 
+            attacker_snum = stance_nums.get(attacker_id, 0)
             entry = generate_ai_rebuttal(
                 topic=topic,
                 history=history,
                 agent=agent,
                 target_id=attacker_id,
                 stance_num=stance_nums[target_id],
+                target_stance_num=attacker_snum,
                 current_turn=current_turn,
                 is_response=True,
             )

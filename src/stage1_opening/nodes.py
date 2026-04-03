@@ -24,10 +24,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+import time
+
 from ddgs import DDGS
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+from openai import APITimeoutError, APIConnectionError, APIStatusError
 from pydantic import ValidationError
 
 from src.stage1_opening.vector_db import query_vector_db
@@ -105,6 +108,8 @@ _LLM_KWARGS = dict(
     base_url=_VLLM_BASE_URL,
     api_key="fake",          # vLLM은 API 키 불필요, 빈값 아닌 임의값 필요
     temperature=0.7,
+    max_tokens=4096,
+    timeout=120,             # 요청 타임아웃 2분
 )
 
 # 도구 호출용 (일반 모드)
@@ -116,6 +121,31 @@ _llm_json = ChatOpenAI(
     **_LLM_KWARGS,
     model_kwargs={"response_format": {"type": "json_object"}},
 )
+
+_LLM_MAX_RETRIES = 3
+_LLM_RETRY_DELAY = 5  # 초
+
+
+def _invoke_with_retry(llm, messages: list, *, label: str = "llm") -> AIMessage:
+    """LLM invoke를 타임아웃/연결 오류 시 최대 _LLM_MAX_RETRIES회 재시도한다."""
+    for attempt in range(1, _LLM_MAX_RETRIES + 1):
+        try:
+            return llm.invoke(messages)
+        except (APITimeoutError, APIConnectionError) as e:
+            logger.warning("[%s] 시도 %d/%d 실패 (%s): %s",
+                           label, attempt, _LLM_MAX_RETRIES, type(e).__name__, e)
+            if attempt == _LLM_MAX_RETRIES:
+                raise
+            time.sleep(_LLM_RETRY_DELAY * attempt)
+        except APIStatusError as e:
+            if e.status_code >= 500:
+                logger.warning("[%s] 시도 %d/%d 서버 오류 (%d): %s",
+                               label, attempt, _LLM_MAX_RETRIES, e.status_code, e)
+                if attempt == _LLM_MAX_RETRIES:
+                    raise
+                time.sleep(_LLM_RETRY_DELAY * attempt)
+            else:
+                raise
 
 
 # ── 응답 후처리 유틸리티 ───────────────────────────────────────────────────────
@@ -313,7 +343,7 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
     round_count = 0
 
     while True:
-        response: AIMessage = _llm_with_tools.invoke(messages)
+        response: AIMessage = _invoke_with_retry(_llm_with_tools, messages, label="tool_loop")
         content: str = response.content if isinstance(response.content, str) else str(response.content)
 
         # ── 도구 호출 감지: 정식 파싱 우선, 없으면 XML 폴백 ──────────────────
@@ -338,7 +368,7 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
             json_prompt = ('위 검색 결과를 바탕으로 입론을 작성하세요. '
                            '반드시 {"reasoning": "분석 과정", "speech": "최종 발언"} JSON으로만 출력하세요.')
             messages.append(HumanMessage(content=json_prompt))
-            json_response: AIMessage = _llm_json.invoke(messages)
+            json_response: AIMessage = _invoke_with_retry(_llm_json, messages, label="tool_loop_json")
             json_content: str = json_response.content if isinstance(json_response.content, str) else str(json_response.content)
             speech, json_raw = _extract_speech_from_json(json_content)
 
@@ -351,7 +381,7 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
                     content='speech가 올바르지 않습니다. 반드시 "### 자기소개와 입장 표명"으로 시작하는 '
                             '입론을 작성하세요. {"speech": "최종 발언"} JSON으로만 출력하세요.'
                 ))
-                retry_response: AIMessage = _llm_json.invoke(messages)
+                retry_response: AIMessage = _invoke_with_retry(_llm_json, messages, label="tool_loop_retry")
                 retry_content: str = retry_response.content if isinstance(retry_response.content, str) else str(retry_response.content)
                 speech, json_raw = _extract_speech_from_json(retry_content)
 

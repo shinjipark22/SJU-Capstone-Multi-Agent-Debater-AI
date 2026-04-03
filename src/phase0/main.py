@@ -410,6 +410,7 @@ def submit_user_rebuttal(
             agent=agent,
             target_id="user",
             stance_num=stance_nums[responder_id],
+            target_stance_num=0,
             current_turn=current_turn,
             is_response=True,
         )
