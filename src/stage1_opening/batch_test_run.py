@@ -102,7 +102,23 @@ def _run_worker(task: dict) -> dict:
     별도 프로세스에서 실행된다.
     VLLM_BASE_URL 환경변수를 설정한 뒤 nodes 모듈을 임포트하여
     해당 포트의 vLLM 서버를 사용한다.
+
+    주의: vLLM의 LengthFinishReasonError 등 pickle 불가능한 예외가
+    프로세스 풀을 무너뜨리는 것을 방지하기 위해 전체를 try-except으로 감싼다.
     """
+    try:
+        return _run_worker_inner(task)
+    except Exception as e:
+        # pickle 가능한 일반 dict로 에러 반환 (프로세스 풀 보호)
+        return {
+            "case_id": task.get("case_id", "unknown"),
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+
+def _run_worker_inner(task: dict) -> dict:
+    """실제 워커 로직."""
     os.environ["VLLM_BASE_URL"] = f"http://localhost:{task['port']}/v1"
 
     # 환경변수 설정 후 임포트해야 올바른 base_url이 적용된다
@@ -242,6 +258,11 @@ def main():
 
             try:
                 result = future.result()
+
+                # 워커 내부에서 에러가 발생한 경우 (pickle 보호용 dict 반환)
+                if "error" in result and "opening_arguments" not in result:
+                    raise RuntimeError(result["error"])
+
                 result["timestamp"] = timestamp
 
                 out_path = run_dir / f"{case_id}.json"
