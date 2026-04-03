@@ -15,8 +15,11 @@ from src.models import (
     AgentInfo,
     DebateInitRequest,
     DebateInitResponse,
+    FreeRebuttalRunResponse,
     OpeningRunResponse,
     RebuttalRunResponse,
+    UserFreeRebuttalRequest,
+    UserFreeRebuttalResponse,
     UserOpeningRequest,
     UserOpeningResponse,
     UserRebuttalRequest,
@@ -29,6 +32,11 @@ from src.stage2_rebuttal.nodes import (
     build_agent_stance_nums,
     chained_rebuttal_node,
     generate_ai_rebuttal,
+)
+from src.stage3_free_rebuttal.nodes import (
+    free_rebuttal_node,
+    generate_ai_free_rebuttal,
+    _pick_target,
 )
 from src.state import (
     AgentSnapshot,
@@ -443,6 +451,159 @@ def submit_user_rebuttal(
     return UserRebuttalResponse(
         session_id=session_id,
         phase=next_phase,
+        debate_history=[dict(e) for e in history],
+        message=msg,
+    )
+
+
+# ── Stage 3: 자유 논박 엔드포인트 ────────────────────────────────────────────────
+
+@app.post("/debate/{session_id}/free-rebuttal/run", response_model=FreeRebuttalRunResponse)
+def run_free_rebuttal(session_id: str) -> FreeRebuttalRunResponse:
+    """AI 에이전트들의 자유 논박을 생성한다.
+
+    speaking_order에 따라 한 사이클 동안 모든 AI 에이전트가 순서대로 발언한다.
+    사용자(user) 차례는 건너뛰며, POST /debate/{session_id}/free-rebuttal/user로 별도 제출해야 한다.
+    current_cycle >= max_cycle이면 phase가 'role_reversal'로 전환된다.
+    """
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = _sessions[session_id]
+
+    if state["phase"] != "free_rebuttal":
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 phase가 '{state['phase']}'입니다. 'free_rebuttal' 단계에서만 실행 가능합니다.",
+        )
+
+    updated_state = free_rebuttal_node(state)
+    _sessions[session_id] = updated_state
+
+    has_user_turn = "user" in updated_state["speaking_order"]
+    cycle = updated_state["current_cycle"]
+    max_c = updated_state["max_cycle"]
+
+    msg = f"AI 자유 논박 완료 (사이클 {cycle}/{max_c})."
+    if has_user_turn:
+        msg += " 사용자 발언을 제출하세요."
+    if updated_state["phase"] == "role_reversal":
+        msg += " 최대 사이클 도달 → 4단계 역할 반전으로 전환합니다."
+
+    return FreeRebuttalRunResponse(
+        session_id=session_id,
+        phase=updated_state["phase"],
+        current_cycle=updated_state["current_cycle"],
+        max_cycle=updated_state["max_cycle"],
+        debate_history=[dict(e) for e in updated_state["debate_history"]],
+        message=msg,
+    )
+
+
+@app.post("/debate/{session_id}/free-rebuttal/user", response_model=UserFreeRebuttalResponse)
+def submit_user_free_rebuttal(
+    session_id: str,
+    request: UserFreeRebuttalRequest,
+) -> UserFreeRebuttalResponse:
+    """사용자의 자유 논박을 제출한다.
+
+    사용자 발언 후, 현재 사이클의 남은 AI 발언자가 있으면 자동 생성한다.
+    사이클 완료 후 current_cycle >= max_cycle이면 phase를 'role_reversal'로 전환한다.
+    """
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = _sessions[session_id]
+
+    if state["phase"] != "free_rebuttal":
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 phase가 '{state['phase']}'입니다. 'free_rebuttal' 단계에서만 제출 가능합니다.",
+        )
+
+    # target_id 유효성 검증
+    agent_map = {a["agent_id"]: a for a in state["agents"]}
+    if request.target_id not in agent_map:
+        raise HTTPException(
+            status_code=400,
+            detail=f"target_id '{request.target_id}'는 유효한 에이전트가 아닙니다.",
+        )
+
+    history = list(state["debate_history"])
+    current_turn = state["current_turn"]
+    speaking_order = state["speaking_order"]
+    stance_nums = build_agent_stance_nums(state["agents"], speaking_order)
+
+    # 사용자 DebateEntry 생성
+    user_entry = DebateEntry(
+        turn=current_turn,
+        speaker_id="user",
+        stance=state["user_stance"],
+        phase="free_rebuttal",
+        content=request.content,
+        target_id=request.target_id,
+    )
+    history.append(user_entry)
+    current_turn += 1
+
+    # 사용자 이후 남은 AI 발언자 자동 생성
+    user_idx = speaking_order.index("user")
+    remaining_speakers = speaking_order[user_idx + 1:]
+
+    _opening_mod._used_doc_ids = set()
+
+    for speaker_id in remaining_speakers:
+        if speaker_id == "user":
+            continue
+        agent = agent_map[speaker_id]
+        target_id = _pick_target(history, speaker_id, agent["stance"], state["agents"])
+        if target_id is None:
+            continue
+
+        stance_label = "찬성" if agent["stance"] == "PRO" else "반대"
+        display_name = f"{stance_label} 에이전트{stance_nums[speaker_id]}"
+        target_snum = stance_nums.get(target_id, 0)
+        print(f"  [{display_name}] 자유 논박 생성 중...")
+
+        entry = generate_ai_free_rebuttal(
+            topic=state["topic"],
+            history=history,
+            agent=agent,
+            target_id=target_id,
+            stance_num=stance_nums[speaker_id],
+            target_stance_num=target_snum,
+            current_turn=current_turn,
+        )
+        history.append(entry)
+        current_turn += 1
+
+    # 사이클 완료 처리
+    current_cycle = state["current_cycle"] + 1
+    max_cycle = state["max_cycle"]
+
+    if current_cycle >= max_cycle:
+        next_phase = "role_reversal"
+    else:
+        next_phase = "free_rebuttal"
+
+    updated_state = DebateState(**{
+        **state,
+        "debate_history": history,
+        "current_turn": current_turn,
+        "current_cycle": current_cycle,
+        "phase": next_phase,
+    })
+    _sessions[session_id] = updated_state
+
+    msg = f"사용자 자유 논박이 제출되었습니다 (사이클 {current_cycle}/{max_cycle})."
+    if next_phase == "role_reversal":
+        msg += " 최대 사이클 도달 → 4단계 역할 반전(role_reversal)으로 전환합니다."
+
+    return UserFreeRebuttalResponse(
+        session_id=session_id,
+        phase=next_phase,
+        current_cycle=current_cycle,
+        max_cycle=max_cycle,
         debate_history=[dict(e) for e in history],
         message=msg,
     )

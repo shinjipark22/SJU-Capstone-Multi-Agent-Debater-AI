@@ -158,3 +158,48 @@ class UserRebuttalResponse(BaseModel):
     phase: str
     debate_history: List[Dict[str, Any]]
     message: str
+
+
+# ── Stage 3: 자유 논박 API 모델 ─────────────────────────────────────────────────
+
+class FreeRebuttalRunResponse(BaseModel):
+    """AI 자유 논박 생성 응답."""
+
+    session_id: str
+    phase: str
+    current_cycle: int
+    max_cycle: int
+    debate_history: List[Dict[str, Any]]
+    message: str
+
+
+class UserFreeRebuttalRequest(BaseModel):
+    """사용자 자유 논박 제출 요청."""
+
+    content: str
+    target_id: str  # 반박 대상 에이전트 ID (@에이전트명)
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("논박 내용은 비어 있을 수 없습니다.")
+        return v.strip()
+
+    @field_validator("target_id")
+    @classmethod
+    def validate_target_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("반박 대상(target_id)은 비어 있을 수 없습니다.")
+        return v.strip()
+
+
+class UserFreeRebuttalResponse(BaseModel):
+    """사용자 자유 논박 제출 응답."""
+
+    session_id: str
+    phase: str
+    current_cycle: int
+    max_cycle: int
+    debate_history: List[Dict[str, Any]]
+    message: str
