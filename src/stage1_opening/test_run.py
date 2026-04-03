@@ -27,7 +27,7 @@ from src.stage1_opening.nodes import opening_arguments_node
 
 # ── 테스트 설정 ───────────────────────────────────────────────────────────────
 
-TOPIC_ID = "econ_002"          # data/topics_20260323_processed.json 에서 사용할 토픽 ID
+TOPIC_ID = "poli_002"          # data/topics_20260323_processed.json 에서 사용할 토픽 ID
 DEBATE_FORMAT = "3:3"
 USER_STANCE = "PRO"
 USER_INTENSITY = 3

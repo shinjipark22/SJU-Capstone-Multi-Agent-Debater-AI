@@ -122,29 +122,38 @@ _llm_json = ChatOpenAI(
 
 def _postprocess_speech(text: str) -> str:
     """speech 후처리: 구조 강제 + 볼드 정규화 + 외국 문자 제거."""
-    # 1. 제목 정규화: #로 시작하는 줄의 prefix를 '## '로 통일
-    text = re.sub(r'^#+[^가-힣a-zA-Z0-9\n]*(?=[가-힣a-zA-Z])', '## ', text, flags=re.MULTILINE)
-    # 2. 소제목(## 로 시작하는 줄)에서 볼드 마크다운(*, **) 제거
-    text = re.sub(r'^(## .*)$', lambda m: m.group(1).replace('*', ''), text, flags=re.MULTILINE)
+    # 0. "### 자기소개와 입장 표명" 이전의 불필요한 내용 제거 (LLM이 임의 제목을 붙이는 문제 방지)
+    intro_heading = re.search(r'^### 자기소개와 입장 표명', text, re.MULTILINE)
+    if intro_heading:
+        text = text[intro_heading.start():]
+    # 1. 제목 정규화: #로 시작하는 줄의 prefix를 '### '로 통일
+    text = re.sub(r'^#+[^가-힣a-zA-Z0-9\n]*(?=[가-힣a-zA-Z])', '### ', text, flags=re.MULTILINE)
+    # 2. 소제목(### 로 시작하는 줄)에서 볼드 마크다운(*, **) 제거
+    text = re.sub(r'^(### .*)$', lambda m: m.group(1).replace('*', ''), text, flags=re.MULTILINE)
     # 3. 분석 라벨 제거 (원인:, 메커니즘:, 결과: — 볼드 포함)
     text = re.sub(r'\*{0,2}(?:원인|메커니즘|결과)\*{0,2}\s*[:：]\s*', '', text)
     # 4. 한자·일본어 등 외국 문자 제거
     text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff]+', '', text)
     text = re.sub(r' {2,}', ' ', text)
-    # 5. 논거 3 이후 강제 잘라내기 (## 결론은 보존)
-    match = re.search(r'^## 논거\s*3', text, re.MULTILINE)
+    # 5. 논거 3 이후 강제 잘라내기 (### 결론은 보존)
+    match = re.search(r'^### 논거\s*3', text, re.MULTILINE)
     if match:
-        # 논거 3 시작부터 ## 결론 직전까지 제거
-        conclusion = re.search(r'^## 결론', text[match.start():], re.MULTILINE)
+        conclusion = re.search(r'^### 결론', text[match.start():], re.MULTILINE)
         if conclusion:
             text = text[:match.start()] + text[match.start() + conclusion.start():]
         else:
-            # 결론이 없으면 논거 3부터 끝까지 제거
             text = text[:match.start()]
     # 6. 볼드 마크다운 정규화: ****(4개), ***(3개) → **(2개)
     text = re.sub(r'\*{3,}([^*]+?)\*{3,}', r'**\1**', text)
     # 7. 빈 볼드(****, ** ** 등) 제거
     text = re.sub(r'\*{2,}\s*\*{2,}', '', text)
+    # 8. 결론 섹션 이후의 메타 코멘트 제거 (LLM이 *참고:, *주: 등을 붙이는 문제 방지)
+    conclusion_match = re.search(r'^### 결론', text, re.MULTILINE)
+    if conclusion_match:
+        after_conclusion = text[conclusion_match.start():]
+        after_conclusion = re.sub(r'\n\s*\*?참고[\s:：].*', '', after_conclusion, flags=re.DOTALL)
+        after_conclusion = re.sub(r'\n\s*\*?주[\s:：].*', '', after_conclusion, flags=re.DOTALL)
+        text = text[:conclusion_match.start()] + after_conclusion
     return text
 
 
@@ -220,37 +229,55 @@ def _parse_xml_tool_calls(content: str) -> List[Dict]:
 
 # ── 내부 유틸리티 ─────────────────────────────────────────────────────────────
 
-def _build_opening_prompt(topic: str, stance: str, focus_area: str, stance_num: int) -> str:
+def _build_opening_prompt(
+    topic: str, stance: str, focus_area: str, stance_num: int,
+    prior_same_stance_queries: Optional[List[str]] = None,
+) -> str:
     """입론 요청 HumanMessage 본문을 생성한다."""
     stance_kr = "찬성(PRO)" if stance == "PRO" else "반대(CON)"
     stance_label = "찬성" if stance == "PRO" else "반대"
     agent_name = f"{stance_label} 에이전트{stance_num}"
+    # focus_area에서 검색 방향 추출
+    search_hint = focus_area.replace("검색 방향: ", "").strip()
+
+    # 같은 진영 이전 에이전트가 사용한 검색어를 알려줘 중복 방지
+    dedup_block = ""
+    if prior_same_stance_queries:
+        dedup_block = "\n[중복 금지 — 같은 진영 에이전트가 이미 사용한 검색어]\n"
+        for q in prior_same_stance_queries:
+            dedup_block += f'- "{q}"\n'
+        dedup_block += "위 키워드와 겹치지 않는 새로운 검색어를 사용하세요.\n"
+
     return f"""search_web과 search_vector_db를 호출해 근거를 수집한 뒤, '{topic}'에 대한 {stance_kr} 입론을 작성하세요.
+
+[검색 지침]
+다른 에이전트와 검색 키워드가 겹치지 않도록, 다음 키워드를 중심으로 검색하세요: {search_hint}
+{dedup_block}
 
 [출력 형식]
 반드시 아래 JSON 형태로만 응답하세요:
 {{"reasoning": "검색 결과 분석, 논리 구성 계획 (이 부분은 관중에게 보이지 않습니다)", "speech": "아래 구조를 따르는 최종 토론 발언"}}
 
-speech는 마크다운 형식으로 작성하세요. ## 소제목 뒤에는 반드시 줄바꿈 후 본문을 작성하세요.
+speech는 마크다운 형식으로 작성하세요. ### 소제목 뒤에는 반드시 줄바꿈 후 본문을 작성하세요.
 **강조 표시**는 핵심적인 문장에 사용하되, 남용하지 마세요.
-상대는 고등학생입니다. 따라서 speech의 내용은 고등학생 수준에 맞게 간결하게 작성하세요.
+상대방은 집중력이 부족합니다. 논거를 쓸 땐 3줄 이내로 핵심만 짚으세요.
 
 speech의 구조:
-## 인사말
-자신의 이름은 "{agent_name}"이며, 논제에 대한 입장을 간결하게 밝힌다.
-## 입장 표명
-핵심 주장을 한 문장으로 명확하게 선언한다.
-## 논거 1: (소제목)
-원인 → 메커니즘 → 결과 순서로 토론 근거 대본을 전개한다.
-## 논거 2: (소제목)
-다른 각도에서 주장을 보강하거나, 상대방 예상 반론에 선제 대응한다.
-## 결론
-논거를 종합하고, 핵심 주장을 힘 있게 재확인한다.
+### 자기소개와 입장 표명
+자신의 이름은 "{agent_name}"이라고 밝힌 후, 핵심 주장을 한 문장으로 선언한다.
+### 논거 1: (소제목)
+검색한 근거를 활용하여 주장을 뒷받침하는 첫 번째 핵심 논거를 전개한다.
+### 논거 2: (소제목)
+다른 각도에서 주장을 뒷받침하는 두 번째 핵심 논거를 전개한다.
+### 결론
+핵심 주장을 힘 있게 재확인한다.
+
+위 내용 외엔 절대 작성하지 않는다 (참고, 주석 등)
 
 [진영 고수 규칙]
 1. 스탠스 고정: 무조건 {stance_kr} 입장만 방어하라. 상대 진영 논리에 동조하거나 타협하는 것은 절대 금지.
 2. 불리한 정보 반박: 검색 결과에 당신의 진영에 불리한 내용이 있다면 절대 수용하지 마라. 반드시 "일각에서는 ~라 우려하지만" 형태의 예상 반론으로 삼아 철저히 논파하라.
-3. 결론 일관성: 모든 발언의 마지막은 반드시 {stance_kr} 입장을 강력히 재확인하며 끝내라.
+3. 결론 일관성: 결론에서 반드시 {stance_kr} 입장을 강력히 재확인하라.
 
 [주의] 한자(漢字), 일본어, 아랍 문자 등 외국 문자 사용 금지. 반드시 한글로만 작성하세요."""
 
@@ -292,18 +319,42 @@ def _run_tool_calling_loop(messages: List) -> Tuple[str, List[Dict]]:
         # ── 도구 호출 감지: 정식 파싱 우선, 없으면 XML 폴백 ──────────────────
         tool_calls = list(response.tool_calls) if response.tool_calls else _parse_xml_tool_calls(content)
 
+        # ── 도구 미사용 시 강제 재요청 (최소 1회 검색 보장) ────────────────
+        if not tool_calls and round_count == 0:
+            logger.warning("[tool_loop] 첫 응답에서 도구 호출 없음, 검색 강제 요청")
+            messages.append(response)
+            messages.append(HumanMessage(
+                content='반드시 search_web 또는 search_vector_db를 호출하여 근거를 검색하세요. '
+                        '검색 없이 입론을 작성하면 안 됩니다.'
+            ))
+            round_count += 1
+            continue
+
         if not tool_calls or round_count >= _MAX_TOOL_ROUNDS:
             # 더 이상 도구 호출 없음 (또는 최대 라운드 초과) → JSON 모드로 최종 발언 생성
             if round_count >= _MAX_TOOL_ROUNDS and tool_calls:
                 logger.info("[tool_loop] 최대 도구 호출 라운드(%d) 도달, 최종 발언 생성으로 전환", _MAX_TOOL_ROUNDS)
             messages.append(response)
-            messages.append(HumanMessage(
-                content='위 검색 결과를 바탕으로 입론을 작성하세요. '
-                        '반드시 {"reasoning": "분석 과정", "speech": "최종 발언"} JSON으로만 출력하세요.'
-            ))
+            json_prompt = ('위 검색 결과를 바탕으로 입론을 작성하세요. '
+                           '반드시 {"reasoning": "분석 과정", "speech": "최종 발언"} JSON으로만 출력하세요.')
+            messages.append(HumanMessage(content=json_prompt))
             json_response: AIMessage = _llm_json.invoke(messages)
             json_content: str = json_response.content if isinstance(json_response.content, str) else str(json_response.content)
             speech, json_raw = _extract_speech_from_json(json_content)
+
+            # speech가 비어 있거나 구조가 깨진 경우 1회 재시도
+            _speech_valid = speech.strip() and '### 자기소개와 입장 표명' in speech
+            if not _speech_valid:
+                logger.warning("[tool_loop] speech 누락 또는 구조 불량, 재생성 시도")
+                messages.append(AIMessage(content=json_content))
+                messages.append(HumanMessage(
+                    content='speech가 올바르지 않습니다. 반드시 "### 자기소개와 입장 표명"으로 시작하는 '
+                            '입론을 작성하세요. {"speech": "최종 발언"} JSON으로만 출력하세요.'
+                ))
+                retry_response: AIMessage = _llm_json.invoke(messages)
+                retry_content: str = retry_response.content if isinstance(retry_response.content, str) else str(retry_response.content)
+                speech, json_raw = _extract_speech_from_json(retry_content)
+
             return speech, json_raw, tool_calls_log
 
         # ── 도구 호출 로그 수집 ───────────────────────────────────────────────
@@ -368,6 +419,8 @@ def opening_arguments_node(state: DebateState) -> DebateState:
 
     # 진영별 번호 카운터 (찬성 에이전트1~3, 반대 에이전트1~3)
     _stance_counter: Dict[str, int] = {"PRO": 0, "CON": 0}
+    # 진영별 이전 에이전트 검색 쿼리 누적 (검색 중복 방지용)
+    _prior_queries: Dict[str, List[str]] = {"PRO": [], "CON": []}
 
     print(f"\n[1단계: 입론] 발언 순서: {state['speaking_order']}\n")
 
@@ -383,10 +436,16 @@ def opening_arguments_node(state: DebateState) -> DebateState:
 
         print(f"  [{_display_name}] 입론 생성 중...")
 
+        # 같은 진영 이전 에이전트의 검색 쿼리 목록
+        prior = _prior_queries[agent["stance"]] if _prior_queries[agent["stance"]] else None
+
         # 메시지 구성: 페르소나 주입 + 입론 요청
         messages = [
             SystemMessage(content=agent["system_prompt"]),
-            HumanMessage(content=_build_opening_prompt(topic, agent["stance"], agent["focus_area"], _stance_num)),
+            HumanMessage(content=_build_opening_prompt(
+                topic, agent["stance"], agent["focus_area"], _stance_num,
+                prior_same_stance_queries=prior,
+            )),
         ]
 
         # 도구 실행 루프 → 최종 입론 텍스트 + JSON 원본 + 도구 사용 로그
@@ -404,6 +463,10 @@ def opening_arguments_node(state: DebateState) -> DebateState:
             json_raw=json_raw,
         )
         history.append(entry)
+        # 이전 에이전트의 검색 쿼리를 누적 (다음 에이전트 중복 방지용)
+        for tc in tool_calls_log:
+            if tc["name"] in ("search_web", "search_vector_db") and "query" in tc["args"]:
+                _prior_queries[agent["stance"]].append(tc["args"]["query"])
 
         print(f"  [{_display_name}] 입론 완료 (turn={entry['turn']})\n")
 
