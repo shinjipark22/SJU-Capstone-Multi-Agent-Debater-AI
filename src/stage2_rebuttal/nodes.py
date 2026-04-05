@@ -71,8 +71,9 @@ def _extract_rebuttal_text(content: str) -> str:
         if s.startswith('상대의 주장을 반박') or s.startswith('반박'):
             if len(s) < 15:
                 continue
-        # 번호 매김 제거
+        # 번호 매김 제거 (1. 2. 3. 또는 볼드 앞 번호)
         s = re.sub(r'^\d+\.\s*', '', s)
+        s = re.sub(r'^\d+\.\s*\*\*', '**', s)
         korean_lines.append(s)
     return '\n'.join(korean_lines) if korean_lines else text.strip()
 
@@ -136,7 +137,9 @@ def _build_rebuttal_prompt(
 상대 논리의 핵심 약점을 깊이 분석한 뒤, 왜 그 논리가 성립하지 않는지 구체적으로 반박하라.
 피상적인 반박이 아니라, 상대 논리의 전제·인과관계·현실성 중 하나를 정확히 공격하라.
 
-3~4문장. ~입니다/~습니다 체."""
+3~4문장. ~입니다/~습니다 체.
+문장 사이에 줄바꿈을 넣어 가독성을 높여라.
+핵심적인 문장에는 **강조** 표시를 사용하라."""
 
 
 # ── 반박 생성 ────────────────────────────────────────────────────────────────

@@ -199,6 +199,8 @@ def _postprocess_speech(text: str) -> str:
     # 영어 줄 제거 (한글 없이 영어로만 이루어진 줄)
     lines = text.split('\n')
     text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l) or l.strip().startswith('###'))
+    # 영어 단어/구문 제거 (한국어 문장 안에 섞인 영어)
+    text = re.sub(r'\b[a-zA-Z]{3,}\s+[a-zA-Z]{3,}(?:\s+[a-zA-Z]{3,})*\b', '', text)
     # 도구명 흔적 제거
     text = re.sub(r'search_web|search_vector_db', '', text)
     text = re.sub(r'를 통해 확인되는 자료에 따르면[,.]?\s*', '', text)
@@ -301,18 +303,19 @@ def _build_opening_prompt(
 - 결론에서 {stance_kr} 입장 재확인
 - 반드시 한국어만 사용 (영어, 한자, 일본어 금지)
 - 참고 자료의 내용을 자연스럽게 녹여서 서술
+- 핵심적인 문장에는 **강조** 표시를 사용하라
 
 반드시 아래 형식으로만 출력:
 
 ### 답변 시작
 ### 자기소개와 입장 표명
-(자기소개 + 핵심 주장)
+(자기소개 + **핵심 주장**)
 ### 논거 1: (소제목)
 (근거 기반 논거)
 ### 논거 2: (소제목)
 (다른 각도의 논거)
 ### 결론
-(입장 재확인)
+(**입장 재확인**)
 ### 답변 끝"""
 
 
