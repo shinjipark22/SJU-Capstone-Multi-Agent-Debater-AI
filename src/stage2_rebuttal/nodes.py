@@ -33,14 +33,14 @@ from src.state import (
     build_chained_rebuttal_pairs,
 )
 
-# ── 연쇄논박 전용 LLM (max_tokens=2048: think 블록 + 답변 여유) ──────────────
-_rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 2048})
+# ── 연쇄논박 전용 LLM (max_tokens=1024: think 제한 + 간결한 답변 유도) ────────
+_rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
 
 
-# ── delimiter 추출 (연쇄논박 전용, 엄격) ─────────────────────────────────────
+# ── 텍스트 추출 (delimiter 없이, <think> + 영어 제거 후 한국어만) ────────────
 
 def _extract_rebuttal_text(content: str) -> str:
-    """### 답변 시작 ~ ### 답변 끝 사이만 추출. 없으면 첫 문단만 반환."""
+    """<think> 블록과 영어를 제거하고 한국어 문장만 추출한다."""
     text = content.strip()
 
     # <think> 제거
@@ -48,25 +48,33 @@ def _extract_rebuttal_text(content: str) -> str:
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
     text = text.replace('</think>', '').strip()
 
-    # 영어 줄 제거 (한글이 없고 영어가 포함된 줄은 모두 제거)
-    lines = text.split('\n')
-    text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l)).strip()
+    # 영어 CoT 제거: 문장별로 한글 비율이 30% 미만이면 삭제
+    parts = re.split(r'(?<=[.!?])\s+', text)
+    cleaned = []
+    for p in parts:
+        if not p.strip():
+            continue
+        korean_chars = len(re.findall(r'[가-힣]', p))
+        total_alpha = len(re.findall(r'[a-zA-Z가-힣]', p))
+        if total_alpha > 0 and korean_chars / total_alpha < 0.3:
+            continue  # 영어 비중 70% 이상 → CoT로 판단
+        cleaned.append(p)
+    text = ' '.join(cleaned)
 
-    # delimiter 추출
-    m = re.search(r'###\s*답변\s*시작\s*(?:###)?\s*\n?(.*?)\n?\s*###\s*답변\s*끝', text, re.DOTALL)
-    if m and m.group(1).strip():
-        return m.group(1).strip()
-
-    m = re.search(r'###\s*답변\s*시작\s*(?:###)?\s*\n?(.*)', text, re.DOTALL)
-    if m and m.group(1).strip():
-        return m.group(1).strip()
-
-    # fallback: 한국어 문장 2~4개 추출
-    logger.warning("[_extract_rebuttal_text] delimiter 없음, 한국어 문장 추출")
-    korean_lines = [l.strip() for l in text.split('\n') if l.strip() and re.search(r'[가-힣]', l)]
-    if korean_lines:
-        return '\n'.join(korean_lines[:4])
-    return text.strip()
+    # 한국어가 포함된 줄만 추출
+    korean_lines = []
+    for l in text.split('\n'):
+        s = l.strip()
+        if not s or not re.search(r'[가-힣]', s):
+            continue
+        # 메타 문장 제거
+        if s.startswith('상대의 주장을 반박') or s.startswith('반박'):
+            if len(s) < 15:
+                continue
+        # 번호 매김 제거
+        s = re.sub(r'^\d+\.\s*', '', s)
+        korean_lines.append(s)
+    return '\n'.join(korean_lines) if korean_lines else text.strip()
 
 
 # ── 반박 프롬프트 ────────────────────────────────────────────────────────────
@@ -88,63 +96,47 @@ def _pre_search_rebuttal(topic: str, target_speech: str, stance: str, focus_area
     return "\n".join(results), tool_calls_log
 
 
+def _extract_key_claim(speech: str) -> str:
+    """상대 발언에서 핵심 주장 1문장을 추출한다."""
+    # 결론 섹션 우선
+    m = re.search(r'(?:결론|따라서|그러므로)[^\n]*', speech)
+    if m:
+        return m.group().strip()
+    # 마지막 한국어 문장
+    sentences = [s.strip() for s in speech.replace('\n', ' ').split('.') if s.strip() and re.search(r'[가-힣]', s)]
+    if sentences:
+        return sentences[-1] + '.'
+    return speech[:100]
+
+
 def _build_rebuttal_prompt(
     target_speech: str,
     target_display: str,
     stance_kr: str,
     my_previous: str = "",
-    focus_area: str = "",
     search_results: str = "",
+    attack_style: str = "",
 ) -> str:
-    prev_block = ""
-    if my_previous:
-        prev_block = f"\n[내가 이전에 한 발언 — 같은 내용 반복 금지]\n{my_previous}\n"
-
-    focus_block = ""
-    if focus_area:
-        focus_hint = focus_area.replace("검색 방향: ", "").strip()
-        focus_block = f"\n[공격 관점]\n다음 관점에서 상대를 공격하라: {focus_hint}\n"
-
-    search_block = ""
+    context = ""
     if search_results:
-        search_block = f"\n[참고 자료 — 자연스럽게 활용]\n{search_results}\n"
+        context += f"\n[참고 자료]\n{search_results}\n"
+    if my_previous:
+        context += f"\n[이전 발언 — 같은 내용 반복 금지]\n{my_previous}\n"
 
-    return f"""상대 발언:
+    return f"""너는 {stance_kr} 입장이다.
+
+상대의 전체 발언을 읽고, 논리 구조의 가장 취약한 부분을 찾아라.
+
+[상대 발언]
 {target_speech}
-{prev_block}{focus_block}{search_block}
-상대 주장의 핵심 논리를 무너뜨려라.
+{context}
+[공격 방식]
+{attack_style}
 
-구조:
-- 첫 문장: 상대 주장의 오류를 지적 (매번 다른 표현 사용)
-- 둘째 문장: 왜 틀렸는지 설명
-- 셋째 문장: 근거 또는 사례
-- 마지막 문장: 결론 ({stance_kr} 입장 강화)
+상대 논리의 핵심 약점을 깊이 분석한 뒤, 왜 그 논리가 성립하지 않는지 구체적으로 반박하라.
+피상적인 반박이 아니라, 상대 논리의 전제·인과관계·현실성 중 하나를 정확히 공격하라.
 
-조건:
-- 3~4문장만 작성
-- 상대 주장 1개만 공격
-- 한국어만 사용
-- 반드시 "~입니다/~습니다" 존댓말 사용
-- 공격적으로, 짧고 명확하게
-- 이전 발언과 다른 논점을 공격하라
-
-금지:
-- 5문장 이상
-- 번호 매김 (1. 2. 3. 등)
-- 설명형/중립 표현
-- 입론 내용 반복
-- 존재하지 않는 데이터 생성
-
-근거 규칙:
-- 참고 자료의 내용을 자연스럽게 녹여서 반박
-- 참고 자료에 없는 수치/통계는 사용 금지
-- 검색 도구 이름을 언급하지 마라
-
-반드시 아래 형식으로만 출력:
-
-### 답변 시작
-여기에 반박만 작성
-### 답변 끝"""
+3~4문장. ~입니다/~습니다 체."""
 
 
 # ── 반박 생성 ────────────────────────────────────────────────────────────────
@@ -165,24 +157,14 @@ def _generate_rebuttal_speech(
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
-    # delimiter 둘 다 없으면 1회 재시도
-    if '### 답변 시작' not in raw or '### 답변 끝' not in raw:
-        logger.warning("[rebuttal] delimiter 누락, 재시도")
-        messages.append(HumanMessage(
-            content='출력 형식이 틀렸다. ### 답변 시작 ### 와 ### 답변 끝 ### 사이에 한국어 반박만 작성하라.'
-        ))
-        retry: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_retry")
-        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
-        speech = _postprocess_speech(_extract_rebuttal_text(raw))
-
-    # fallback: 최후의 수단 (None 또는 5자 미만)
+    # fallback: None 또는 5자 미만
     if speech is None or len(speech.strip()) < 5:
         logger.warning("[rebuttal] fallback 사용")
         stance_kr = "찬성" if stance == "PRO" else "반대"
         speech = (
-            f"{target_display}의 주장은 핵심 전제가 부족하다. "
-            f"따라서 설득력이 없다. "
-            f"나는 {stance_kr} 입장을 유지한다."
+            f"{target_display}의 주장은 핵심 전제가 부족합니다. "
+            f"따라서 설득력이 없습니다. "
+            f"저는 {stance_kr} 입장을 유지합니다."
         )
 
     return speech, raw
@@ -203,6 +185,18 @@ def build_agent_stance_nums(
         counter[agent_map[sid]["stance"]] += 1
         nums[sid] = counter[agent_map[sid]["stance"]]
     return nums
+
+
+_ATTACK_STYLES = [
+    "전제 공격: 상대 주장에 깔린 가정이 틀렸음을 지적하라",
+    "현실성 공격: 실제 상황에서 작동하지 않는다는 점을 지적하라",
+    "부작용 공격: 해당 주장으로 인해 발생하는 문제를 강조하라",
+    "비교 공격: 더 나은 대안이 있음을 제시하라",
+    "데이터 공격: 상대 근거의 신뢰성이나 부족함을 지적하라",
+]
+
+# 에이전트별 공격 방식 카운터 (같은 방식 반복 방지)
+_attack_counter: Dict[str, int] = {}
 
 
 def generate_ai_rebuttal(
@@ -230,6 +224,12 @@ def generate_ai_rebuttal(
             my_previous = entry["content"][:200]
             break
 
+    # 공격 방식 순환 할당
+    aid = agent["agent_id"]
+    idx = _attack_counter.get(aid, 0)
+    attack_style = _ATTACK_STYLES[idx % len(_ATTACK_STYLES)]
+    _attack_counter[aid] = idx + 1
+
     t_label = "찬성" if target_stance == "PRO" else "반대"
     target_display = f"{t_label} 에이전트{target_stance_num}" if target_id != "user" else "사용자"
     stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
@@ -247,8 +247,8 @@ def generate_ai_rebuttal(
         target_display=target_display,
         stance_kr=stance_kr,
         my_previous=my_previous,
-        focus_area=focus,
         search_results=search_results,
+        attack_style=attack_style,
     )
 
     speech, raw = _generate_rebuttal_speech(
@@ -292,47 +292,26 @@ def chained_rebuttal_node(state: DebateState) -> DebateState:
         attacker_id = pair["attacker_id"]
         target_id = pair["target_id"]
 
-        if not pair["awaiting_response"]:
-            if attacker_id == "user":
-                print(f"  [라운드 {round_num}] 공격: 사용자 → {target_id} (API 대기)\n")
-                continue
+        # 공격만 수행 (응답 턴 제거)
+        if attacker_id == "user":
+            print(f"  [라운드 {round_num}] 공격: 사용자 → {target_id} (API 대기)\n")
+            continue
 
-            agent = agent_map[attacker_id]
-            slabel = "찬성" if agent["stance"] == "PRO" else "반대"
-            display = f"{slabel} 에이전트{stance_nums[attacker_id]}"
-            print(f"  [라운드 {round_num}] 공격: {display} → {target_id}")
+        agent = agent_map[attacker_id]
+        slabel = "찬성" if agent["stance"] == "PRO" else "반대"
+        display = f"{slabel} 에이전트{stance_nums[attacker_id]}"
+        print(f"  [라운드 {round_num}] {display} → {target_id}")
 
-            entry = generate_ai_rebuttal(
-                topic=topic, history=history, agent=agent,
-                target_id=target_id, stance_num=stance_nums[attacker_id],
-                target_stance_num=stance_nums.get(target_id, 0),
-                current_turn=current_turn, is_response=False,
-            )
-            history.append(entry)
-            current_turn += 1
-            pairs[pair_idx]["awaiting_response"] = True
-            print(f"  [라운드 {round_num}] 공격 완료 (turn={entry['turn']})\n")
-
-        if pairs[pair_idx]["awaiting_response"] and not pairs[pair_idx]["done"]:
-            if target_id == "user":
-                print(f"  [라운드 {round_num}] 응답: 사용자 ← {attacker_id} (API 대기)\n")
-                continue
-
-            agent = agent_map[target_id]
-            slabel = "찬성" if agent["stance"] == "PRO" else "반대"
-            display = f"{slabel} 에이전트{stance_nums[target_id]}"
-            print(f"  [라운드 {round_num}] 응답: {display} ← {attacker_id}")
-
-            entry = generate_ai_rebuttal(
-                topic=topic, history=history, agent=agent,
-                target_id=attacker_id, stance_num=stance_nums[target_id],
-                target_stance_num=stance_nums.get(attacker_id, 0),
-                current_turn=current_turn, is_response=True,
-            )
-            history.append(entry)
-            current_turn += 1
-            pairs[pair_idx]["done"] = True
-            print(f"  [라운드 {round_num}] 응답 완료 (turn={entry['turn']})\n")
+        entry = generate_ai_rebuttal(
+            topic=topic, history=history, agent=agent,
+            target_id=target_id, stance_num=stance_nums[attacker_id],
+            target_stance_num=stance_nums.get(target_id, 0),
+            current_turn=current_turn, is_response=False,
+        )
+        history.append(entry)
+        current_turn += 1
+        pairs[pair_idx]["done"] = True
+        print(f"  [라운드 {round_num}] 완료 (turn={entry['turn']})\n")
 
     all_done = all(p["done"] for p in pairs)
     next_phase = "free_rebuttal" if all_done else "chained_rebuttal"
