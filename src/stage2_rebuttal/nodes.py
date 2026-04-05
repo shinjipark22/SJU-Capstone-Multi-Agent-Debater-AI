@@ -46,8 +46,6 @@ def _extract_rebuttal_text(content: str) -> str:
     # <think> 제거
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
-    # 중국어 문장부호/외국 문자 제거
-    text = re.sub(r'[，。；：！？、]+', '', text)
     text = text.replace('</think>', '').strip()
 
     # 영어 CoT 제거: 문장별로 한글 비율이 30% 미만이면 삭제
@@ -122,33 +120,17 @@ def _build_rebuttal_prompt(
     target_display: str,
     stance_kr: str,
     my_previous: str = "",
-    search_results: str = "",
     attack_style: str = "",
 ) -> str:
     context = ""
-    if search_results:
-        context += f"\n[참고 자료]\n{search_results}\n"
     if my_previous:
         context += f"\n[이전 발언 — 같은 내용 반복 금지]\n{my_previous}\n"
 
-    return f"""너는 {stance_kr} 입장이다. 너의 역할은 "분석자"가 아니라 "공격자"다.
-
-[상대 발언]
+    return f"""상대 발언:
 {target_speech}
 {context}
-[공격 방식]
-{attack_style}
-
-규칙:
-- 오직 상대 주장의 오류를 공격하는 문장만 작성하라
-- 자기 주장을 보강하거나 반복하지 마라. 상대를 깎아내리는 데만 집중하라
-- 설명하지 마라
-- 중립적 표현 금지
-
-3~4문장. ~입니다/~습니다 체.
-핵심 문장에 **강조** 표시.
-번호 매김(1. 2. 3.) 절대 금지. 목록 금지.
-자연스러운 문단으로 이어서 작성하라."""
+이 주장의 어디가 틀렸는지 공격하라. ({attack_style})
+~입니다/~습니다 체. 핵심에 **강조**. 소제목·번호·목록 금지."""
 
 
 # ── 반박 생성 ────────────────────────────────────────────────────────────────
@@ -161,15 +143,14 @@ def _generate_rebuttal_speech(
 ) -> Tuple[str, str]:
     """단일 LLM 호출(max_tokens=256). delimiter 없으면 1회 재시도."""
     stance_kr = "찬성" if stance == "PRO" else "반대"
-    system_override = (
+    system = (
         f"{agent['system_prompt']}\n\n"
-        f"[최우선 규칙]\n"
-        f"너는 {stance_kr} 입장이다. 반드시 3~4문장으로만 답변하라. 5문장 이상 절대 금지.\n"
-        f"논박은 상대의 논리적 허점을 공격하는 것이다. 너의 의견을 피력하는 것이 아니다.\n"
-        f"자기 입장 표명은 마지막 한 문장으로만 끝내라."
+        f"[최우선 규칙] 너는 {stance_kr} 입장이다. "
+        f"반드시 3~4문장으로만 답변하라. "
+        f"상대 주장의 오류만 공격하라. 자기 의견 피력은 마지막 1문장으로만."
     )
     messages = [
-        SystemMessage(content=system_override),
+        SystemMessage(content=system),
         HumanMessage(content=prompt),
     ]
 
@@ -254,20 +235,11 @@ def generate_ai_rebuttal(
     target_display = f"{t_label} 에이전트{target_stance_num}" if target_id != "user" else "사용자"
     stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
 
-    focus = agent.get("focus_area", "")
-
-    # 사전검색
-    search_results, search_log = _pre_search_rebuttal(
-        topic=topic, target_speech=target_speech,
-        stance=agent["stance"], focus_area=focus,
-    )
-
     prompt = _build_rebuttal_prompt(
         target_speech=target_speech,
         target_display=target_display,
         stance_kr=stance_kr,
         my_previous=my_previous,
-        search_results=search_results,
         attack_style=attack_style,
     )
 
@@ -280,7 +252,7 @@ def generate_ai_rebuttal(
         turn=current_turn, speaker_id=agent["agent_id"],
         stance=agent["stance"], phase="chained_rebuttal",
         content=speech, target_id=target_id,
-        tool_calls_log=search_log, json_raw=raw,
+        tool_calls_log=[], json_raw=raw,
     )
 
 
