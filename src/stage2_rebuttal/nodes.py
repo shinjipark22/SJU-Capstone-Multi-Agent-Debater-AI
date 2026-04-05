@@ -71,11 +71,18 @@ def _extract_rebuttal_text(content: str) -> str:
         if s.startswith('상대의 주장을 반박') or s.startswith('반박'):
             if len(s) < 15:
                 continue
-        # 번호 매김 제거 (줄 시작 + 문장 중간)
+        # 번호 매김 제거 (줄 시작 + 문장 중간 + 볼드 앞)
         s = re.sub(r'^\d+\.\s*', '', s)
         s = re.sub(r'\s+\d+\.\s+', ' ', s)
-        s = re.sub(r'^3\.\s*1\.\s*', '', s)  # "3. 1." 패턴
-        korean_lines.append(s)
+        s = re.sub(r'^\d+\.\s*\d+\.\s*', '', s)  # "3. 1." 패턴
+        # 영어 잔해 제거 (" is , ." 같은 깨진 인용)
+        s = re.sub(r'\*\*"\s*[a-zA-Z\s,."\']+\s*"\*\*', '', s)
+        s = re.sub(r'"\s*[a-zA-Z\s,."\']+\s*"', '', s)
+        # 빈 볼드/다중 공백 정리
+        s = re.sub(r'\*{2,}\s*\*{2,}', '', s)
+        s = re.sub(r'\s{2,}', ' ', s).strip()
+        if s:
+            korean_lines.append(s)
     return '\n'.join(korean_lines) if korean_lines else text.strip()
 
 
