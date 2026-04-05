@@ -22,6 +22,9 @@ import src.stage1_opening.nodes as _opening_mod
 from src.stage1_opening.nodes import (
     _invoke_with_retry,
     _postprocess_speech,
+    _truncate_tool_result,
+    search_web,
+    search_vector_db,
     _LLM_KWARGS,
 )
 from src.state import (
@@ -68,19 +71,47 @@ def _extract_rebuttal_text(content: str) -> str:
 
 # ── 반박 프롬프트 ────────────────────────────────────────────────────────────
 
+def _pre_search_rebuttal(topic: str, target_speech: str, stance: str, focus_area: str) -> Tuple[str, List[Dict]]:
+    """연쇄논박용 사전검색. 상대 발언 키워드 + focus_area 기반."""
+    tool_calls_log: List[Dict] = []
+    results = []
+
+    # 상대 발언에서 핵심 키워드 추출 (첫 50자)
+    snippet = target_speech[:50].replace("\n", " ")
+    focus_hint = focus_area.replace("검색 방향: ", "").strip() if focus_area else topic
+
+    query = f"{topic} {focus_hint}"
+    tool_calls_log.append({"name": "search_web", "args": {"query": query}})
+    web_result = search_web.invoke({"query": query})
+    results.append(_truncate_tool_result(web_result))
+
+    return "\n".join(results), tool_calls_log
+
+
 def _build_rebuttal_prompt(
     target_speech: str,
     target_display: str,
     stance_kr: str,
     my_previous: str = "",
+    focus_area: str = "",
+    search_results: str = "",
 ) -> str:
     prev_block = ""
     if my_previous:
         prev_block = f"\n[내가 이전에 한 발언 — 같은 내용 반복 금지]\n{my_previous}\n"
 
+    focus_block = ""
+    if focus_area:
+        focus_hint = focus_area.replace("검색 방향: ", "").strip()
+        focus_block = f"\n[공격 관점]\n다음 관점에서 상대를 공격하라: {focus_hint}\n"
+
+    search_block = ""
+    if search_results:
+        search_block = f"\n[참고 자료 — 자연스럽게 활용]\n{search_results}\n"
+
     return f"""상대 발언:
 {target_speech}
-{prev_block}
+{prev_block}{focus_block}{search_block}
 상대 주장의 핵심 논리를 무너뜨려라.
 
 구조:
@@ -105,8 +136,9 @@ def _build_rebuttal_prompt(
 - 존재하지 않는 데이터 생성
 
 근거 규칙:
-- 수치/통계는 확실한 경우에만 사용
-- 불확실하면 일반적 표현으로
+- 참고 자료의 내용을 자연스럽게 녹여서 반박
+- 참고 자료에 없는 수치/통계는 사용 금지
+- 검색 도구 이름을 언급하지 마라
 
 반드시 아래 형식으로만 출력:
 
@@ -202,11 +234,21 @@ def generate_ai_rebuttal(
     target_display = f"{t_label} 에이전트{target_stance_num}" if target_id != "user" else "사용자"
     stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
 
+    focus = agent.get("focus_area", "")
+
+    # 사전검색
+    search_results, search_log = _pre_search_rebuttal(
+        topic=topic, target_speech=target_speech,
+        stance=agent["stance"], focus_area=focus,
+    )
+
     prompt = _build_rebuttal_prompt(
         target_speech=target_speech,
         target_display=target_display,
         stance_kr=stance_kr,
         my_previous=my_previous,
+        focus_area=focus,
+        search_results=search_results,
     )
 
     speech, raw = _generate_rebuttal_speech(
@@ -218,7 +260,7 @@ def generate_ai_rebuttal(
         turn=current_turn, speaker_id=agent["agent_id"],
         stance=agent["stance"], phase="chained_rebuttal",
         content=speech, target_id=target_id,
-        tool_calls_log=[], json_raw=raw,
+        tool_calls_log=search_log, json_raw=raw,
     )
 
 
