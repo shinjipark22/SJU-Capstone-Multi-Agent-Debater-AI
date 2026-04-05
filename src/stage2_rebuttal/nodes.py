@@ -33,7 +33,7 @@ from src.state import (
     build_chained_rebuttal_pairs,
 )
 
-# ── 연쇄논박 전용 LLM (max_tokens=1024: think 제한 + 간결한 답변 유도) ────────
+# ── 연쇄논박 전용 LLM (max_tokens=1024) ──────────────────────────────────────
 _rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
 
 
@@ -137,6 +137,7 @@ def _build_rebuttal_prompt(
 - 오직 상대 주장의 오류를 공격하는 문장만 작성하라
 
 3~4문장. ~입니다/~습니다 체.
+핵심 문장에 **강조** 표시.
 번호 매김(1. 2. 3.) 절대 금지. 목록 금지.
 자연스러운 문단으로 이어서 작성하라."""
 
