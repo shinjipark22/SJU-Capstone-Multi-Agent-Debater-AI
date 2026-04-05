@@ -71,9 +71,10 @@ def _extract_rebuttal_text(content: str) -> str:
         if s.startswith('상대의 주장을 반박') or s.startswith('반박'):
             if len(s) < 15:
                 continue
-        # 번호 매김 제거 (1. 2. 3. 또는 볼드 앞 번호)
+        # 번호 매김 제거 (줄 시작 + 문장 중간)
         s = re.sub(r'^\d+\.\s*', '', s)
-        s = re.sub(r'^\d+\.\s*\*\*', '**', s)
+        s = re.sub(r'\s+\d+\.\s+', ' ', s)
+        s = re.sub(r'^3\.\s*1\.\s*', '', s)  # "3. 1." 패턴
         korean_lines.append(s)
     return '\n'.join(korean_lines) if korean_lines else text.strip()
 
@@ -81,14 +82,11 @@ def _extract_rebuttal_text(content: str) -> str:
 # ── 반박 프롬프트 ────────────────────────────────────────────────────────────
 
 def _pre_search_rebuttal(topic: str, target_speech: str, stance: str, focus_area: str) -> Tuple[str, List[Dict]]:
-    """연쇄논박용 사전검색. 상대 발언 키워드 + focus_area 기반."""
+    """연쇄논박용 사전검색. 토픽 + focus_area 기반."""
     tool_calls_log: List[Dict] = []
     results = []
 
-    # 상대 발언에서 핵심 키워드 추출 (첫 50자)
-    snippet = target_speech[:50].replace("\n", " ")
     focus_hint = focus_area.replace("검색 방향: ", "").strip() if focus_area else topic
-
     query = f"{topic} {focus_hint}"
     tool_calls_log.append({"name": "search_web", "args": {"query": query}})
     web_result = search_web.invoke({"query": query})
@@ -124,9 +122,7 @@ def _build_rebuttal_prompt(
     if my_previous:
         context += f"\n[이전 발언 — 같은 내용 반복 금지]\n{my_previous}\n"
 
-    return f"""너는 {stance_kr} 입장이다.
-
-상대의 전체 발언을 읽고, 논리 구조의 가장 취약한 부분을 찾아라.
+    return f"""너는 {stance_kr} 입장이다. 너의 역할은 "분석자"가 아니라 "공격자"다.
 
 [상대 발언]
 {target_speech}
@@ -134,12 +130,15 @@ def _build_rebuttal_prompt(
 [공격 방식]
 {attack_style}
 
-상대 논리의 핵심 약점을 깊이 분석한 뒤, 왜 그 논리가 성립하지 않는지 구체적으로 반박하라.
-피상적인 반박이 아니라, 상대 논리의 전제·인과관계·현실성 중 하나를 정확히 공격하라.
+규칙:
+- 상대 주장을 평가하거나 분석하지 마라
+- 설명하지 마라
+- 중립적 표현 금지
+- 오직 상대 주장의 오류를 공격하는 문장만 작성하라
 
 3~4문장. ~입니다/~습니다 체.
-문장 사이에 줄바꿈을 넣어 가독성을 높여라.
-핵심적인 문장에는 **강조** 표시를 사용하라."""
+번호 매김(1. 2. 3.) 절대 금지. 목록 금지.
+자연스러운 문단으로 이어서 작성하라."""
 
 
 # ── 반박 생성 ────────────────────────────────────────────────────────────────

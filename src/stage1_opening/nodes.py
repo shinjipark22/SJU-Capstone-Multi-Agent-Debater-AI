@@ -214,6 +214,9 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'\*{2,}\s*\*{2,}', '', text)
     # 다중 공백 정리
     text = re.sub(r' {2,}', ' ', text)
+    # '자기소개와 입장 표명' 중복 텍스트 제거 (소제목 아닌 본문의 동일 텍스트)
+    text = re.sub(r'^자기소개와 입장 표명\s*\n', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^자기소개와 입장 표명\s*$', '', text, flags=re.MULTILINE)
     # 결론 이후 메타 코멘트 제거
     cm = re.search(r'^### 결론', text, re.MULTILINE)
     if cm:
@@ -382,7 +385,18 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         )
         final_text, raw = _generate_opening(agent, prompt)
 
-        # 3. fallback
+        # 3. 자기소개 소제목 보장 (입론 전용)
+        if '### 자기소개' not in final_text and '### 입장 표명' not in final_text:
+            first_h = re.search(r'^### ', final_text, re.MULTILINE)
+            if first_h and first_h.start() > 0:
+                intro = final_text[:first_h.start()].strip()
+                rest = final_text[first_h.start():]
+                if intro:
+                    final_text = f"### 자기소개와 입장 표명\n{intro}\n\n{rest}"
+            elif not final_text.startswith('###'):
+                final_text = f"### 자기소개와 입장 표명\n{final_text}"
+
+        # 4. fallback
         if not _is_valid_speech(final_text):
             logger.warning("[opening] fallback 사용")
             final_text = (
