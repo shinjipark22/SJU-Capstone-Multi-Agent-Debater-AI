@@ -46,6 +46,8 @@ def _extract_rebuttal_text(content: str) -> str:
     # <think> 제거
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+    # 중국어 문장부호/외국 문자 제거
+    text = re.sub(r'[，。；：！？、]+', '', text)
     text = text.replace('</think>', '').strip()
 
     # 영어 CoT 제거: 문장별로 한글 비율이 30% 미만이면 삭제
@@ -138,10 +140,10 @@ def _build_rebuttal_prompt(
 {attack_style}
 
 규칙:
-- 상대 주장을 평가하거나 분석하지 마라
+- 오직 상대 주장의 오류를 공격하는 문장만 작성하라
+- 자기 주장을 보강하거나 반복하지 마라. 상대를 깎아내리는 데만 집중하라
 - 설명하지 마라
 - 중립적 표현 금지
-- 오직 상대 주장의 오류를 공격하는 문장만 작성하라
 
 3~4문장. ~입니다/~습니다 체.
 핵심 문장에 **강조** 표시.
@@ -158,8 +160,16 @@ def _generate_rebuttal_speech(
     stance: str,
 ) -> Tuple[str, str]:
     """단일 LLM 호출(max_tokens=256). delimiter 없으면 1회 재시도."""
+    stance_kr = "찬성" if stance == "PRO" else "반대"
+    system_override = (
+        f"{agent['system_prompt']}\n\n"
+        f"[최우선 규칙]\n"
+        f"너는 {stance_kr} 입장이다. 반드시 3~4문장으로만 답변하라. 5문장 이상 절대 금지.\n"
+        f"논박은 상대의 논리적 허점을 공격하는 것이다. 너의 의견을 피력하는 것이 아니다.\n"
+        f"자기 입장 표명은 마지막 한 문장으로만 끝내라."
+    )
     messages = [
-        SystemMessage(content=agent["system_prompt"]),
+        SystemMessage(content=system_override),
         HumanMessage(content=prompt),
     ]
 
