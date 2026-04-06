@@ -230,6 +230,10 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'블로그에\s*따르면[,.]?\s*', '', text)
     # "의장은" → 앞에 이름 없으면 제거
     text = re.sub(r'(?<![가-힣a-zA-Z])의장은\s*', '', text)
+    # 한국어 문장 내 영어 단어 제거 (AI, IT, WEF 등 약어는 유지)
+    text = re.sub(r'(?<=[가-힣])\s*[a-z]{3,}\s*(?=[가-힣])', ' ', text)  # 소문자 영어 3자 이상
+    text = re.sub(r'[a-z]{4,}니다', '니다', text)  # "bring니다" → "니다"
+    text = re.sub(r'[a-z]{4,}합니다', '합니다', text)  # "mở합니다" 등
     # 메타 표현 제거
     text = re.sub(r'의 의견을 들어본다[.]?\s*', '은 ', text)
     # 분석 라벨 제거
