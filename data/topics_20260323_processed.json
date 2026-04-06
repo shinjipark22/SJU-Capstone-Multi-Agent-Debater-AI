@@ -1,0 +1,224 @@
+{
+  "categories": {
+    "기술/AI": [
+      {
+        "id": "tech_001",
+        "title": "인공지능 발전은 인간 고용의 축소가 아닌 노동 시장의 재편이다",
+        "description_short": "인공지능이 기존 일자리를 전면적으로 대체하는 위협인지, 아니면 새로운 형태의 일자리를 만들어내는 기회인지 맞서는 주제입니다.",
+        "description_long": "이 논제는 AI가 인간의 일을 통째로 없애는 기술인지, 아니면 기존 업무를 재편하면서 새로운 직무와 산업을 만들어내는 기술인지를 묻는다.\n\n실제로 세계경제포럼은 2030년까지 AI와 자동화로 사라지는 일자리보다 새로 생기는 일자리가 더 많을 수 있다고 전망했지만, 동시에 많은 기업은 반복적 사무·초급 업무의 축소도 예상하고 있다.\n\n따라서 이 논제의 핵심은 “AI가 일자리를 없애는가”가 아니라, 어떤 일자리가 줄고 어떤 역량이 새로 요구되는가에 있다.\n\n따라서 본 논제에서 찬성 측은 AI가 새로운 산업과 직무를 창출하며 노동 구조를 재편하는 기술이라는 입장을, 반대 측은 AI가 기존 일자리를 대체하며 전반적인 고용 감소를 초래할 수 있다는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "새로운 일자리 창출이다",
+        "con": "인간 노동력의 전면적 대체이다",
+        "references": [
+          {
+            "title": "The AI-driven workforce is here. How should your industry transform itself?",
+            "url": "https://www.weforum.org/stories/2026/02/workforce-transformation-ai-jobs/"
+          },
+          {
+            "title": "Generative AI and jobs: A 2025 update",
+            "url": "https://www.ilo.org/publications/generative-ai-and-jobs-2025-update"
+          },
+          {
+            "title": "Future of Jobs Report 2025: The jobs of the future – and the skills you need to get them",
+            "url": "https://www.weforum.org/stories/2025/01/future-of-jobs-report-2025-jobs-of-the-future-and-the-skills-you-need-to-get-them/"
+          }
+        ]
+      },
+      {
+        "id": "tech_002",
+        "title": "글로벌 데이터센터 산업의 최우선 과제는 AI 인프라 확충이 아닌 환경 및 전력 규제 강화다",
+        "description_short": "AI 시대를 맞아 데이터센터 인프라 확충을 통한 기술 성장이 최우선인지, 아니면 막대한 전력 소모와 탄소 배출에 대응하기 위한 환경 규제 강화가 우선되어야 하는지 맞서는 주제입니다.",
+        "description_long": "이 논제는 AI 확산으로 데이터센터 수요가 폭증하는 상황에서, 산업의 최우선 과제를 “더 빨리 짓는 것”에 둘지 “전력·물·폐열·탄소 규제를 먼저 정비하는 것”에 둘지를 다룬다.\n\nEU는 에너지효율지침(EED)을 통해 일정 규모 이상 데이터센터의 에너지·물 사용, 재생에너지 비중, 폐열 활용 등을 보고하도록 했고, 지속가능성 등급 체계도 도입했다.\n\n반면 유럽의 정책 문서들은 동시에 AI 경쟁력 확보를 위한 인프라 확충 필요성도 언급하고 있어, 실제 쟁점은 성장과 규제 중 무엇을 먼저 세울 것인가에 가깝다.\n\n따라서 본 논제에서 찬성 측은 데이터센터 산업의 지속가능성을 확보하기 위해 전력·환경 규제 강화를 우선해야 한다는 입장을, 반대 측은 글로벌 AI 경쟁력 확보를 위해 인프라 확충을 최우선으로 해야 한다는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "환경 및 전력 규제 강화가 우선이다",
+        "con": "AI 발전을 위한 인프라 확충이 우선이다",
+        "references": [
+          {
+            "title": "Energy Efficiency Directive",
+            "url": "https://energy.ec.europa.eu/topics/energy-efficiency/energy-efficiency-targets-directive-and-rules/energy-efficiency-directive_en"
+          },
+          {
+            "title": "Commission adopts EU-wide scheme for rating sustainability of data centres",
+            "url": "https://energy.ec.europa.eu/news/commission-adopts-eu-wide-scheme-rating-sustainability-data-centres-2024-03-15_en"
+          }
+        ]
+      },
+      {
+        "id": "tech_003",
+        "title": "AI 경쟁력의 핵심은 압도적 모델 성능이 아닌 신뢰성 높은 윤리적 안전장치다",
+        "description_short": "AI의 진정한 가치와 경쟁력이 트랜스포머 같은 압도적 모델 성능에 있는지, 사회적 신뢰를 담보하는 윤리적 안전장치에 있는지 맞서는 주제입니다.",
+        "description_long": "이 논제는 AI 경쟁력을 평가할 때 단순 성능지표보다 안전성, 통제 가능성, 투명성, 유해 출력 방지 체계를 더 핵심적인 요소로 봐야 하는지를 묻는다.\n\n국제 AI 안전 보고서는 범용 AI의 위험을 관리하는 체계가 기술 경쟁과 함께 중요해졌다고 정리하고 있으며, 별도 평가에서는 주요 기업들의 안전 관행이 여전히 글로벌 기대 수준에 못 미친다는 지적도 나왔다.\n\n따라서 이 논제는 “성능이 중요하지 않다”는 뜻이 아니라, 시장 신뢰와 실제 배치 가능성까지 포함한 경쟁력의 정의를 다시 묻는 주장으로 읽는 것이 정확하다.\n\n따라서 본 논제에서 찬성 측은 AI의 안전성과 신뢰성이 확보되어야 실제 경쟁력이 형성된다는 입장을, 반대 측은 결국 시장 경쟁력은 모델 성능과 기술적 우위에서 결정된다는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "신뢰성 높은 윤리적 안전장치다",
+        "con": "압도적 모델 성능이다",
+        "references": [
+          {
+            "title": "International AI Safety Report 2026",
+            "url": "https://internationalaisafetyreport.org/publication/international-ai-safety-report-2026"
+          },
+          {
+            "title": "AI companies' safety practices fail to meet global standards, study shows",
+            "url": "https://www.reuters.com/business/ai-companies-safety-practices-fail-meet-global-standards-study-shows-2025-12-03/"
+          }
+        ]
+      }
+    ],
+    "경제/산업": [
+      {
+        "id": "econ_001",
+        "title": "이란 전쟁 경제 충격의 책임은 이란의 지정학적 도발이 아닌 미국의 과도한 중동 개입에 있다",
+        "description_short": "이란 전쟁으로 인한 글로벌 경제 충격의 근본 원인이 이란의 지정학적 도발에 있는지, 미국의 과도한 중동 개입에 있는지 맞서는 주제입니다.",
+        "description_long": "이 논제는 최근 중동발 경제 충격의 원인을 단기적 군사행동에만 둘지, 아니면 오랜 군사 개입·제재·동맹 구조가 누적한 결과로 볼지를 묻는다.\n\n최근 보도들은 미국 주도 군사행동 이후 세계 에너지·무역·물가가 크게 흔들리고 있다고 전하지만, 동시에 이란의 호르무즈 해협 봉쇄와 역내 공격도 직접 충격의 주요 요인으로 지목한다.\n\n그래서 이 주제의 핵심은 어느 한쪽을 사실로 확정하는 것이 아니라, 직접 책임과 구조적 책임 중 어디에 더 큰 비중을 둘 것인가에 있다.\n\n따라서 본 논제에서 찬성 측은 중동 갈등의 근본 원인이 미국의 장기적 개입과 지정학적 구조에 있다는 입장을, 반대 측은 최근의 군사 충돌과 긴장 고조의 직접적 책임이 이란의 행동에 있다는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "미국의 과도한 중동 개입 책임이다",
+        "con": "이란의 지정학적 도발 책임이다",
+        "references": [
+          {
+            "title": "Economic fallout from U.S.-led war is hitting the rest of the world harder",
+            "url": "https://www.washingtonpost.com/world/2026/03/19/iran-war-global-economic-impact/"
+          },
+          {
+            "title": "'Iran must not be allowed to hold global economy hostage,' UAE minister tells Euronews",
+            "url": "https://www.euronews.com/2026/03/14/iran-must-not-be-allowed-to-hold-global-economy-hostage-uae-minister-tells-euronews"
+          },
+          {
+            "title": "International Energy Agency head says global economy faces ‘major, major threat’ from Iran war",
+            "url": "https://apnews.com/article/iran-war-australia-international-energy-agency-f1e7ccd313263fd63e695f43a2e68165"
+          }
+        ]
+      },
+      {
+        "id": "econ_002",
+        "title": "트럼프 관세 정책은 자국 제조업 부활의 열쇠가 아닌 글로벌 스태그플레이션의 촉매제다",
+        "description_short": "트럼프 행정부의 관세 정책이 미국 제조업 재건의 핵심 수단인지, 아니면 글로벌 스태그플레이션을 유발하는 촉매제인지 맞서는 주제입니다.",
+        "description_long": "이 논제는 관세가 미국 제조업을 살리는 보호장치인지, 아니면 세계 경제에 저성장·고물가를 동시에 불러오는 충격인지 묻는다.\n\nOECD와 IMF는 미국발 고율 관세가 미국과 세계 성장률을 낮추고, 인플레이션 하락 속도를 늦출 수 있다고 경고했다.\n\n반면 관세 지지론은 공급망 재편과 전략산업 보호를 통해 자국 제조업을 강화할 수 있다는 점을 강조한다. 따라서 이 논제는 산업정책의 국내 효과와 국제 비용 중 무엇을 더 크게 볼 것인가를 겨루는 구조다.\n\n따라서 본 논제에서 찬성 측은 관세 정책이 글로벌 경제에 부담을 주고 스태그플레이션을 유발할 수 있다는 입장을, 반대 측은 관세가 자국 산업 보호와 제조업 경쟁력 회복에 기여할 수 있다는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "글로벌 스태그플레이션의 촉매제다",
+        "con": "자국 제조업 부활의 열쇠다",
+        "references": [
+          {
+            "title": "How Trump’s tariffs have reshaped the global economy, in 11 charts",
+            "url": "https://www.theglobeandmail.com/business/economy/article-trump-tariffs-world-economy-charts/"
+          }
+        ]
+      },
+      {
+        "id": "econ_003",
+        "title": "중동 위기 대응은 원유 공급 안정화가 아닌 글로벌 식량 안보가 우선되어야 한다",
+        "description_short": "중동 분쟁이 글로벌 경제에 미치는 영향 중 우선순위에 대한 대립 주장입니다.",
+        "description_long": "이 논제는 중동 위기 대응의 중심을 석유시장 안정에 둘지, 식량·비료·해상 물류와 같은 생존 기반 공급망에 둘지를 묻는다.\n\n최근 보도에서는 호르무즈 해협과 걸프 지역의 불안이 원유 가격만이 아니라 비료와 산업 화학물질 공급까지 흔들며, 저소득 국가의 식량 불안정을 키울 수 있다고 지적했다.\n\n따라서 이 논제는 “에너지가 중요하지 않다”는 뜻이 아니라, 위기의 파급력이 가장 먼저 취약계층의 먹거리와 생계에 닿는다는 점을 우선순위 논쟁으로 바꾼 것이다.\n\n따라서 본 논제에서 찬성 측은 식량과 생존 기반 공급망의 안정이 위기 대응에서 최우선되어야 한다는 입장을, 반대 측은 여전히 에너지 공급 안정이 세계 경제 유지의 핵심이라는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "글로벌 식량 안보가 우선이다",
+        "con": "원유 공급 안정화가 우선이다",
+        "references": [
+          {
+            "title": "From oil to rice, here's how Middle East crisis may spread across global economy",
+            "url": "https://timesofindia.indiatimes.com/business/international-business/from-oil-to-rice-heres-how-middle-east-crisis-may-spread-across-global-economy/articleshow/129247620.cms"
+          },
+          {
+            "title": "Economic fallout from U.S.-led war is hitting the rest of the world harder",
+            "url": "https://www.washingtonpost.com/world/2026/03/19/iran-war-global-economic-impact/"
+          },
+          {
+            "title": "Far more countries face critical food insecurity if world heats up by 2C, analysis shows",
+            "url": "https://www.theguardian.com/environment/2026/mar/23/countries-critical-food-insecurity-global-heating"
+          }
+        ]
+      }
+    ],
+    "정치/사회": [
+      {
+        "id": "poli_001",
+        "title": "펜타곤 언론 접근 제한 정책은 국방 효율성 보장이 아닌 언론 자유 침해다",
+        "description_short": "군대 내 언론 접근 제한이 필요한지, 언론의 감시권 보호가 더 중요한지 맞서는 주제입니다.",
+        "description_long": "이 논제는 군사 보안과 행정 효율을 이유로 한 언론 통제가 어디까지 정당화될 수 있는지를 다룬다.\n\n최근 미국 법원은 펜타곤의 언론 접근 제한 정책이 수정헌법 제1조와 적법절차 원칙을 침해했다고 판단했고, 이후 국방부가 다시 기자실 이전과 상시 동행 규정을 내놓자 언론단체들은 여전히 언론 자유 침해라고 반발했다.\n\n그래서 이 논제는 보안 논리 자체를 부정하기보다, 국가안보 명분이 비판적 취재를 과도하게 제약하는 수준까지 갔는지를 묻는 데 초점이 있다.\n\n따라서 본 논제에서 찬성 측은 해당 정책이 언론의 자유와 민주적 감시 기능을 침해한다는 입장을, 반대 측은 국가안보와 군사 효율성을 위해 일정 수준의 언론 접근 제한이 불가피하다는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "언론 자유 침해다",
+        "con": "국방 효율성 보장이다",
+        "references": [
+          {
+            "title": "US judge blocks Trump administrations' Pentagon press access policy",
+            "url": "https://economictimes.indiatimes.com/news/defence/pentagons-limits-on-press-access-unconstitutional-us-judge-rules/articleshow/129711505.cms"
+          },
+          {
+            "title": "US judge blocks Pentagon policy threatening journalists' access",
+            "url": "https://www.abc.net.au/news/2026-03-21/us-judge-blocks-pentagon-policy-threatening-journalists-access/106481754"
+          }
+        ]
+      },
+      {
+        "id": "poli_002",
+        "title": "인도 녹색강철 구매 의무화는 탄소 배출 감축이 아닌 산업 독점 조장이다",
+        "description_short": "녹색강철 강제 구매가 환경 보호를 위한 것인지, 특정 기업 편을 들기 위한 것인지 맞서는 주제입니다.",
+        "description_long": "이 논제는 정부의 녹색강철 조달 의무가 탈탄소 전환을 촉진하는 정책인지, 아니면 초기 투자 여력이 큰 대형 업체에만 유리하게 작동해 시장 집중을 심화시키는지 묻는다.\n\n인도는 공공조달에서 일정 비율의 녹색강철 사용을 단계적으로 의무화하는 방안을 검토 중이며, 업계는 가격 프리미엄이나 세제지원 같은 보완책을 요구하고 있다.\n\n실제로 관련 보고서는 정책 추진 동력은 크지만 생산자와 구매자의 준비도는 아직 고르지 않다고 분석하므로, 이 논제의 쟁점은 탈탄소 효과와 시장 경쟁 구조를 동시에 어떻게 설계할 것인가에 있다.\n\n따라서 본 논제에서 찬성 측은 녹색강철 의무화 정책이 시장 집중과 산업 불균형을 심화시킬 수 있다는 입장을, 반대 측은 탄소 배출 감축과 산업 전환을 위해 반드시 필요한 정책이라는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "산업 독점 조장이다",
+        "con": "탄소 배출 감축이다",
+        "references": [
+          {
+            "title": "CII: Mandatory green steel procurement for Indian government projects could generate 16 million mt of demand",
+            "url": "https://www.steelorbis.com/steel-news/latest-news/cii-mandatory-green-steel-procurement-for-indian-government-projects-could-generate-16-million-mt-of-demand-1438248.htm"
+          },
+          {
+            "title": "India's Counterbalance to EU's CBAM: Strategic Leverage in Negotiations",
+            "url": "https://www.linkedin.com/pulse/indias-counterbalance-eus-cbam-strategic-leverage-pradhan-ho0ec"
+          }
+        ]
+      },
+      {
+        "id": "poli_003",
+        "title": "인도 GM 작물 재평가 쟁점은 식량 안보 강화가 아닌 농업 전통 파괴다",
+        "description_short": "유전자 변형 작물 도입이 식량 부족 해결책인지, 기존 농업 방식 해악인지 맞서는 주제입니다.",
+        "description_long": "이 논제는 GM 작물을 식량안보와 생산성 향상의 수단으로 볼지, 농업 전통·종자 주권·생물다양성에 대한 위협으로 볼지를 다룬다.\n\n인도 정부와 일부 연구진은 GM 기술이 식용유 수입 의존을 낮추고 식량안보 강화에 기여할 수 있다고 말하지만, 동시에 인도는 소농 보호와 전통 농업 체계, 생태계 영향에 대한 우려 때문에 상업화와 수입 개방에 매우 신중한 태도를 유지하고 있다.\n\n따라서 이 논제는 과학기술 찬반의 단순 대립이 아니라, 생산성·주권·전통 가운데 무엇을 우선할 것인가를 묻는 사회적 선택 문제다.\n\n따라서 본 논제에서 찬성 측은 GM 작물이 농업 전통과 생태계, 종자 주권을 위협할 수 있다는 입장을, 반대 측은 식량안보 강화와 생산성 향상을 위해 GM 기술 도입이 필요하다는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "농업 전통 파괴다",
+        "con": "식량 안보 강화다",
+        "references": [
+          {
+            "title": "Rah HC orders Centre, FSSAI to establish GM food safety",
+            "url": "https://timesofindia.indiatimes.com/city/jaipur/raj-hc-orders-centre-fssai-to-establish-gm-food-safety-standards/articleshow/124560628.cms"
+          },
+          {
+            "title": "Benefits, concerns, and sustainable alternatives to genetically modified crops from a global and Indian perspective",
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12696234/"
+          }
+        ]
+      }
+    ],
+    "과학/환경": [
+      {
+        "id": "env_001",
+        "title": "기후난민의 원인은 기후변화가 아닌 내전과 빈곤이다",
+        "description_short": "기후변화가 이주 주된 원인인지, 정치적 갈등과 경제적 빈곤이 주된 원인인지 맞서는 주제입니다.",
+        "description_long": "이 논제는 강제이주의 1차 원인을 기후 그 자체로 볼지, 아니면 이미 존재하던 분쟁·빈곤·취약한 거버넌스를 기후가 악화시키는 구조로 볼지를 묻는다.\n\nUNHCR와 IDMC는 기후와 재난이 대규모 이주를 일으키고 있다고 보면서도, 특히 강제실향의 현장에서는 분쟁과 빈곤, 취약한 제도가 함께 얽혀 있다고 설명한다.\n\n그래서 이 논제는 “기후변화가 원인이 아니다”라는 식의 단정으로 쓰기보다, 기후가 단독 원인인지 아니면 기존 취약성을 증폭하는 요인인지를 따지는 방식으로 읽는 것이 정확하다.\n\n따라서 본 논제에서 찬성 측은 강제이주의 근본 원인이 내전과 빈곤, 정치적 불안정에 있다는 입장을, 반대 측은 기후변화가 이주를 촉발하고 확산시키는 핵심 요인이라는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "내전과 빈곤의 원인이다",
+        "con": "기후변화의 원인이다",
+        "references": [
+          {
+            "title": "Sorry, The New Republic, Climate Change Isn’t Causing Somali Migration. Blame Civil Strife and Poverty",
+            "url": "https://wattsupwiththat.com/2026/03/12/sorry-the-new-republic-climate-change-isnt-causing-somali-migration-blame-civil-strife-and-poverty/"
+          }
+        ]
+      },
+      {
+        "id": "env_002",
+        "title": "인플레이션의 책임은 기후변화가 아닌 에너지 정책에 있다",
+        "description_short": "물가상승의 원인이 기후변화인지, 에너지 정책 실패인지 맞서는 주제입니다.",
+        "description_long": "이 논제는 최근 물가 상승의 직접 원인을 기후충격보다 에너지 가격, 에너지 수입 구조, 공급망 설계 같은 정책 선택에서 찾아야 하는지를 묻는다.\n\n실제로 IMF와 ECB는 지속적인 에너지 가격 상승이 물가를 끌어올리고 성장률을 낮추는 핵심 충격이라고 보고 있다.\n\n다만 유럽의 정책·연구 자료들은 동시에 극한기상과 기후충격이 식품 가격과 물가 불안을 키울 수 있다고 짚고 있으므로, 이 논제의 쟁점은 근접 원인으로서의 에너지 정책과 장기 배경 요인으로서의 기후변화를 어떻게 구분할 것인가에 있다.\n\n따라서 본 논제에서 찬성 측은 인플레이션의 주요 원인이 에너지 정책과 공급 구조의 문제에 있다는 입장을, 반대 측은 기후변화가 에너지와 식량 가격을 통해 물가 상승에 중요한 영향을 미친다는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "에너지 정책의 책임이다",
+        "con": "기후변화의 책임이다",
+        "references": [
+          {
+            "title": "No, New York Times, Climate Change Isn’t Driving Inflation",
+            "url": "https://wattsupwiththat.com/2026/03/07/no-new-york-times-climate-change-isnt-driving-inflation/"
+          }
+        ]
+      },
+      {
+        "id": "env_003",
+        "title": "기후위기 대응의 우선순위는 과학적 교육이 아닌 정치적 참여다",
+        "description_short": "기후위기에 대처할 때 과학적 이해와 정치적 행동 중 무엇을 우선해야 하는지 맞서는 주제입니다.",
+        "description_long": "이 논제는 기후위기 대응에서 시민의 지식 수준을 높이는 교육이 더 중요한지, 아니면 실제 정책을 바꾸는 투표·운동·거버넌스 참여가 더 결정적인지를 묻는다.\n\n랜싯 카운트다운은 공공 및 정치적 참여가 기후 대응의 토대를 이룬다고 평가했고, UNDP의 청년 기후 거버넌스 보고서도 제도 변화에 영향을 주는 참여 경로의 중요성을 강조했다.\n\n즉 이 논제는 교육의 필요성을 부정하기보다, 교육이 행동과 제도 변화를 낳지 못하면 대응 속도가 늦어진다는 문제의식을 담고 있다.\n\n따라서 본 논제에서 찬성 측은 정치적 참여와 시민 행동이 실제 정책 변화를 이끌어내는 핵심이라는 입장을, 반대 측은 과학적 교육과 인식 제고가 기후 대응의 기반이 되어야 한다는 입장을 중심으로 논의를 전개할 수 있다.",
+        "pro": "정치적 참여가 우선이다",
+        "con": "과학적 교육이 우선이다",
+        "references": [
+          {
+            "title": "CT research shows climate change disconnect",
+            "url": "https://www.courant.com/2026/02/28/ct-research-shows-climate-change-disconnect-whats-happening-and-why-it-matters/"
+          }
+        ]
+      }
+    ]
+  }
+}
