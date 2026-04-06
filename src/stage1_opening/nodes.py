@@ -402,13 +402,10 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str]:
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_delimited_text(raw))
 
-    # 형식 검증: 무효하거나 자기소개 누락 시 재시도
-    needs_retry = not _is_valid_speech(speech) or '### 자기소개' not in speech
-    if needs_retry:
-        reason = "speech 무효" if not _is_valid_speech(speech) else "자기소개 누락"
-        logger.warning("[opening] %s, 재시도", reason)
+    if not _is_valid_speech(speech):
+        logger.warning("[opening] speech 무효, 재시도")
         messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content='반드시 ### 자기소개와 입장 표명 으로 시작하는 입론을 작성하세요. 한국어만.\n\n### 답변 시작\n### 자기소개와 입장 표명\n(입론)\n### 답변 끝'))
+        messages.append(HumanMessage(content='한국어로만 입론을 작성하세요.\n\n### 답변 시작\n(입론)\n### 답변 끝'))
         retry: AIMessage = _invoke_with_retry(_llm, messages, label="opening_retry")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
