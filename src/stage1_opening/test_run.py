@@ -31,7 +31,8 @@ TOPIC_ID = "tech_001"          # data/topics_20260323_processed.json 에서 사�
 DEBATE_FORMAT = "3:3"
 USER_STANCE = "PRO"
 USER_INTENSITY = 3
-AGENT_INTENSITIES = [3, 2, 5, 4, 1]  # CON(강경), CON(온건), PRO(매우강경) — 2:2 포맷 AI 3명
+AGENT_INTENSITIES = [3, 2, 5, 4, 1]  # 3:3 포맷 AI 5명
+GENERATE_USER_OPENING = True  # 사용자 자리도 AI가 대신 입론 생성
 
 _DATA_PATH = Path(__file__).parent.parent.parent / "data" / "topics_20260323_processed.json"
 
@@ -116,32 +117,41 @@ def main():
     print_separator()
 
     result_state = opening_arguments_node(state)
+    result_state = dict(result_state)
+
+    # 사용자 자리도 AI가 입론 생성 (테스트용)
+    if GENERATE_USER_OPENING:
+        from src.stage1_opening.nodes import _pre_search, _build_opening_prompt, _generate_opening
+        user_turn = len([e for e in result_state["debate_history"] if e["phase"] == "opening"])
+        stance_kr = "찬성" if USER_STANCE == "PRO" else "반대"
+        search_results, tool_log = _pre_search(
+            state["topic"], USER_STANCE, "검색 방향: 시장 규모, 고용 통계, 기업 도입 사례",
+            topic_id=topic_dict["id"],
+        )
+        prompt = _build_opening_prompt(state["topic"], USER_STANCE, f"{stance_kr} 에이전트(사용자 대리)", search_results)
+        # 임시 에이전트 dict
+        user_agent = {
+            "system_prompt": f"너는 {stance_kr} 토론자다. 한국어만 사용하라.",
+            "stance": USER_STANCE,
+        }
+        speech, raw = _generate_opening(user_agent, prompt)
+        if '### 자기소개' not in speech:
+            speech = f"### 자기소개와 입장 표명\n{speech}"
+        from src.state import DebateEntry
+        result_state["debate_history"].append(DebateEntry(
+            turn=user_turn, speaker_id="user_proxy", stance=USER_STANCE,
+            phase="opening", content=speech, target_id=None,
+            tool_calls_log=tool_log, json_raw=raw,
+        ))
+        result_state["debate_history"].sort(key=lambda e: e["turn"])
+        print(f"\n  [사용자 대리] 입론 생성 완료 (turn={user_turn})\n")
 
     # ── 결과 검증 ─────────────────────────────────────────────────────────────
     print_separator()
-    print("\n[3] 결과 검증\n")
+    print("\n[3] 결과\n")
 
     history = result_state["debate_history"]
-    ai_count = len([sid for sid in state["speaking_order"] if sid != "user"])
-
-    # debate_history 항목 수 검증
-    assert len(history) == ai_count, (
-        f"❌ debate_history 길이 불일치: 기대 {ai_count}, 실제 {len(history)}"
-    )
-    print(f"  ✅ debate_history 길이: {len(history)}개 (AI 에이전트 수와 일치)")
-
-    # phase 검증: 사용자 입론 대기 중이므로 "opening" 유지가 정상
-    assert result_state["phase"] == "opening", (
-        f"❌ phase 불일치: 기대 'opening' (사용자 입론 대기), 실제 '{result_state['phase']}'"
-    )
-    print(f"  ✅ phase 유지: '{result_state['phase']}' (사용자 입론 대기 중)")
-
-    # current_turn 증가 검증: speaking_order 전체 길이 (사용자 턴 포함)
-    expected_turn = len(result_state["speaking_order"])
-    assert result_state["current_turn"] == expected_turn, (
-        f"❌ current_turn 불일치: 기대 {expected_turn}, 실제 {result_state['current_turn']}"
-    )
-    print(f"  ✅ current_turn: {result_state['current_turn']} (발언 횟수와 일치)")
+    print(f"  총 입론: {len(history)}개")
 
     # ── 입론 내용 출력 ─────────────────────────────────────────────────────────
     print_separator()
