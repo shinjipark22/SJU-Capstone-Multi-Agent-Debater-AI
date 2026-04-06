@@ -140,103 +140,124 @@ def main():
                 user_intensity=USER_INTENSITY, agents=snapshots,
             )
             st.session_state.state = state
-            st.session_state.phase = "opening_ai"
+            st.session_state.phase = "opening"
             st.rerun()
 
     # ══════════════════════════════════════════════
-    # 1단계: 입론 — AI 생성
+    # 1단계: 입론 — AI 생성 + 사용자 입력 동시
     # ══════════════════════════════════════════════
-    elif st.session_state.phase == "opening_ai":
-        st.header("1단계: 입론")
-        with st.spinner("AI 에이전트 입론 생성 중..."):
-            state = opening_arguments_node(st.session_state.state)
-            st.session_state.state = dict(state)
-        st.session_state.phase = "opening_user"
-        st.rerun()
-
-    elif st.session_state.phase == "opening_user":
+    elif st.session_state.phase == "opening":
         st.header("1단계: 입론")
         topic = st.session_state.topic_dict["title"]
         st.info(f"**토픽:** {topic}\n\n**사용자 입장:** 찬성(PRO)")
 
-        # AI 입론 표시
-        st.subheader("AI 에이전트 입론")
-        for entry in st.session_state.state["debate_history"]:
-            if entry["phase"] == "opening":
-                render_entry(entry)
+        col_user, col_ai = st.columns(2)
 
-        # 사용자 입론 입력
-        st.subheader("사용자 입론 작성")
-        user_opening = st.text_area("찬성 입장에서 입론을 작성하세요",
-                                      height=200, key="opening_input")
-        if st.button("입론 제출 → 연쇄논박", type="primary"):
-            if user_opening.strip():
-                state = st.session_state.state
-                user_turn = len([e for e in state["debate_history"] if e["phase"] == "opening"])
-                state["debate_history"].append(DebateEntry(
-                    turn=user_turn, speaker_id="user", stance=USER_STANCE,
-                    phase="opening", content=user_opening.strip(),
-                    target_id=None, tool_calls_log=[], json_raw="",
-                ))
-                state["debate_history"].sort(key=lambda e: e["turn"])
-                state["phase"] = "chained_rebuttal"
-                st.session_state.state = state
-                st.session_state.phase = "rebuttal_ai"
+        # 왼쪽: 사용자 입론 입력
+        with col_user:
+            st.subheader("✍️ 사용자 입론 작성")
+            user_opening = st.text_area(
+                "찬성 입장에서 입론을 작성하세요.\n"
+                "AI 에이전트가 입론을 생성하는 동안 작성하면 됩니다.",
+                height=300, key="opening_input",
+            )
+
+        # 오른쪽: AI 입론 (생성 완료 시 표시)
+        with col_ai:
+            st.subheader("🤖 AI 에이전트 입론")
+            if "opening_done" not in st.session_state:
+                with st.spinner("AI 에이전트 입론 생성 중..."):
+                    state = opening_arguments_node(st.session_state.state)
+                    st.session_state.state = dict(state)
+                    st.session_state.opening_done = True
                 st.rerun()
             else:
-                st.warning("입론을 입력해주세요.")
+                for entry in st.session_state.state["debate_history"]:
+                    if entry["phase"] == "opening":
+                        render_entry(entry)
+
+        # 제출 버튼
+        if st.session_state.get("opening_done"):
+            if st.button("입론 제출 → 연쇄논박", type="primary", use_container_width=True):
+                if user_opening.strip():
+                    state = st.session_state.state
+                    user_turn = len([e for e in state["debate_history"] if e["phase"] == "opening"])
+                    state["debate_history"].append(DebateEntry(
+                        turn=user_turn, speaker_id="user", stance=USER_STANCE,
+                        phase="opening", content=user_opening.strip(),
+                        target_id=None, tool_calls_log=[], json_raw="",
+                    ))
+                    state["debate_history"].sort(key=lambda e: e["turn"])
+                    state["phase"] = "chained_rebuttal"
+                    st.session_state.state = state
+                    st.session_state.phase = "rebuttal_ai"
+                    st.rerun()
+                else:
+                    st.warning("입론을 입력해주세요.")
 
     # ══════════════════════════════════════════════
-    # 2단계: 연쇄논박 — AI 생성
+    # 2단계: 연쇄논박 — AI 생성 + 사용자 입력 동시
     # ══════════════════════════════════════════════
     elif st.session_state.phase == "rebuttal_ai":
         st.header("2단계: 연쇄논박")
-        with st.spinner("AI 에이전트 연쇄논박 생성 중..."):
-            state = chained_rebuttal_node(st.session_state.state)
-            st.session_state.state = dict(state)
-        st.session_state.phase = "rebuttal_user"
-        st.rerun()
 
-    elif st.session_state.phase == "rebuttal_user":
-        st.header("2단계: 연쇄논박")
+        col_user, col_ai = st.columns(2)
 
-        # AI 연쇄논박 표시
-        st.subheader("AI 에이전트 연쇄논박")
-        for entry in st.session_state.state["debate_history"]:
-            if entry["phase"] == "chained_rebuttal":
-                render_entry(entry)
+        # 오른쪽: AI 연쇄논박 (생성 완료 시 표시)
+        with col_ai:
+            st.subheader("🤖 AI 에이전트 연쇄논박")
+            if "rebuttal_done" not in st.session_state:
+                with st.spinner("AI 에이전트 연쇄논박 생성 중..."):
+                    state = chained_rebuttal_node(st.session_state.state)
+                    st.session_state.state = dict(state)
+                    st.session_state.rebuttal_done = True
+                st.rerun()
+            else:
+                for entry in st.session_state.state["debate_history"]:
+                    if entry["phase"] == "chained_rebuttal":
+                        render_entry(entry)
 
         # 사용자를 공격한 에이전트 찾기
         attacker = None
-        for e in reversed(st.session_state.state["debate_history"]):
-            if e["phase"] == "chained_rebuttal" and e["target_id"] == "user":
-                attacker = e
-                break
-
-        if attacker:
-            st.warning(f"**{attacker['speaker_id']}**가 사용자를 공격했습니다. 반박하세요!")
-            rebuttal_target = attacker["speaker_id"]
-        else:
-            con_agents = [a["agent_id"] for a in st.session_state.state["agents"] if a["stance"] == "CON"]
-            rebuttal_target = con_agents[0] if con_agents else "agent_1"
-
-        st.subheader(f"사용자 연쇄논박 → {rebuttal_target}")
-        user_rebuttal = st.text_area("반박을 작성하세요", height=150, key="rebuttal_input")
-        if st.button("연쇄논박 제출 → 자유논박", type="primary"):
-            if user_rebuttal.strip():
-                state = st.session_state.state
-                state["debate_history"].append(DebateEntry(
-                    turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
-                    phase="chained_rebuttal", content=user_rebuttal.strip(),
-                    target_id=rebuttal_target, tool_calls_log=[], json_raw="",
-                ))
-                state["current_turn"] += 1
-                state["phase"] = "free_rebuttal"
-                st.session_state.state = state
-                st.session_state.phase = "free_select"
-                st.rerun()
+        rebuttal_target = "agent_1"
+        if st.session_state.get("rebuttal_done"):
+            for e in reversed(st.session_state.state["debate_history"]):
+                if e["phase"] == "chained_rebuttal" and e["target_id"] == "user":
+                    attacker = e
+                    break
+            if attacker:
+                rebuttal_target = attacker["speaker_id"]
             else:
-                st.warning("연쇄논박을 입력해주세요.")
+                con_agents = [a["agent_id"] for a in st.session_state.state["agents"] if a["stance"] == "CON"]
+                rebuttal_target = con_agents[0] if con_agents else "agent_1"
+
+        # 왼쪽: 사용자 연쇄논박 입력
+        with col_user:
+            st.subheader(f"✍️ 사용자 연쇄논박 → {rebuttal_target}")
+            if attacker:
+                st.warning(f"**{attacker['speaker_id']}**가 사용자를 공격했습니다. 반박하세요!")
+            user_rebuttal = st.text_area(
+                "AI 에이전트의 논박을 확인하고 반박을 작성하세요.",
+                height=200, key="rebuttal_input",
+            )
+
+        # 제출 버튼
+        if st.session_state.get("rebuttal_done"):
+            if st.button("연쇄논박 제출 → 자유논박", type="primary", use_container_width=True):
+                if user_rebuttal.strip():
+                    state = st.session_state.state
+                    state["debate_history"].append(DebateEntry(
+                        turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
+                        phase="chained_rebuttal", content=user_rebuttal.strip(),
+                        target_id=rebuttal_target, tool_calls_log=[], json_raw="",
+                    ))
+                    state["current_turn"] += 1
+                    state["phase"] = "free_rebuttal"
+                    st.session_state.state = state
+                    st.session_state.phase = "free_select"
+                    st.rerun()
+                else:
+                    st.warning("연쇄논박을 입력해주세요.")
 
     # ══════════════════════════════════════════════
     # 3단계: 자유논박 — 상대 선택
