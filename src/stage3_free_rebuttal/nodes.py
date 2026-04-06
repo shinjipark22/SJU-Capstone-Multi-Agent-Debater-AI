@@ -37,7 +37,7 @@ from src.stage2_rebuttal.nodes import (
 from src.state import DebateEntry, DebateState
 
 # ── 자유논박 전용 LLM ───────────────────────────────────────────────────────
-_fr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 512})
+_fr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 512, "temperature": 0.75})
 
 MAX_PINGPONG = 4
 
@@ -71,6 +71,10 @@ def _truncate_to_sentences(text: str, max_sentences: int = 2) -> str:
     text = re.sub(r'~?입니다/~?습니다\s*체?[.]?\s*', '', text)
     text = re.sub(r'핵심에\s*\*{0,2}강조\*{0,2}[.]?\s*', '', text)
     text = re.sub(r'일반적으로\s*~로\s*알려져\s*있다[.]?\s*', '', text)
+    # 영어 CoT 유출 제거 (Putting it together, Next I need to 등)
+    text = re.sub(r'[A-Z][a-z]+(?:\s+[a-z]+){2,}[^가-힣]*', '', text)
+    # 영어 단어 3개 이상 연속 → 제거
+    text = re.sub(r'(?:\b[a-zA-Z]+\b\s*){3,}', '', text)
     # 연속 구두점/쓰레기 제거
     text = re.sub(r'[,.\s]{3,}', ' ', text)
     text = re.sub(r'[""\'"]{2,}', '', text)
@@ -181,51 +185,72 @@ def _build_free_rebuttal_prompt(
     target_speech: str,
     stance_kr: str,
     prev_exchange: str = "",
+    used_arguments: str = "",
 ) -> str:
-    """자유논박 프롬프트: 주장+반박 → 질문 형태."""
+    """자유논박 프롬프트: 답변 → 반박 → 질문."""
     exchange_block = ""
     if prev_exchange:
-        exchange_block = f"\n[교환 기록]\n{prev_exchange}\n"
+        exchange_block = f"\n[이전 교환]\n{prev_exchange}\n"
 
-    return f"""상대: {target_speech[:200]}
-{exchange_block}
-너는 {stance_kr}이다. 반박 후 마지막에 질문 1개를 던져라.
+    used_block = ""
+    if used_arguments:
+        used_block = f"\n[이미 사용한 논점 — 반복 금지]\n{used_arguments}\n"
 
-좋은 예1) 탄소 배출은 여전히 증가하고 있습니다. 기술 혁신만으로 이를 해결할 수 있다는 근거는 부족합니다. 그렇다면 규제 없이 이 문제를 어떻게 해결하시겠습니까?
-좋은 예2) 규제 없는 인프라 확충은 환경 비용을 사회에 전가합니다. 기업이 자발적으로 환경 보호에 나선 사례가 있습니까?
+    # Step 1 프롬프트: 답변 + 반박
+    step1 = f"""상대: {target_speech[:250]}
+{exchange_block}{used_block}
 
-나쁜 예) 환경 규제가 필요합니다. (질문 없음)
+너는 {stance_kr} 토론자다.
 
-이전 발언 반복 금지. 2~3문장.
-상대가 질문을 했다면 반드시 먼저 답변할 것. 질문을 회피하거나 무시하지 마라. 답변이 어려우면 전제를 반박하라."""
+[규칙]
+- 첫 문장에서 상대 질문에 직접 답하라
+- 둘째 문장에서 상대 논리의 약점을 공격하라
+- 일반론 금지, 구체적으로
+
+1~2문장만. 한국어만.
+"""
+    
+
+    # Step 2 프롬프트: 질문 생성 (Step 1 결과를 받아서)
+    opposite_kr = "반대" if stance_kr == "찬성" else "찬성"
+    step2_template = """너는 {stance_kr} 토론자다. 상대는 {opposite_kr} 입장이다.
+
+[내 발언]
+{my_response}
+
+[상대 발언]
+{target_speech}
+
+상대({opposite_kr})가 답하기 어려운 압박 질문을 1개만 만들어라.
+내({stance_kr}) 입장을 강화하는 방향의 질문이어야 한다.
+반드시 ?로 끝나는 한 문장. 한국어만.""".replace("{opposite_kr}", opposite_kr)
+
+    return step1, step2_template
 
 
-# ── 단일 발언 생성 ───────────────────────────────────────────────────────────
+# ── 2-Step 발언 생성 ─────────────────────────────────────────────────────────
 
 def _generate_free_rebuttal(
     agent: Dict,
-    prompt: str,
+    step1_prompt: str,
+    step2_template: str,
+    target_speech: str,
     stance: str,
     prev_entries: Optional[List[DebateEntry]] = None,
 ) -> Tuple[str, str]:
-    """단일 LLM 호출로 자유논박 발언 생성. 최대 3문장 (주장+반박+질문)."""
+    """2-Step 자유논박 발언 생성.
+
+    Step 1: 답변+반박 (1~2문장)
+    Step 2: 압박 질문 (1문장)
+    결합하여 최종 발언.
+    """
     stance_kr = "찬성" if stance == "PRO" else "반대"
     opposite_kr = "반대" if stance == "PRO" else "찬성"
     system = (
         f"{agent['system_prompt']}\n\n"
-        f"[규칙] 너는 {stance_kr}이다. {opposite_kr} 주장 금지. "
-        f"자유토론이다. 2~3문장만. 한국어만."
+        f"너는 {stance_kr} 토론자다. {opposite_kr} 입장 절대 금지.\n"
+        f"실제 토론처럼 날카롭고 구체적으로 말하라."
     )
-    messages = [
-        SystemMessage(content=system),
-        HumanMessage(content=prompt),
-    ]
-
-    response: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal")
-    raw = response.content if isinstance(response.content, str) else str(response.content)
-    speech = _postprocess_speech(_extract_rebuttal_text(raw))
-    speech = _remove_self_repeat(speech)
-    speech = _truncate_to_sentences(speech, max_sentences=3)
 
     def _get_fallback() -> str:
         msgs = _FALLBACK_MSGS.get(stance, _FALLBACK_MSGS["PRO"])
@@ -233,22 +258,65 @@ def _generate_free_rebuttal(
         _fallback_idx[stance] = idx + 1
         return msgs[idx % len(msgs)]
 
-    # 품질 체크
-    korean_count = len(re.findall(r'[가-힣]', speech))
-    total_count = len(speech.strip())
-    is_junk = (
-        not speech
-        or total_count < 10
-        or (total_count > 0 and korean_count / total_count < 0.3)
-    )
-    if is_junk:
-        logger.warning("[free_rebuttal] fallback 사용")
-        speech = _get_fallback()
+    def _clean(text: str) -> str:
+        text = _postprocess_speech(_extract_rebuttal_text(text))
+        text = _remove_self_repeat(text)
+        text = _truncate_to_sentences(text, max_sentences=2)
+        return text
+
+    # ── Step 1: 답변 + 반박
+    messages1 = [
+        SystemMessage(content=system),
+        HumanMessage(content=step1_prompt),
+    ]
+    response1: AIMessage = _invoke_with_retry(_fr_llm, messages1, label="free_rebuttal_step1")
+    raw1 = response1.content if isinstance(response1.content, str) else str(response1.content)
+    rebuttal = _clean(raw1)
+
+    # Step 1 품질 체크
+    korean_count = len(re.findall(r'[가-힣]', rebuttal))
+    total_count = len(rebuttal.strip())
+    if not rebuttal or total_count < 10 or (total_count > 0 and korean_count / total_count < 0.3):
+        logger.warning("[free_rebuttal] step1 품질 불량 → fallback")
+        return _get_fallback(), raw1
 
     # 반복 체크
-    if prev_entries and _is_repetitive(speech, prev_entries):
-        logger.warning("[free_rebuttal] 반복 감지 → fallback")
-        speech = _get_fallback()
+    if prev_entries and _is_repetitive(rebuttal, prev_entries):
+        logger.warning("[free_rebuttal] step1 반복 감지 → fallback")
+        return _get_fallback(), raw1
+
+    # 입장 혼동 체크: 상대 입장에 완전히 동조하는 경우만 (부분 인정은 허용)
+    if re.search(r'상대의?\s*(주장|의견)에\s*(전적으로\s*)?(동의|공감)합니다', rebuttal):
+        logger.warning("[free_rebuttal] step1 입장 혼동 감지 → 재생성")
+        response1_retry: AIMessage = _invoke_with_retry(_fr_llm, messages1, label="free_rebuttal_step1_retry")
+        raw1_retry = response1_retry.content if isinstance(response1_retry.content, str) else str(response1_retry.content)
+        rebuttal = _clean(raw1_retry)
+        raw1 = raw1_retry
+
+    # ── Step 2: 질문 생성
+    step2_prompt = step2_template.format(
+        stance_kr=stance_kr,
+        my_response=rebuttal,
+        target_speech=target_speech[:150],
+    )
+    messages2 = [
+        SystemMessage(content=f"너는 {stance_kr} 토론자다. 질문만 생성하라."),
+        HumanMessage(content=step2_prompt),
+    ]
+    response2: AIMessage = _invoke_with_retry(_fr_llm, messages2, label="free_rebuttal_step2")
+    raw2 = response2.content if isinstance(response2.content, str) else str(response2.content)
+    question = _postprocess_speech(_extract_rebuttal_text(raw2)).strip()
+
+    # 질문이 ?로 끝나는 한국어 문장인지 확인
+    q_sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', question) if s.strip().endswith('?') and re.search(r'[가-힣]', s)]
+    if q_sentences:
+        question = q_sentences[-1]  # 마지막 질문만
+    else:
+        question = "이에 대한 구체적 근거를 제시할 수 있습니까?"
+
+    # ── 결합
+    speech = f"{rebuttal} {question}"
+    raw = f"[STEP1]\n{raw1}\n\n[STEP2]\n{raw2}"
 
     return speech, raw
 
@@ -294,22 +362,43 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     # ── 이전 자유논박 교환 기록 구성
     prev_exchange = ""
     fr_entries = [e for e in history if e["phase"] == "free_rebuttal"]
-    for e in fr_entries[-6:]:  # 최근 6턴만
+    for e in fr_entries[-4:]:  # 최근 4턴만 (너무 길면 모델 혼란)
         speaker = "사용자" if e["speaker_id"] == "user" else opponent_display
         prev_exchange += f"[{speaker}] {e['content']}\n"
 
-    # ── 에이전트 발언 생성
+    # ── 이미 사용한 논점 추출 (에이전트 이전 발언에서 핵심 키워드)
+    used_arguments = ""
+    agent_prev = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
+    if agent_prev:
+        used_points = []
+        for e in agent_prev:
+            # 각 발언에서 첫 문장만 요약으로 사용
+            first_sent = e["content"].split('.')[0] + '.'
+            if len(first_sent) > 15:
+                used_points.append(f"- {first_sent[:60]}")
+        used_arguments = "\n".join(used_points[-3:])  # 최근 3개만
+
+    # 디버그: 사용한 논점 출력
+    if used_arguments:
+        print(f"  [디버그] 이미 사용한 논점:\n{used_arguments}\n")
+    else:
+        print(f"  [디버그] 이전 발언 없음 — 첫 턴\n")
+
+    # ── 에이전트 발언 생성 (2-Step)
     stance_kr = "찬성" if opponent["stance"] == "PRO" else "반대"
-    prompt = _build_free_rebuttal_prompt(
+    step1_prompt, step2_template = _build_free_rebuttal_prompt(
         target_speech=user_speech,
         stance_kr=stance_kr,
         prev_exchange=prev_exchange,
+        used_arguments=used_arguments,
     )
 
     prev_entries = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
     speech, raw = _generate_free_rebuttal(
         agent=opponent,
-        prompt=prompt,
+        step1_prompt=step1_prompt,
+        step2_template=step2_template,
+        target_speech=user_speech,
         stance=opponent["stance"],
         prev_entries=prev_entries,
     )
