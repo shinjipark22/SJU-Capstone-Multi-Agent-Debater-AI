@@ -327,12 +327,6 @@ def _pre_search(topic: str, stance: str, focus_area: str, topic_id: str = "") ->
     web_result = search_web.invoke({"query": query})
     results.append(_truncate_tool_result(web_result))
 
-    # 2. VectorDB 검색
-    vdb_args = {"query": search_hint, "topic": topic, "stance": stance}
-    tool_calls_log.append({"name": "search_vector_db", "args": vdb_args})
-    vdb_result = search_vector_db.invoke(vdb_args)
-    results.append(_truncate_tool_result(vdb_result))
-
     return "\n\n".join(results), tool_calls_log
 
 
