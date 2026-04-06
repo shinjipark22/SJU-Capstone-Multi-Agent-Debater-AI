@@ -86,6 +86,7 @@ def main():
         user_stance=USER_STANCE,
         user_intensity=USER_INTENSITY,
         agents=snapshots,
+        topic_id=topic_dict["id"],
     )
 
     print(f"\n  토픽: {topic_dict['title']}")
