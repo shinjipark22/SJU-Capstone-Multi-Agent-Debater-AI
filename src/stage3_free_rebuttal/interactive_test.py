@@ -16,10 +16,18 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+
 from src.phase0.persona_factory import create_agents
 from src.state import AgentSnapshot, DebateEntry, build_initial_state
-from src.stage1_opening.nodes import opening_arguments_node
-from src.stage2_rebuttal.nodes import chained_rebuttal_node
+from src.stage1_opening.nodes import (
+    opening_arguments_node,
+    _invoke_with_retry,
+    _postprocess_speech,
+    _LLM_KWARGS,
+)
+from src.stage2_rebuttal.nodes import chained_rebuttal_node, _extract_rebuttal_text
 from src.stage3_free_rebuttal.nodes import free_rebuttal_node
 
 
@@ -30,6 +38,9 @@ AGENT_INTENSITIES = [3, 2, 4]
 
 _DATA_PATH = Path(__file__).parent.parent.parent / "data" / "topics_20260323_processed.json"
 _OUTPUT_DIR = Path(__file__).parent.parent.parent / "test_results"
+
+# 사용자 더미 생성용 LLM
+_user_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
 
 
 def _load_all_topics() -> list:
@@ -42,22 +53,51 @@ def _load_all_topics() -> list:
     return topics
 
 
-def _make_user_opening(topic_title: str) -> str:
-    return f"""### 자기소개와 입장 표명
-저는 사용자입니다. **'{topic_title}'에 찬성**합니다.
+def _generate_user_opening(topic_title: str) -> str:
+    """LLM으로 토픽에 맞는 사용자 입론을 생성한다."""
+    print("  [사용자 입론 생성 중...]")
+    messages = [
+        SystemMessage(content="너는 토론 참가자다. 찬성 입장에서 입론을 작성하라. 한국어만."),
+        HumanMessage(content=f"""토론 주제: {topic_title}
+
+아래 형식으로 찬성 입론을 작성하라:
+
+### 자기소개와 입장 표명
+(1~2문장)
 
 ### 논거 1
-이 주제에서 제시된 방향은 현재 상황의 근본적 문제를 해결하는 데 더 효과적입니다. 기존 접근 방식만으로는 문제가 악화될 수 있으며, 새로운 방향의 전환이 시급합니다.
+(2~3문장, 구체적 근거 포함)
 
 ### 논거 2
-반대 측이 주장하는 대안은 단기적 이익에 치중되어 있으며, 장기적으로 발생할 수 있는 부작용을 충분히 고려하지 않고 있습니다. 지속 가능한 해결을 위해서는 찬성 측의 접근이 필요합니다.
+(2~3문장, 구체적 근거 포함)
 
 ### 결론
-따라서 **'{topic_title}'에 찬성**하며, 이를 통해 더 나은 미래를 만들 수 있다고 확신합니다."""
+(1~2문장)"""),
+    ]
+    response = _invoke_with_retry(_user_llm, messages, label="user_opening")
+    raw = response.content if isinstance(response.content, str) else str(response.content)
+    text = _postprocess_speech(_extract_rebuttal_text(raw))
+    # ### 자기소개와 입장 표명 헤딩이 없으면 추가
+    if "### 자기소개" not in text:
+        text = "### 자기소개와 입장 표명\n" + text
+    return text
 
 
-def _make_user_rebuttal(topic_title: str) -> str:
-    return f"""반대 측의 주장은 현실적 근거가 부족하며, '{topic_title}'의 핵심 논점을 회피하고 있습니다. 기존 방식의 한계는 이미 여러 사례에서 입증되었으며, 새로운 접근이 필요한 시점입니다."""
+def _generate_user_rebuttal(topic_title: str, target_speech: str) -> str:
+    """LLM으로 상대 발언에 대한 사용자 연쇄논박을 생성한다."""
+    print("  [사용자 연쇄논박 생성 중...]")
+    messages = [
+        SystemMessage(content="너는 찬성 토론자다. 상대 주장을 반박하라. 한국어만. 3~4문장."),
+        HumanMessage(content=f"""토론 주제: {topic_title}
+
+상대 발언:
+{target_speech[:300]}
+
+위 주장의 허점을 지적하고 반박하라. 3~4문장."""),
+    ]
+    response = _invoke_with_retry(_user_llm, messages, label="user_rebuttal")
+    raw = response.content if isinstance(response.content, str) else str(response.content)
+    return _postprocess_speech(_extract_rebuttal_text(raw))
 
 
 def _format_entry(entry: dict) -> str:
@@ -154,9 +194,10 @@ def main():
     state = opening_arguments_node(state)
     state = dict(state)
     user_turn = len([e for e in state["debate_history"] if e["phase"] == "opening"])
+    user_opening = _generate_user_opening(topic_dict["title"])
     state["debate_history"].append(DebateEntry(
         turn=user_turn, speaker_id="user", stance=USER_STANCE,
-        phase="opening", content=_make_user_opening(topic_dict["title"]),
+        phase="opening", content=user_opening,
         target_id=None, tool_calls_log=[], json_raw="",
     ))
     state["debate_history"].sort(key=lambda e: e["turn"])
@@ -182,11 +223,20 @@ def main():
     print("-" * 70)
     state = chained_rebuttal_node(state)
     state = dict(state)
+    # 사용자를 공격한 상대 에이전트의 발언을 찾아서 반박 생성
     con_agents = [a["agent_id"] for a in state["agents"] if a["stance"] == "CON"]
     rebuttal_target = con_agents[0] if con_agents else "agent_1"
+    # 사용자를 타겟으로 한 상대 발언 찾기
+    target_speech_for_rebuttal = ""
+    for e in reversed(state["debate_history"]):
+        if e["phase"] == "chained_rebuttal" and e["target_id"] == "user":
+            target_speech_for_rebuttal = e["content"]
+            rebuttal_target = e["speaker_id"]
+            break
+    user_rebuttal = _generate_user_rebuttal(topic_dict["title"], target_speech_for_rebuttal)
     state["debate_history"].append(DebateEntry(
         turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
-        phase="chained_rebuttal", content=_make_user_rebuttal(topic_dict["title"]),
+        phase="chained_rebuttal", content=user_rebuttal,
         target_id=rebuttal_target, tool_calls_log=[], json_raw="",
     ))
     state["current_turn"] += 1
