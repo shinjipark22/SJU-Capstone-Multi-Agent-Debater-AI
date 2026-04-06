@@ -244,6 +244,10 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'(?<=[가-힣])\s*[a-z]{3,}\s*(?=[가-힣])', ' ', text)  # 소문자 영어 3자 이상
     text = re.sub(r'[a-z]{4,}니다', '니다', text)  # "bring니다" → "니다"
     text = re.sub(r'[a-z]{4,}합니다', '합니다', text)  # "mở합니다" 등
+    # 목록 형태 제거 (- 로 시작하는 줄 → 일반 문장으로)
+    text = re.sub(r'^-\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\*\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
     # 메타 표현 제거
     text = re.sub(r'의 의견을 들어본다[.]?\s*', '은 ', text)
     # 분석 라벨 제거
