@@ -300,33 +300,29 @@ _query_idx: Dict[str, int] = {}
 
 
 def _pre_search(topic: str, stance: str, focus_area: str, topic_id: str = "") -> Tuple[str, List[Dict]]:
-    """입론 전 사전 검색. 사전 생성된 쿼리 사용, 없으면 동적 생성.
+    """입론 전 사전 검색. search_queries.json 쿼리만 사용.
 
     Returns:
         (검색 결과 텍스트, tool_calls_log)
     """
-    search_hint = focus_area.replace("검색 방향: ", "").strip()
     tool_calls_log: List[Dict] = []
     results = []
 
-    # 1. 웹 검색 — 토픽별 키워드 + focus_area 조합
-    topic_keyword = ""
+    # search_queries.json에서 쿼리 가져오기 (에이전트마다 다른 쿼리 순환)
+    query = ""
     if topic_id and topic_id in _SEARCH_QUERIES:
         keywords = _SEARCH_QUERIES[topic_id].get(stance, [])
         if keywords:
             key = f"{topic_id}_{stance}"
             idx = _query_idx.get(key, 0)
-            topic_keyword = keywords[idx % len(keywords)]
+            query = keywords[idx % len(keywords)]
             _query_idx[key] = idx + 1
 
-    if topic_keyword:
-        # 토픽 키워드 + focus_area 조합 → 매번 다른 검색
-        query = f"{topic_keyword} {search_hint}"
-    else:
-        # fallback: 동적 생성
-        topic_short = topic.split("아닌")[0].strip() if "아닌" in topic else topic[:30]
-        stance_kr = "찬성 근거" if stance == "PRO" else "반대 근거 문제점"
-        query = f"{topic_short} {search_hint} {stance_kr} 통계 수치"
+    if not query:
+        # fallback: 토픽 핵심어 + stance
+        topic_short = topic.split("아닌")[0].strip() if "아닌" in topic else topic[:20]
+        stance_kr = "찬성 근거 통계" if stance == "PRO" else "반대 근거 문제점 통계"
+        query = f"{topic_short} {stance_kr}"
 
     tool_calls_log.append({"name": "search_web", "args": {"query": query}})
     web_result = search_web.invoke({"query": query})
