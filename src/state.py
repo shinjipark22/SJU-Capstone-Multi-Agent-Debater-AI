@@ -142,6 +142,7 @@ class DebateState(TypedDict):
 
     # 기본 정보
     topic: str
+    topic_id: str  # 토픽 ID (검색 쿼리 매칭용)
     user_stance: Literal["PRO", "CON"]
     user_intensity: int
     agents: List[AgentSnapshot]
@@ -277,6 +278,7 @@ def build_initial_state(
     user_intensity: int,
     agents: List[AgentSnapshot],
     max_cycle: int = 4,
+    topic_id: str = "",
 ) -> DebateState:
     """Phase 0 초기화 시 LangGraph에 주입할 기본 State를 생성한다.
 
@@ -297,7 +299,8 @@ def build_initial_state(
     speaking_order = _build_interleaved_order(pro_ids, con_ids)
 
     return DebateState(
-        topic=topic, # 입력받은 주제 
+        topic=topic, # 입력받은 주제
+        topic_id=topic_id, # 토픽 ID
         user_stance=user_stance, # 사용자 진영
         user_intensity=user_intensity, # 사용자 강경도
         agents=agents, # AI Agent 목록 저장

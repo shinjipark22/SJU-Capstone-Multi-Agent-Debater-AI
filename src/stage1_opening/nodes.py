@@ -9,6 +9,7 @@ nodes.py — 1단계: 입론(Opening Arguments) 노드
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -282,20 +283,46 @@ def _truncate_tool_result(result: str, max_chars: int = _MAX_TOOL_RESULT_CHARS) 
     return result[:max_chars] + "\n[일부만 표시]"
 
 
-def _pre_search(topic: str, stance: str, focus_area: str) -> Tuple[str, List[Dict]]:
-    """입론 전 사전 검색을 수행한다. 모델 대신 직접 도구를 호출한다.
+# 사전 생성된 검색 쿼리 로드
+_SEARCH_QUERIES_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "search_queries.json")
+_SEARCH_QUERIES: Dict = {}
+if os.path.exists(_SEARCH_QUERIES_PATH):
+    with open(_SEARCH_QUERIES_PATH, encoding="utf-8") as _f:
+        _SEARCH_QUERIES = json.load(_f)
+
+# 에이전트별 쿼리 인덱스 (같은 stance 에이전트가 다른 쿼리를 사용하도록)
+_query_idx: Dict[str, int] = {}
+
+
+def _pre_search(topic: str, stance: str, focus_area: str, topic_id: str = "") -> Tuple[str, List[Dict]]:
+    """입론 전 사전 검색. 사전 생성된 쿼리 사용, 없으면 동적 생성.
 
     Returns:
         (검색 결과 텍스트, tool_calls_log)
     """
     search_hint = focus_area.replace("검색 방향: ", "").strip()
-    stance_kr = "찬성 근거" if stance == "PRO" else "반대 근거 문제점"
     tool_calls_log: List[Dict] = []
     results = []
 
-    # 1. 웹 검색 (stance + focus_area 기반, 토픽 전체 넣지 않음)
-    topic_short = topic.split("아닌")[0].strip() if "아닌" in topic else topic[:30]
-    query = f"{topic_short} {search_hint} {stance_kr} 통계 수치"
+    # 1. 웹 검색 — 토픽별 키워드 + focus_area 조합
+    topic_keyword = ""
+    if topic_id and topic_id in _SEARCH_QUERIES:
+        keywords = _SEARCH_QUERIES[topic_id].get(stance, [])
+        if keywords:
+            key = f"{topic_id}_{stance}"
+            idx = _query_idx.get(key, 0)
+            topic_keyword = keywords[idx % len(keywords)]
+            _query_idx[key] = idx + 1
+
+    if topic_keyword:
+        # 토픽 키워드 + focus_area 조합 → 매번 다른 검색
+        query = f"{topic_keyword} {search_hint}"
+    else:
+        # fallback: 동적 생성
+        topic_short = topic.split("아닌")[0].strip() if "아닌" in topic else topic[:30]
+        stance_kr = "찬성 근거" if stance == "PRO" else "반대 근거 문제점"
+        query = f"{topic_short} {search_hint} {stance_kr} 통계 수치"
+
     tool_calls_log.append({"name": "search_web", "args": {"query": query}})
     web_result = search_web.invoke({"query": query})
     results.append(_truncate_tool_result(web_result))
@@ -400,6 +427,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         # 1. 사전 검색
         search_results, tool_calls_log = _pre_search(
             topic, agent["stance"], agent["focus_area"],
+            topic_id=state.get("topic_id", ""),
         )
 
         # 2. 프롬프트 구성 + LLM 호출
