@@ -112,12 +112,17 @@ def _truncate_to_sentences(text: str, max_sentences: int = 2) -> str:
     return result
 
 
-def _is_repetitive(new_text: str, prev_entries: List[DebateEntry], threshold: float = 0.7) -> bool:
-    """이전 발언과 중복도 체크. threshold 이상이면 반복으로 판단."""
-    new_words = set(re.findall(r'[가-힣]{2,}', new_text))
+def _is_repetitive(
+    new_text: str,
+    prev_entries: List[DebateEntry],
+    threshold: float = 0.7,
+    topic: str = "",
+) -> bool:
+    """이전 발언과 중복도 체크. 토픽 키워드는 겹침 계산에서 제외."""
+    topic_words = set(re.findall(r'[가-힣]{2,}', topic)) if topic else set()
+    new_words = set(re.findall(r'[가-힣]{2,}', new_text)) - topic_words
     for entry in prev_entries[-4:]:
-        old_text = entry["content"]
-        old_words = set(re.findall(r'[가-힣]{2,}', old_text))
+        old_words = set(re.findall(r'[가-힣]{2,}', entry["content"])) - topic_words
         if not new_words or not old_words:
             continue
         overlap = len(new_words & old_words) / max(len(new_words | old_words), 1)
@@ -293,6 +298,7 @@ def _generate_free_rebuttal(
     target_speech: str,
     stance: str,
     prev_entries: Optional[List[DebateEntry]] = None,
+    topic: str = "",
 ) -> Tuple[str, str]:
     """2-Step 자유논박 발언 생성.
 
@@ -337,7 +343,7 @@ def _generate_free_rebuttal(
         return _get_fallback(), raw1
 
     # 반복 체크
-    if prev_entries and _is_repetitive(rebuttal, prev_entries):
+    if prev_entries and _is_repetitive(rebuttal, prev_entries, topic=topic):
         logger.warning("[free_rebuttal] step1 반복 감지 → fallback")
         return _get_fallback(), raw1
 
@@ -481,6 +487,7 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         target_speech=user_speech,
         stance=opponent["stance"],
         prev_entries=prev_entries,
+        topic=state["topic"],
     )
 
     # ── 발언 기록
