@@ -155,6 +155,7 @@ def _run_worker_inner(task: dict) -> dict:
         user_stance=USER_STANCE,
         user_intensity=USER_INTENSITY,
         agents=snapshots,
+        topic_id=topic_dict["id"],
     )
 
     result_state = opening_arguments_node(state)

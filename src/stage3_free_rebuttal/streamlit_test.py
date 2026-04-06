@@ -155,6 +155,7 @@ def main():
             state = build_initial_state(
                 topic=topic_dict["title"], user_stance=USER_STANCE,
                 user_intensity=USER_INTENSITY, agents=snapshots,
+                topic_id=topic_dict["id"],
             )
             st.session_state.state = state
             st.session_state.messages = []

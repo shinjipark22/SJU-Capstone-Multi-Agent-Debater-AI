@@ -9,6 +9,7 @@ nodes.py — 1단계: 입론(Opening Arguments) 노드
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -19,12 +20,12 @@ logger = logging.getLogger(__name__)
 
 import time
 
-from ddgs import DDGS
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from openai import APITimeoutError, APIConnectionError, APIStatusError
 from pydantic import ValidationError
+from tavily import TavilyClient
 
 from src.stage1_opening.vector_db import query_vector_db
 from src.state import DebateEntry, DebateState
@@ -36,6 +37,18 @@ _used_doc_ids: set = set()
 
 # ── 도구 정의 ─────────────────────────────────────────────────────────────────
 
+# .env 파일에서 TAVILY_API_KEY 로드
+_env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            if _line.strip().startswith("TAVILY_API_KEY="):
+                os.environ["TAVILY_API_KEY"] = _line.strip().split("=", 1)[1]
+                break
+
+_tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY", ""))
+
+
 @tool
 def search_web(query: str) -> str:
     """웹에서 최신 뉴스 및 정보를 검색합니다.
@@ -44,11 +57,13 @@ def search_web(query: str) -> str:
         query: 검색할 키워드
     """
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
-        if not results:
+        results = _tavily_client.search(query, max_results=3, search_depth="basic")
+        items = results.get("results", [])
+        if not items:
             return "[검색 결과] 관련 결과를 찾을 수 없습니다."
-        return "[검색 결과]\n" + "\n".join(f"- {r['title']}: {r['body']}" for r in results)
+        return "[검색 결과]\n" + "\n".join(
+            f"- {r['title']}: {r['content'][:200]}" for r in items
+        )
     except Exception as e:
         return f"[검색 오류] {e}"
 
@@ -205,6 +220,20 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'search_web|search_vector_db', '', text)
     text = re.sub(r'를 통해 확인되는 자료에 따르면[,.]?\s*', '', text)
     text = re.sub(r'를 통해 (?:최근|확인)', '', text)
+    # 영어 잔해 정리 (Forum → 세계경제포럼 등)
+    text = text.replace('Forum의', '세계경제포럼의')
+    text = text.replace('Forum ', '세계경제포럼 ')
+    text = re.sub(r'Naver Blog에 따르면[,.]?\s*', '', text)
+    text = re.sub(r'[a-zA-Z]+\s*Blog에 따르면[,.]?\s*', '', text)
+    text = re.sub(r'네이버\s*블로그에서\s*언급된\s*바와\s*같이[,.]?\s*', '', text)
+    text = re.sub(r'Daum의\s*보도에\s*따르면[,.]?\s*', '', text)
+    text = re.sub(r'블로그에\s*따르면[,.]?\s*', '', text)
+    # "의장은" → 앞에 이름 없으면 제거
+    text = re.sub(r'(?<![가-힣a-zA-Z])의장은\s*', '', text)
+    # 한국어 문장 내 영어 단어 제거 (AI, IT, WEF 등 약어는 유지)
+    text = re.sub(r'(?<=[가-힣])\s*[a-z]{3,}\s*(?=[가-힣])', ' ', text)  # 소문자 영어 3자 이상
+    text = re.sub(r'[a-z]{4,}니다', '니다', text)  # "bring니다" → "니다"
+    text = re.sub(r'[a-z]{4,}합니다', '합니다', text)  # "mở합니다" 등
     # 메타 표현 제거
     text = re.sub(r'의 의견을 들어본다[.]?\s*', '은 ', text)
     # 분석 라벨 제거
@@ -263,27 +292,45 @@ def _truncate_tool_result(result: str, max_chars: int = _MAX_TOOL_RESULT_CHARS) 
     return result[:max_chars] + "\n[일부만 표시]"
 
 
-def _pre_search(topic: str, stance: str, focus_area: str) -> Tuple[str, List[Dict]]:
-    """입론 전 사전 검색을 수행한다. 모델 대신 직접 도구를 호출한다.
+# 사전 생성된 검색 쿼리 로드
+_SEARCH_QUERIES_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "search_queries.json")
+_SEARCH_QUERIES: Dict = {}
+if os.path.exists(_SEARCH_QUERIES_PATH):
+    with open(_SEARCH_QUERIES_PATH, encoding="utf-8") as _f:
+        _SEARCH_QUERIES = json.load(_f)
+
+# 에이전트별 쿼리 인덱스 (같은 stance 에이전트가 다른 쿼리를 사용하도록)
+_query_idx: Dict[str, int] = {}
+
+
+def _pre_search(topic: str, stance: str, focus_area: str, topic_id: str = "") -> Tuple[str, List[Dict]]:
+    """입론 전 사전 검색. search_queries.json 쿼리만 사용.
 
     Returns:
         (검색 결과 텍스트, tool_calls_log)
     """
-    search_hint = focus_area.replace("검색 방향: ", "").strip()
     tool_calls_log: List[Dict] = []
     results = []
 
-    # 1. 웹 검색
-    query = f"{topic} {search_hint}"
+    # search_queries.json에서 쿼리 가져오기 (에이전트마다 다른 쿼리 순환)
+    query = ""
+    if topic_id and topic_id in _SEARCH_QUERIES:
+        keywords = _SEARCH_QUERIES[topic_id].get(stance, [])
+        if keywords:
+            key = f"{topic_id}_{stance}"
+            idx = _query_idx.get(key, 0)
+            query = keywords[idx % len(keywords)]
+            _query_idx[key] = idx + 1
+
+    if not query:
+        # fallback: 토픽 핵심어 + stance
+        topic_short = topic.split("아닌")[0].strip() if "아닌" in topic else topic[:20]
+        stance_kr = "찬성 근거 통계" if stance == "PRO" else "반대 근거 문제점 통계"
+        query = f"{topic_short} {stance_kr}"
+
     tool_calls_log.append({"name": "search_web", "args": {"query": query}})
     web_result = search_web.invoke({"query": query})
     results.append(_truncate_tool_result(web_result))
-
-    # 2. VectorDB 검색
-    vdb_args = {"query": search_hint, "topic": topic, "stance": stance}
-    tool_calls_log.append({"name": "search_vector_db", "args": vdb_args})
-    vdb_result = search_vector_db.invoke(vdb_args)
-    results.append(_truncate_tool_result(vdb_result))
 
     return "\n\n".join(results), tool_calls_log
 
@@ -301,12 +348,12 @@ def _build_opening_prompt(
 
 조건:
 - "{agent_name}"이라고 자기소개할 것
-- 2개의 핵심 논거로 구성
-- 각 논거는 3줄 이내
-- 결론에서 {stance_kr} 입장 재확인
-- 반드시 한국어만 사용 (영어, 한자, 일본어 금지)
-- 참고 자료의 내용을 자연스럽게 녹여서 서술
-- 핵심적인 문장에는 **강조** 표시를 사용하라
+- 논거 2개. 각 논거 3줄 이내
+- 참고 자료에서 수치/기관명을 인용할 것 (예: "WEF에 따르면 2030년까지 7800만개")
+- 참고 자료에 없는 수치를 지어내지 마라
+- 참고 자료의 내용을 과장하지 마라. 데이터가 말하는 범위 내에서만 주장할 것
+- 공신력 없는 출처(블로그, 커뮤니티, 개인 사이트)는 이름을 밝히지 마라. 국제기구, 연구기관, 대학, 기업만 출처로 밝힐 것
+- 한국어만. 핵심에 **강조**
 
 반드시 아래 형식으로만 출력:
 
@@ -343,6 +390,19 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str]:
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
 
+    # 영어 잔재 감지 → 수정 요청
+    eng_words = re.findall(r'[a-z]{4,}', speech)
+    if eng_words:
+        logger.warning("[opening] 영어 감지: %s → 수정 요청", eng_words[:3])
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
+        fix: AIMessage = _invoke_with_retry(_llm, messages, label="opening_fix_eng")
+        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
+        fixed = _postprocess_speech(_extract_delimited_text(raw_fix))
+        if _is_valid_speech(fixed):
+            speech = fixed
+            raw = raw_fix
+
     return speech, raw
 
 
@@ -377,6 +437,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         # 1. 사전 검색
         search_results, tool_calls_log = _pre_search(
             topic, agent["stance"], agent["focus_area"],
+            topic_id=state.get("topic_id", ""),
         )
 
         # 2. 프롬프트 구성 + LLM 호출

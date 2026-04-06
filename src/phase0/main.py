@@ -112,10 +112,11 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
 
     # ── 4. LangGraph 초기 State 생성 ─────────────────────────────────────────
     initial_state = build_initial_state(
-        topic=request.topic,
+        topic=topic_dict["title"],
         user_stance=request.user_stance,
         user_intensity=request.user_intensity,
         agents=snapshots,
+        topic_id=request.topic,
     )
 
     # ── 5. 응답 구성 ─────────────────────────────────────────────────────────
