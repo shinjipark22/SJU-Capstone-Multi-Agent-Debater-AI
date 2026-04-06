@@ -1,8 +1,9 @@
 """
-interactive_test.py — 1~3단계 전체 대화형 테스트
+interactive_test.py — 1~3단계 완전 대화형 테스트
 
-모든 토픽에서 선택 가능. 입론/연쇄논박은 자동 처리 후,
-자유논박부터 직접 채팅. 종료 시 전체 결과 txt 저장.
+모든 단계에서 사용자가 직접 발언을 입력한다.
+AI 에이전트 발언은 자동 생성.
+종료 시 전체 결과 txt 저장.
 
 터미널에서 실행:
     python src/stage3_free_rebuttal/interactive_test.py
@@ -16,18 +17,10 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-
 from src.phase0.persona_factory import create_agents
 from src.state import AgentSnapshot, DebateEntry, build_initial_state
-from src.stage1_opening.nodes import (
-    opening_arguments_node,
-    _invoke_with_retry,
-    _postprocess_speech,
-    _LLM_KWARGS,
-)
-from src.stage2_rebuttal.nodes import chained_rebuttal_node, _extract_rebuttal_text
+from src.stage1_opening.nodes import opening_arguments_node
+from src.stage2_rebuttal.nodes import chained_rebuttal_node
 from src.stage3_free_rebuttal.nodes import free_rebuttal_node
 
 
@@ -39,9 +32,6 @@ AGENT_INTENSITIES = [3, 2, 4]
 _DATA_PATH = Path(__file__).parent.parent.parent / "data" / "topics_20260323_processed.json"
 _OUTPUT_DIR = Path(__file__).parent.parent.parent / "test_results"
 
-# 사용자 더미 생성용 LLM
-_user_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
-
 
 def _load_all_topics() -> list:
     with _DATA_PATH.open(encoding="utf-8") as f:
@@ -51,53 +41,6 @@ def _load_all_topics() -> list:
         for t in category_topics:
             topics.append(t)
     return topics
-
-
-def _generate_user_opening(topic_title: str) -> str:
-    """LLM으로 토픽에 맞는 사용자 입론을 생성한다."""
-    print("  [사용자 입론 생성 중...]")
-    messages = [
-        SystemMessage(content="너는 토론 참가자다. 찬성 입장에서 입론을 작성하라. 한국어만."),
-        HumanMessage(content=f"""토론 주제: {topic_title}
-
-아래 형식으로 찬성 입론을 작성하라:
-
-### 자기소개와 입장 표명
-(1~2문장)
-
-### 논거 1
-(2~3문장, 구체적 근거 포함)
-
-### 논거 2
-(2~3문장, 구체적 근거 포함)
-
-### 결론
-(1~2문장)"""),
-    ]
-    response = _invoke_with_retry(_user_llm, messages, label="user_opening")
-    raw = response.content if isinstance(response.content, str) else str(response.content)
-    text = _postprocess_speech(_extract_rebuttal_text(raw))
-    # ### 자기소개와 입장 표명 헤딩이 없으면 추가
-    if "### 자기소개" not in text:
-        text = "### 자기소개와 입장 표명\n" + text
-    return text
-
-
-def _generate_user_rebuttal(topic_title: str, target_speech: str) -> str:
-    """LLM으로 상대 발언에 대한 사용자 연쇄논박을 생성한다."""
-    print("  [사용자 연쇄논박 생성 중...]")
-    messages = [
-        SystemMessage(content="너는 찬성 토론자다. 상대 주장을 반박하라. 한국어만. 3~4문장."),
-        HumanMessage(content=f"""토론 주제: {topic_title}
-
-상대 발언:
-{target_speech[:300]}
-
-위 주장의 허점을 지적하고 반박하라. 3~4문장."""),
-    ]
-    response = _invoke_with_retry(_user_llm, messages, label="user_rebuttal")
-    raw = response.content if isinstance(response.content, str) else str(response.content)
-    return _postprocess_speech(_extract_rebuttal_text(raw))
 
 
 def _format_entry(entry: dict) -> str:
@@ -146,10 +89,30 @@ def _save_results(state: dict, topic_dict: dict, personas: list):
     print(f"  총 {len(state['debate_history'])}건 발언")
 
 
+def _get_multiline_input(prompt: str) -> str:
+    """여러 줄 입력 받기. 빈 줄 2번 연속 입력하면 종료."""
+    print(prompt)
+    print("  (입력 후 빈 줄 2번 연속으로 Enter 치면 완료)")
+    lines = []
+    empty_count = 0
+    while True:
+        line = input("  ")
+        if line == "":
+            empty_count += 1
+            if empty_count >= 2:
+                break
+            lines.append("")
+        else:
+            empty_count = 0
+            lines.append(line)
+    return "\n".join(lines).strip()
+
+
 def main():
     topics = _load_all_topics()
     print("=" * 70)
-    print(" 1~3단계 전체 대화형 테스트")
+    print(" 1~3단계 완전 대화형 테스트")
+    print(" 모든 단계에서 사용자가 직접 발언합니다.")
     print("=" * 70)
     print(f"\n  토픽 목록 ({len(topics)}개):\n")
     for i, t in enumerate(topics):
@@ -164,7 +127,8 @@ def main():
             break
         print("  잘못된 입력입니다.")
 
-    print(f"\n  ✓ 선택: {topic_dict['title']}\n")
+    print(f"\n  ✓ 선택: {topic_dict['title']}")
+    print(f"  사용자 입장: 찬성(PRO)\n")
 
     # ── 에이전트 생성
     personas = create_agents(
@@ -183,18 +147,34 @@ def main():
         user_intensity=USER_INTENSITY, agents=snapshots,
     )
 
-    print(f"  토픽: {topic_dict['title']}")
-    print(f"  포맷: {DEBATE_FORMAT}, 사용자: {USER_STANCE}")
-    print(f"  에이전트: {len(personas)}명\n")
-
-    # ── 1단계: 입론 (자동)
-    print("-" * 70)
-    print(" 1단계: 입론 (자동 처리)")
-    print("-" * 70)
+    # ══════════════════════════════════════════════════════
+    # 1단계: 입론
+    # ══════════════════════════════════════════════════════
+    print("=" * 70)
+    print(" 1단계: 입론")
+    print("=" * 70)
+    print("\n  AI 에이전트 입론 생성 중...\n")
     state = opening_arguments_node(state)
     state = dict(state)
+
+    # AI 입론 결과 출력
+    for entry in state["debate_history"]:
+        if entry["phase"] != "opening":
+            continue
+        s_label = "찬성" if entry["stance"] == "PRO" else "반대"
+        speaker = entry["speaker_id"]
+        print(f"  [{speaker} ({s_label})]")
+        print(f"  {entry['content']}")
+        print()
+
+    # 사용자 입론 입력
+    print("-" * 70)
+    user_opening = _get_multiline_input(f"  [사용자 입론] 찬성 입장에서 입론을 작성하세요:")
+    if not user_opening:
+        print("  입론이 비어있습니다. 종료합니다.")
+        return
+
     user_turn = len([e for e in state["debate_history"] if e["phase"] == "opening"])
-    user_opening = _generate_user_opening(topic_dict["title"])
     state["debate_history"].append(DebateEntry(
         turn=user_turn, speaker_id="user", stance=USER_STANCE,
         phase="opening", content=user_opening,
@@ -202,38 +182,52 @@ def main():
     ))
     state["debate_history"].sort(key=lambda e: e["turn"])
     state["phase"] = "chained_rebuttal"
-    print("  ✓ 입론 완료\n")
+    print(f"\n  ✓ 사용자 입론 등록 완료\n")
 
-    # 입론 결과 출력
+    # ══════════════════════════════════════════════════════
+    # 2단계: 연쇄논박
+    # ══════════════════════════════════════════════════════
     print("=" * 70)
-    print(" 입론 결과")
+    print(" 2단계: 연쇄논박")
     print("=" * 70)
-    for entry in state["debate_history"]:
-        if entry["phase"] != "opening":
-            continue
-        s_label = "찬성" if entry["stance"] == "PRO" else "반대"
-        speaker = "사용자" if entry["speaker_id"] == "user" else entry["speaker_id"]
-        print(f"\n  [{speaker} ({s_label})]")
-        print(f"  {entry['content'][:300]}...")
-    print()
-
-    # ── 2단계: 연쇄논박 (자동)
-    print("-" * 70)
-    print(" 2단계: 연쇄논박 (자동 처리)")
-    print("-" * 70)
+    print("\n  AI 에이전트 연쇄논박 생성 중...\n")
     state = chained_rebuttal_node(state)
     state = dict(state)
-    # 사용자를 공격한 상대 에이전트의 발언을 찾아서 반박 생성
-    con_agents = [a["agent_id"] for a in state["agents"] if a["stance"] == "CON"]
-    rebuttal_target = con_agents[0] if con_agents else "agent_1"
-    # 사용자를 타겟으로 한 상대 발언 찾기
-    target_speech_for_rebuttal = ""
+
+    # AI 연쇄논박 결과 출력
+    for entry in state["debate_history"]:
+        if entry["phase"] != "chained_rebuttal":
+            continue
+        s_label = "찬성" if entry["stance"] == "PRO" else "반대"
+        speaker = entry["speaker_id"]
+        target = entry.get("target_id", "")
+        print(f"  [{speaker} ({s_label}) → {target}]")
+        print(f"  {entry['content']}")
+        print()
+
+    # 사용자를 공격한 상대 발언 찾기
+    attacker_to_user = None
     for e in reversed(state["debate_history"]):
         if e["phase"] == "chained_rebuttal" and e["target_id"] == "user":
-            target_speech_for_rebuttal = e["content"]
-            rebuttal_target = e["speaker_id"]
+            attacker_to_user = e
             break
-    user_rebuttal = _generate_user_rebuttal(topic_dict["title"], target_speech_for_rebuttal)
+
+    if attacker_to_user:
+        print("-" * 70)
+        print(f"  ↑ {attacker_to_user['speaker_id']}가 사용자를 공격했습니다.")
+        print(f"  이에 대해 반박하세요.\n")
+        rebuttal_target = attacker_to_user["speaker_id"]
+    else:
+        print("-" * 70)
+        print("  반박할 상대를 선택하세요.")
+        con_agents = [a["agent_id"] for a in state["agents"] if a["stance"] == "CON"]
+        rebuttal_target = con_agents[0] if con_agents else "agent_1"
+
+    user_rebuttal = _get_multiline_input(f"  [사용자 연쇄논박] → {rebuttal_target} 반박:")
+    if not user_rebuttal:
+        print("  연쇄논박이 비어있습니다. 종료합니다.")
+        return
+
     state["debate_history"].append(DebateEntry(
         turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
         phase="chained_rebuttal", content=user_rebuttal,
@@ -241,23 +235,11 @@ def main():
     ))
     state["current_turn"] += 1
     state["phase"] = "free_rebuttal"
-    print("  ✓ 연쇄논박 완료\n")
+    print(f"\n  ✓ 사용자 연쇄논박 등록 완료\n")
 
-    # 연쇄논박 결과 출력
-    print("=" * 70)
-    print(" 연쇄논박 결과")
-    print("=" * 70)
-    for entry in state["debate_history"]:
-        if entry["phase"] != "chained_rebuttal":
-            continue
-        s_label = "찬성" if entry["stance"] == "PRO" else "반대"
-        speaker = "사용자" if entry["speaker_id"] == "user" else entry["speaker_id"]
-        target = entry.get("target_id", "")
-        print(f"\n  [{speaker} ({s_label}) → {target}]")
-        print(f"  {entry['content'][:300]}")
-    print()
-
-    # ── 상대 에이전트 선택
+    # ══════════════════════════════════════════════════════
+    # 3단계: 자유논박
+    # ══════════════════════════════════════════════════════
     print("=" * 70)
     print(" 3단계: 자유논박 — 상대 에이전트 선택")
     print("=" * 70)
@@ -277,19 +259,17 @@ def main():
     state["selected_opponent_id"] = selected.agent_id
     opponent_label = "찬성" if selected.stance == "PRO" else "반대"
     print(f"\n  ✓ 상대 선택: {selected.agent_id} ({opponent_label})")
-    print(f"    역할: {selected.role_description[:80]}")
 
-    # ── 자유논박 채팅 루프
     print("\n" + "=" * 70)
-    print(f" 자유논박 시작: 사용자(찬성) ↔ {selected.agent_id}({opponent_label})")
+    print(f" 자유논박: 사용자(찬성) ↔ {selected.agent_id}({opponent_label})")
     print(f" 토픽: {topic_dict['title']}")
-    print(" 'q' 또는 'quit' 입력 시 종료 → 결과 txt 저장")
+    print(" 'q' 입력 시 종료 → 결과 txt 저장")
     print("=" * 70)
 
     turn_count = 0
     while True:
         print(f"\n{'─' * 50}")
-        user_input = input(f"  [사용자] 발언 (turn {turn_count * 2 + 1}): ").strip()
+        user_input = input(f"  [사용자] 발언: ").strip()
         if user_input.lower() in ("q", "quit", "exit"):
             print("\n  자유논박 종료.\n")
             break
@@ -313,7 +293,7 @@ def main():
         ]
         if agent_entries:
             latest = agent_entries[-1]
-            print(f"\n  [{selected.agent_id}] 발언 (turn {latest['turn']}):")
+            print(f"\n  [{selected.agent_id}] 발언:")
             print(f"  {latest['content']}")
 
         turn_count += 1
