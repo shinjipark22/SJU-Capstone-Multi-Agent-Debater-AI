@@ -219,6 +219,11 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'search_web|search_vector_db', '', text)
     text = re.sub(r'를 통해 확인되는 자료에 따르면[,.]?\s*', '', text)
     text = re.sub(r'를 통해 (?:최근|확인)', '', text)
+    # 영어 잔해 정리 (Forum → 세계경제포럼 등)
+    text = text.replace('Forum의', '세계경제포럼의')
+    text = text.replace('Forum ', '세계경제포럼 ')
+    text = re.sub(r'Naver Blog에 따르면[,.]?\s*', '', text)
+    text = re.sub(r'[a-zA-Z]+\s*Blog에 따르면[,.]?\s*', '', text)
     # 메타 표현 제거
     text = re.sub(r'의 의견을 들어본다[.]?\s*', '은 ', text)
     # 분석 라벨 제거
@@ -284,11 +289,13 @@ def _pre_search(topic: str, stance: str, focus_area: str) -> Tuple[str, List[Dic
         (검색 결과 텍스트, tool_calls_log)
     """
     search_hint = focus_area.replace("검색 방향: ", "").strip()
+    stance_kr = "찬성 근거" if stance == "PRO" else "반대 근거 문제점"
     tool_calls_log: List[Dict] = []
     results = []
 
-    # 1. 웹 검색
-    query = f"{topic} {search_hint}"
+    # 1. 웹 검색 (stance + focus_area 기반, 토픽 전체 넣지 않음)
+    topic_short = topic.split("아닌")[0].strip() if "아닌" in topic else topic[:30]
+    query = f"{topic_short} {search_hint} {stance_kr} 통계 수치"
     tool_calls_log.append({"name": "search_web", "args": {"query": query}})
     web_result = search_web.invoke({"query": query})
     results.append(_truncate_tool_result(web_result))
@@ -316,10 +323,12 @@ def _build_opening_prompt(
 조건:
 - "{agent_name}"이라고 자기소개할 것
 - 2개의 핵심 논거로 구성
+- 각 논거에 반드시 구체적 수치/기관명/사례를 1개 이상 인용할 것 (예: "WEF에 따르면 2030년까지 7800만개")
+- "보고서에 따르면"처럼 출처 없이 인용 금지. 기관명을 반드시 명시할 것
 - 각 논거는 3줄 이내
 - 결론에서 {stance_kr} 입장 재확인
 - 반드시 한국어만 사용 (영어, 한자, 일본어 금지)
-- 참고 자료의 내용을 자연스럽게 녹여서 서술
+- 블로그, 커뮤니티 출처 인용 금지. 공신력 있는 기관(WEF, OECD, ILO, KDI 등)만 인용
 - 핵심적인 문장에는 **강조** 표시를 사용하라
 
 반드시 아래 형식으로만 출력:
