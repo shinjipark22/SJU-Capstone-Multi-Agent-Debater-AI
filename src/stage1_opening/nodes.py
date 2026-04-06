@@ -57,7 +57,17 @@ def search_web(query: str) -> str:
         query: 검색할 키워드
     """
     try:
-        results = _tavily_client.search(query, max_results=3, search_depth="basic")
+        results = _tavily_client.search(
+            query,
+            max_results=3,
+            search_depth="basic",
+            exclude_domains=[
+                "blog.naver.com", "m.blog.naver.com",
+                "tistory.com", "brunch.co.kr",
+                "linkedin.com", "medium.com",
+                "velog.io", "daum.net",
+            ],
+        )
         items = results.get("results", [])
         if not items:
             return "[검색 결과] 관련 결과를 찾을 수 없습니다."
@@ -209,8 +219,8 @@ def _postprocess_speech(text: str) -> str:
     # 제목 정규화
     text = re.sub(r'^#+[^가-힣a-zA-Z0-9\n]*(?=[가-힣a-zA-Z])', '### ', text, flags=re.MULTILINE)
     text = re.sub(r'^(### .*)$', lambda m: m.group(1).replace('*', ''), text, flags=re.MULTILINE)
-    # 외국 문자 제거 (한자, 일본어, 러시아어, 태국어, 아랍어 등)
-    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff]+', '', text)
+    # 외국 문자 제거 (한자, 일본어, 러시아어, 태국어, 아랍어, 베트남어 등)
+    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff]+', '', text)
     # 영어 줄 제거 (한글 없이 영어로만 이루어진 줄)
     lines = text.split('\n')
     text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l) or l.strip().startswith('###'))
@@ -234,6 +244,17 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'(?<=[가-힣])\s*[a-z]{3,}\s*(?=[가-힣])', ' ', text)  # 소문자 영어 3자 이상
     text = re.sub(r'[a-z]{4,}니다', '니다', text)  # "bring니다" → "니다"
     text = re.sub(r'[a-z]{4,}합니다', '합니다', text)  # "mở합니다" 등
+    # 목록 형태 제거 (- 로 시작하는 줄 → 일반 문장으로)
+    text = re.sub(r'^-\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\*\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
+    # "검색 결과" → "관련 분석"으로 교체
+    text = text.replace('검색 결과', '관련 분석')
+    text = text.replace('검색결과', '관련 분석')
+    text = text.replace('자료 조사', '관련 분석')
+    # 프롬프트 형식 유출 제거
+    text = re.sub(r'\*{0,2}핵심\s*주장\*{0,2}\s*[:：]?\s*', '', text)
+    text = re.sub(r'\*{0,2}입장\s*재확인\*{0,2}\s*[:：]?\s*', '', text)
     # 메타 표현 제거
     text = re.sub(r'의 의견을 들어본다[.]?\s*', '은 ', text)
     # 분석 라벨 제거
@@ -349,23 +370,25 @@ def _build_opening_prompt(
 조건:
 - "{agent_name}"이라고 자기소개할 것
 - 논거 2개. 각 논거 3줄 이내
-- 참고 자료에서 수치/기관명을 인용할 것 (예: "WEF에 따르면 2030년까지 7800만개")
+- 참고 자료에서 수치/기관명을 인용할 것
 - 참고 자료에 없는 수치를 지어내지 마라
 - 참고 자료의 내용을 과장하지 마라. 데이터가 말하는 범위 내에서만 주장할 것
+- 원문 그대로 인용하라. 자체적으로 계산하거나 환율 변환하지 마라
 - 공신력 없는 출처(블로그, 커뮤니티, 개인 사이트)는 이름을 밝히지 마라. 국제기구, 연구기관, 대학, 기업만 출처로 밝힐 것
-- 한국어만. 핵심에 **강조**
+- 한국어만
+- 핵심적인 문장에는 반드시 **강조** 표시를 사용하라
 
 반드시 아래 형식으로만 출력:
 
 ### 답변 시작
 ### 자기소개와 입장 표명
-(자기소개 + **핵심 주장**)
+(자기소개와 입장)
 ### 논거 1: (소제목)
-(근거 기반 논거)
+(논거)
 ### 논거 2: (소제목)
-(다른 각도의 논거)
+(논거)
 ### 결론
-(**입장 재확인**)
+(결론)
 ### 답변 끝"""
 
 
