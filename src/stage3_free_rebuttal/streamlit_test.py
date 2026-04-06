@@ -8,6 +8,7 @@ streamlit_test.py — 1~3단계 대화형 토론 테스트 UI (채팅 형태)
 import json
 import sys
 import os
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -93,6 +94,8 @@ def init_session():
         st.session_state.personas = None
         st.session_state.selected_opponent = None
         st.session_state.messages = []
+        st.session_state.opening_ready = False
+        st.session_state.rebuttal_ready = False
 
 
 def add_msg(role, content):
@@ -105,17 +108,39 @@ def render_messages():
             st.markdown(msg["content"])
 
 
+def _run_opening_bg():
+    """백그라운드에서 AI 입론 생성."""
+    state = opening_arguments_node(st.session_state.state)
+    st.session_state.state = dict(state)
+    st.session_state.opening_ready = True
+
+
+def _run_rebuttal_bg():
+    """백그라운드에서 AI 연쇄논박 생성."""
+    state = chained_rebuttal_node(st.session_state.state)
+    st.session_state.state = dict(state)
+    st.session_state.rebuttal_ready = True
+
+
 def main():
     st.set_page_config(page_title="토론 테스트", page_icon="🎙️", layout="wide")
     init_session()
 
-    # ── 사이드바 (토픽 선택 이후에만)
+    # ── 사이드바 (토픽 선택 이후)
     if st.session_state.phase != "topic_select":
         with st.sidebar:
             st.title("🎙️ 토론 테스트")
             if st.session_state.topic_dict:
                 st.write(f"**토픽:** {st.session_state.topic_dict['title'][:40]}...")
-                st.write(f"**단계:** {st.session_state.phase}")
+                phase_labels = {
+                    "opening_user": "1단계: 입론 (작성 중)",
+                    "opening_done": "1단계: 입론 완료",
+                    "rebuttal_user": "2단계: 연쇄논박 (작성 중)",
+                    "rebuttal_done": "2단계: 연쇄논박 완료",
+                    "free_select": "3단계: 상대 선택",
+                    "free_rebuttal": "3단계: 자유논박",
+                }
+                st.write(f"**단계:** {phase_labels.get(st.session_state.phase, st.session_state.phase)}")
                 total = len(st.session_state.state["debate_history"]) if st.session_state.state else 0
                 st.write(f"**발언:** {total}건")
                 st.divider()
@@ -158,38 +183,28 @@ def main():
             )
             st.session_state.state = state
             st.session_state.messages = []
+            st.session_state.opening_ready = False
 
-            # 시작 메시지
-            add_msg("assistant", f"🎙️ **토론을 시작합니다**\n\n"
-                     f"**토픽:** {topic_dict['title']}\n\n"
-                     f"**사용자 입장:** 찬성(PRO)\n\n"
-                     f"**에이전트:** {len(personas)}명")
-            add_msg("assistant", "---\n## 1단계: 입론\nAI 에이전트들이 입론을 생성하고 있습니다...")
+            # 백그라운드에서 AI 입론 생성 시작
+            thread = threading.Thread(target=_run_opening_bg, daemon=True)
+            thread.start()
 
-            st.session_state.phase = "opening_gen"
+            st.session_state.phase = "opening_user"
             st.rerun()
-        return  # 토픽 선택 후 다른 UI 안 보이게
+        return
 
     # ══════════════════════════════════════════════
-    # 1단계: 입론 — AI 생성 + 사용자 입력
+    # 1단계: 입론 — 사용자 입력 (AI는 백그라운드 생성)
     # ══════════════════════════════════════════════
-    elif st.session_state.phase == "opening_gen":
-        # AI 입론 생성
-        state = opening_arguments_node(st.session_state.state)
-        st.session_state.state = dict(state)
-
-        # 생성된 입론을 메시지에 추가
-        for entry in st.session_state.state["debate_history"]:
-            if entry["phase"] == "opening":
-                s_label = "찬성" if entry["stance"] == "PRO" else "반대"
-                add_msg("assistant", f"**[{entry['speaker_id']} ({s_label}) 입론]**\n\n{entry['content']}")
-
-        add_msg("assistant", "✍️ **사용자 입론을 작성해주세요.**")
-        st.session_state.phase = "opening_user"
-        st.rerun()
-
     elif st.session_state.phase == "opening_user":
-        render_messages()
+        topic = st.session_state.topic_dict["title"]
+        st.header("1단계: 입론")
+        st.info(f"**토픽:** {topic}\n\n**사용자 입장:** 찬성(PRO)")
+
+        if not st.session_state.opening_ready:
+            st.warning("🤖 AI 에이전트들이 입론을 생성하고 있습니다... 사용자 입론을 먼저 작성하세요!")
+        else:
+            st.success("✅ AI 에이전트 입론 생성 완료!")
 
         with st.form("opening_form"):
             st.subheader("✍️ 사용자 입론")
@@ -197,7 +212,7 @@ def main():
             arg1 = st.text_area("논거 1", placeholder="첫 번째 논거를 구체적으로 작성하세요.", height=120)
             arg2 = st.text_area("논거 2", placeholder="두 번째 논거를 구체적으로 작성하세요.", height=120)
             conclusion = st.text_area("결론", placeholder="핵심 주장을 정리하세요.", height=80)
-            submitted = st.form_submit_button("입론 제출 → 연쇄논박", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("입론 제출", type="primary", use_container_width=True)
 
         if submitted:
             sections = []
@@ -210,7 +225,11 @@ def main():
             if conclusion.strip():
                 sections.append(f"### 결론\n{conclusion.strip()}")
 
-            if sections:
+            if not sections:
+                st.warning("최소 1개 섹션은 입력해주세요.")
+            elif not st.session_state.opening_ready:
+                st.warning("AI 에이전트 입론이 아직 생성 중입니다. 잠시 후 다시 시도하세요.")
+            else:
                 user_opening = "\n\n".join(sections)
                 state = st.session_state.state
                 user_turn = len([e for e in state["debate_history"] if e["phase"] == "opening"])
@@ -223,50 +242,70 @@ def main():
                 state["phase"] = "chained_rebuttal"
                 st.session_state.state = state
 
-                add_msg("user", f"**[사용자 (찬성) 입론]**\n\n{user_opening}")
+                # 입론 결과를 채팅으로 표시
+                for entry in state["debate_history"]:
+                    if entry["phase"] == "opening":
+                        s_label = "찬성" if entry["stance"] == "PRO" else "반대"
+                        speaker = "사용자" if entry["speaker_id"] == "user" else entry["speaker_id"]
+                        role = "user" if entry["speaker_id"] == "user" else "assistant"
+                        add_msg(role, f"**[{speaker} ({s_label}) 입론]**\n\n{entry['content']}")
+
                 add_msg("assistant", "---\n## 2단계: 연쇄논박\nAI 에이전트들이 연쇄논박을 생성하고 있습니다...")
-                st.session_state.phase = "rebuttal_gen"
+
+                # 백그라운드에서 AI 연쇄논박 생성 시작
+                st.session_state.rebuttal_ready = False
+                thread = threading.Thread(target=_run_rebuttal_bg, daemon=True)
+                thread.start()
+
+                st.session_state.phase = "rebuttal_user"
                 st.rerun()
-            else:
-                st.warning("최소 1개 섹션은 입력해주세요.")
+
+        # AI 생성 완료 대기 (주기적 체크)
+        if not st.session_state.opening_ready:
+            import time
+            time.sleep(1)
+            st.rerun()
 
     # ══════════════════════════════════════════════
-    # 2단계: 연쇄논박 — AI 생성 + 사용자 입력
+    # 2단계: 연쇄논박 — 채팅 표시 + 사용자 입력 (AI는 백그라운드)
     # ══════════════════════════════════════════════
-    elif st.session_state.phase == "rebuttal_gen":
-        render_messages()
-        with st.spinner("AI 에이전트 연쇄논박 생성 중..."):
-            state = chained_rebuttal_node(st.session_state.state)
-            st.session_state.state = dict(state)
-
-        for entry in st.session_state.state["debate_history"]:
-            if entry["phase"] == "chained_rebuttal":
-                s_label = "찬성" if entry["stance"] == "PRO" else "반대"
-                target = entry.get("target_id", "")
-                add_msg("assistant", f"**[{entry['speaker_id']} ({s_label}) → {target}]**\n\n{entry['content']}")
-
-        # 사용자를 공격한 에이전트 찾기
-        attacker_id = None
-        for e in reversed(st.session_state.state["debate_history"]):
-            if e["phase"] == "chained_rebuttal" and e["target_id"] == "user":
-                attacker_id = e["speaker_id"]
-                break
-        st.session_state.rebuttal_target = attacker_id or "agent_1"
-
-        add_msg("assistant", f"⚔️ **{st.session_state.rebuttal_target}**가 사용자를 공격했습니다!\n\n✍️ 반박을 작성해주세요.")
-        st.session_state.phase = "rebuttal_user"
-        st.rerun()
-
     elif st.session_state.phase == "rebuttal_user":
         render_messages()
 
-        target = st.session_state.rebuttal_target
+        if not st.session_state.rebuttal_ready:
+            st.warning("🤖 AI 에이전트들이 연쇄논박을 생성하고 있습니다... 반박을 미리 준비하세요!")
+        else:
+            # AI 연쇄논박 결과가 아직 채팅에 안 들어갔으면 추가
+            if not st.session_state.get("rebuttal_msgs_added"):
+                for entry in st.session_state.state["debate_history"]:
+                    if entry["phase"] == "chained_rebuttal":
+                        s_label = "찬성" if entry["stance"] == "PRO" else "반대"
+                        target = entry.get("target_id", "")
+                        add_msg("assistant", f"**[{entry['speaker_id']} ({s_label}) → {target}]**\n\n{entry['content']}")
+
+                attacker_id = None
+                for e in reversed(st.session_state.state["debate_history"]):
+                    if e["phase"] == "chained_rebuttal" and e["target_id"] == "user":
+                        attacker_id = e["speaker_id"]
+                        break
+                st.session_state.rebuttal_target = attacker_id or "agent_1"
+                add_msg("assistant", f"⚔️ **{st.session_state.rebuttal_target}**가 사용자를 공격했습니다! 반박해주세요.")
+                st.session_state.rebuttal_msgs_added = True
+                st.rerun()
+
+            st.success("✅ AI 에이전트 연쇄논박 완료!")
+
+        target = st.session_state.get("rebuttal_target", "agent_1")
         with st.form("rebuttal_form"):
             user_rebuttal = st.text_area(f"✍️ {target}에 대한 반박", height=150)
             submitted = st.form_submit_button("연쇄논박 제출 → 자유논박", type="primary", use_container_width=True)
 
         if submitted:
-            if user_rebuttal.strip():
+            if not user_rebuttal.strip():
+                st.warning("연쇄논박을 입력해주세요.")
+            elif not st.session_state.rebuttal_ready:
+                st.warning("AI 에이전트 연쇄논박이 아직 생성 중입니다. 잠시 후 다시 시도하세요.")
+            else:
                 state = st.session_state.state
                 state["debate_history"].append(DebateEntry(
                     turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
@@ -281,8 +320,12 @@ def main():
                 add_msg("assistant", "---\n## 3단계: 자유논박\n상대 에이전트를 선택해주세요.")
                 st.session_state.phase = "free_select"
                 st.rerun()
-            else:
-                st.warning("연쇄논박을 입력해주세요.")
+
+        # AI 생성 완료 대기
+        if not st.session_state.rebuttal_ready:
+            import time
+            time.sleep(1)
+            st.rerun()
 
     # ══════════════════════════════════════════════
     # 3단계: 자유논박 — 상대 선택
