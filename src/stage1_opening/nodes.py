@@ -248,9 +248,10 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'^-\s+', '', text, flags=re.MULTILINE)
     text = re.sub(r'^\*\s+', '', text, flags=re.MULTILINE)
     text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
-    # "검색 결과에 따르면", "자료 조사에 따르면" 제거
-    text = re.sub(r'\*{0,2}검색\s*결과에?\s*따르면\*{0,2}[,.]?\s*', '', text)
-    text = re.sub(r'\*{0,2}자료\s*조사에?\s*따르면\*{0,2}[,.]?\s*', '', text)
+    # "검색 결과" → "관련 분석"으로 교체
+    text = text.replace('검색 결과', '관련 분석')
+    text = text.replace('검색결과', '관련 분석')
+    text = text.replace('자료 조사', '관련 분석')
     # 프롬프트 형식 유출 제거
     text = re.sub(r'\*{0,2}핵심\s*주장\*{0,2}\s*[:：]?\s*', '', text)
     text = re.sub(r'\*{0,2}입장\s*재확인\*{0,2}\s*[:：]?\s*', '', text)
