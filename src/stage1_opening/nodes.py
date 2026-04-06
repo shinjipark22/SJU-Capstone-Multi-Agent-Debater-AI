@@ -57,7 +57,17 @@ def search_web(query: str) -> str:
         query: 검색할 키워드
     """
     try:
-        results = _tavily_client.search(query, max_results=3, search_depth="basic")
+        results = _tavily_client.search(
+            query,
+            max_results=3,
+            search_depth="basic",
+            exclude_domains=[
+                "blog.naver.com", "m.blog.naver.com",
+                "tistory.com", "brunch.co.kr",
+                "linkedin.com", "medium.com",
+                "velog.io", "daum.net",
+            ],
+        )
         items = results.get("results", [])
         if not items:
             return "[검색 결과] 관련 결과를 찾을 수 없습니다."
