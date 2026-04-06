@@ -108,18 +108,19 @@ def render_messages():
             st.markdown(msg["content"])
 
 
-def _run_opening_bg():
+_bg_result = {}  # 스레드 간 공유 딕셔너리
+
+
+def _run_opening_bg(state_copy):
     """백그라운드에서 AI 입론 생성."""
-    state = opening_arguments_node(st.session_state.state)
-    st.session_state.state = dict(state)
-    st.session_state.opening_ready = True
+    result = opening_arguments_node(state_copy)
+    _bg_result["opening"] = dict(result)
 
 
-def _run_rebuttal_bg():
+def _run_rebuttal_bg(state_copy):
     """백그라운드에서 AI 연쇄논박 생성."""
-    state = chained_rebuttal_node(st.session_state.state)
-    st.session_state.state = dict(state)
-    st.session_state.rebuttal_ready = True
+    result = chained_rebuttal_node(state_copy)
+    _bg_result["rebuttal"] = dict(result)
 
 
 def main():
@@ -186,8 +187,11 @@ def main():
             st.session_state.opening_ready = False
 
             # 백그라운드에서 AI 입론 생성 시작
-            thread = threading.Thread(target=_run_opening_bg, daemon=True)
+            import copy
+            state_copy = copy.deepcopy(state)
+            thread = threading.Thread(target=_run_opening_bg, args=(state_copy,), daemon=True)
             thread.start()
+            st.session_state._opening_thread = thread
 
             st.session_state.phase = "opening_user"
             st.rerun()
@@ -200,6 +204,11 @@ def main():
         topic = st.session_state.topic_dict["title"]
         st.header("1단계: 입론")
         st.info(f"**토픽:** {topic}\n\n**사용자 입장:** 찬성(PRO)")
+
+        # 백그라운드 결과 체크
+        if not st.session_state.opening_ready and "opening" in _bg_result:
+            st.session_state.state = _bg_result.pop("opening")
+            st.session_state.opening_ready = True
 
         if not st.session_state.opening_ready:
             st.warning("🤖 AI 에이전트들이 입론을 생성하고 있습니다... 사용자 입론을 먼저 작성하세요!")
@@ -254,7 +263,9 @@ def main():
 
                 # 백그라운드에서 AI 연쇄논박 생성 시작
                 st.session_state.rebuttal_ready = False
-                thread = threading.Thread(target=_run_rebuttal_bg, daemon=True)
+                import copy
+                state_copy = copy.deepcopy(st.session_state.state)
+                thread = threading.Thread(target=_run_rebuttal_bg, args=(state_copy,), daemon=True)
                 thread.start()
 
                 st.session_state.phase = "rebuttal_user"
@@ -271,6 +282,11 @@ def main():
     # ══════════════════════════════════════════════
     elif st.session_state.phase == "rebuttal_user":
         render_messages()
+
+        # 백그라운드 결과 체크
+        if not st.session_state.rebuttal_ready and "rebuttal" in _bg_result:
+            st.session_state.state = _bg_result.pop("rebuttal")
+            st.session_state.rebuttal_ready = True
 
         if not st.session_state.rebuttal_ready:
             st.warning("🤖 AI 에이전트들이 연쇄논박을 생성하고 있습니다... 반박을 미리 준비하세요!")
