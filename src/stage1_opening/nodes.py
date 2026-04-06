@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 
 import time
 
-from ddgs import DDGS
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from openai import APITimeoutError, APIConnectionError, APIStatusError
 from pydantic import ValidationError
+from tavily import TavilyClient
 
 from src.stage1_opening.vector_db import query_vector_db
 from src.state import DebateEntry, DebateState
@@ -36,6 +36,18 @@ _used_doc_ids: set = set()
 
 # ── 도구 정의 ─────────────────────────────────────────────────────────────────
 
+# .env 파일에서 TAVILY_API_KEY 로드
+_env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            if _line.strip().startswith("TAVILY_API_KEY="):
+                os.environ["TAVILY_API_KEY"] = _line.strip().split("=", 1)[1]
+                break
+
+_tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY", ""))
+
+
 @tool
 def search_web(query: str) -> str:
     """웹에서 최신 뉴스 및 정보를 검색합니다.
@@ -44,11 +56,13 @@ def search_web(query: str) -> str:
         query: 검색할 키워드
     """
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
-        if not results:
+        results = _tavily_client.search(query, max_results=3, search_depth="basic")
+        items = results.get("results", [])
+        if not items:
             return "[검색 결과] 관련 결과를 찾을 수 없습니다."
-        return "[검색 결과]\n" + "\n".join(f"- {r['title']}: {r['body']}" for r in results)
+        return "[검색 결과]\n" + "\n".join(
+            f"- {r['title']}: {r['content'][:200]}" for r in items
+        )
     except Exception as e:
         return f"[검색 오류] {e}"
 
