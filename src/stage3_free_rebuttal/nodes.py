@@ -28,6 +28,8 @@ import src.stage1_opening.nodes as _opening_mod
 from src.stage1_opening.nodes import (
     _invoke_with_retry,
     _postprocess_speech,
+    _truncate_tool_result,
+    search_web,
     _LLM_KWARGS,
 )
 from src.stage2_rebuttal.nodes import (
@@ -179,13 +181,46 @@ def _get_display_name(
     return speaker_id
 
 
+# ── 검색 필요 여부 판단 ──────────────────────────────────────────────────────
+
+_SEARCH_TRIGGER_PATTERNS = [
+    r'근거[를가]?\s*(제시|보여|있)',
+    r'사례[를가]?\s*(있|제시|보여)',
+    r'데이터|통계|수치|보고서',
+    r'실제로|실증|입증|증거',
+    r'어떤\s*(사례|근거|데이터)',
+    r'구체적',
+]
+
+
+def _needs_search(target_speech: str) -> bool:
+    """상대 발언이 근거/사례/데이터를 요구하는지 판단한다."""
+    for pattern in _SEARCH_TRIGGER_PATTERNS:
+        if re.search(pattern, target_speech):
+            return True
+    return False
+
+
+def _search_for_response(topic: str, target_speech: str) -> Tuple[str, List[Dict]]:
+    """답변에 필요한 근거를 웹 검색으로 확보한다."""
+    tool_calls_log: List[Dict] = []
+    keywords = re.findall(r'[가-힣]{2,}', target_speech)
+    query = f"{topic} {' '.join(keywords[:3])}"
+    tool_calls_log.append({"name": "search_web", "args": {"query": query}})
+    web_result = search_web.invoke({"query": query})
+    return _truncate_tool_result(web_result, 200), tool_calls_log
+
+
 # ── 자유논박 프롬프트 ────────────────────────────────────────────────────────
 
 def _build_free_rebuttal_prompt(
     target_speech: str,
     stance_kr: str,
+    topic: str = "",
     prev_exchange: str = "",
     used_arguments: str = "",
+    used_questions: str = "",
+    search_result: str = "",
 ) -> str:
     """자유논박 프롬프트: 답변 → 반박 → 질문."""
     exchange_block = ""
@@ -196,34 +231,55 @@ def _build_free_rebuttal_prompt(
     if used_arguments:
         used_block = f"\n[이미 사용한 논점 — 반복 금지]\n{used_arguments}\n"
 
+    ref_block = ""
+    if search_result:
+        ref_block = f"\n[참고 자료 — 답변 근거로만 활용]\n{search_result}\n"
+
+    # 입장에 따른 핵심 주장 설명
+    opposite_kr = "반대" if stance_kr == "찬성" else "찬성"
+    if stance_kr == "찬성":
+        my_position = f"'{topic}'에 찬성한다"
+    else:
+        my_position = f"'{topic}'에 반대한다"
+
     # Step 1 프롬프트: 답변 + 반박
-    step1 = f"""상대: {target_speech[:250]}
-{exchange_block}{used_block}
+    step1 = f"""[토론 주제] {topic}
+[내 입장] {my_position}
 
-너는 {stance_kr} 토론자다.
-
+상대: {target_speech[:250]}
+{exchange_block}{used_block}{ref_block}
 [규칙]
+- 반드시 내 입장({stance_kr})을 유지하라. 상대 입장에 동조 금지.
 - 첫 문장에서 상대 질문에 직접 답하라
 - 둘째 문장에서 상대 논리의 약점을 공격하라
+- 참고 자료가 있으면 수치/사례를 1개 인용하라
 - 일반론 금지, 구체적으로
 
 1~2문장만. 한국어만.
 """
-    
 
-    # Step 2 프롬프트: 질문 생성 (Step 1 결과를 받아서)
-    opposite_kr = "반대" if stance_kr == "찬성" else "찬성"
-    step2_template = """너는 {stance_kr} 토론자다. 상대는 {opposite_kr} 입장이다.
+    # Step 2 프롬프트: 질문 생성
+    used_q_block = ""
+    if used_questions:
+        used_q_block = f"\n[이미 던진 질문 — 같은 질문 금지]\n{used_questions}\n"
+
+    step2_template = """[내 입장] {my_position}
 
 [내 발언]
 {my_response}
 
 [상대 발언]
 {target_speech}
-
-상대({opposite_kr})가 답하기 어려운 압박 질문을 1개만 만들어라.
-내({stance_kr}) 입장을 강화하는 방향의 질문이어야 한다.
-반드시 ?로 끝나는 한 문장. 한국어만.""".replace("{opposite_kr}", opposite_kr)
+{used_q_block}
+상대({opposite_kr})의 논리적 허점을 찌르는 질문을 1개만 만들어라.
+내 입장({stance_kr})을 강화하는 방향이어야 한다. 이전에 던진 질문과 다른 새로운 질문이어야 한다.
+반드시 ?로 끝나는 한 문장. 한국어만.""".replace(
+        "{opposite_kr}", opposite_kr
+    ).replace(
+        "{my_position}", my_position
+    ).replace(
+        "{used_q_block}", used_q_block
+    )
 
     return step1, step2_template
 
@@ -378,19 +434,43 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
                 used_points.append(f"- {first_sent[:60]}")
         used_arguments = "\n".join(used_points[-3:])  # 최근 3개만
 
-    # 디버그: 사용한 논점 출력
+    # ── 이전에 던진 질문 추출 (Step 2 반복 방지용)
+    used_questions = ""
+    if agent_prev:
+        prev_qs = []
+        for e in agent_prev:
+            sentences = re.split(r'(?<=[.!?])\s+', e["content"])
+            for s in sentences:
+                if s.strip().endswith('?'):
+                    prev_qs.append(f"- {s.strip()}")
+        if prev_qs:
+            used_questions = "\n".join(prev_qs[-3:])
+
+    # 디버그
     if used_arguments:
         print(f"  [디버그] 이미 사용한 논점:\n{used_arguments}\n")
     else:
         print(f"  [디버그] 이전 발언 없음 — 첫 턴\n")
+
+    # ── 조건부 검색: 상대가 근거/사례/데이터를 요구할 때만
+    search_result = ""
+    tool_calls_log: List[Dict] = []
+    if _needs_search(user_speech):
+        search_result, tool_calls_log = _search_for_response(
+            topic=state["topic"], target_speech=user_speech,
+        )
+        print(f"  [검색] 근거 요구 감지 → 웹 검색 실행\n")
 
     # ── 에이전트 발언 생성 (2-Step)
     stance_kr = "찬성" if opponent["stance"] == "PRO" else "반대"
     step1_prompt, step2_template = _build_free_rebuttal_prompt(
         target_speech=user_speech,
         stance_kr=stance_kr,
+        topic=state["topic"],
         prev_exchange=prev_exchange,
         used_arguments=used_arguments,
+        used_questions=used_questions,
+        search_result=search_result,
     )
 
     prev_entries = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
@@ -411,7 +491,7 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         phase="free_rebuttal",
         content=speech,
         target_id="user",
-        tool_calls_log=[],
+        tool_calls_log=tool_calls_log,
         json_raw=raw,
     ))
     current_turn += 1
