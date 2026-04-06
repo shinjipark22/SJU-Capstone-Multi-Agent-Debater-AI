@@ -205,10 +205,17 @@ def main():
         st.header("1단계: 입론")
         st.info(f"**토픽:** {topic}\n\n**사용자 입장:** 찬성(PRO)")
 
-        # 백그라운드 결과 체크
-        if not st.session_state.opening_ready and "opening" in _bg_result:
-            st.session_state.state = _bg_result.pop("opening")
-            st.session_state.opening_ready = True
+        # 백그라운드 결과 체크 (스레드 종료 or _bg_result 도착)
+        thread = st.session_state.get("_opening_thread")
+        if not st.session_state.opening_ready:
+            if "opening" in _bg_result:
+                st.session_state.state = _bg_result.pop("opening")
+                st.session_state.opening_ready = True
+            elif thread and not thread.is_alive():
+                # 스레드 끝났는데 결과가 없으면 동기로 재실행
+                state = opening_arguments_node(st.session_state.state)
+                st.session_state.state = dict(state)
+                st.session_state.opening_ready = True
 
         if not st.session_state.opening_ready:
             st.warning("🤖 AI 에이전트들이 입론을 생성하고 있습니다... 사용자 입론을 먼저 작성하세요!")
@@ -267,15 +274,15 @@ def main():
                 state_copy = copy.deepcopy(st.session_state.state)
                 thread = threading.Thread(target=_run_rebuttal_bg, args=(state_copy,), daemon=True)
                 thread.start()
+                st.session_state._rebuttal_thread = thread
 
                 st.session_state.phase = "rebuttal_user"
                 st.rerun()
 
-        # AI 생성 완료 대기 (주기적 체크)
+        # AI 아직 생성 중이면 새로고침 버튼
         if not st.session_state.opening_ready:
-            import time
-            time.sleep(1)
-            st.rerun()
+            if st.button("🔄 AI 생성 상태 확인"):
+                st.rerun()
 
     # ══════════════════════════════════════════════
     # 2단계: 연쇄논박 — 채팅 표시 + 사용자 입력 (AI는 백그라운드)
@@ -284,9 +291,15 @@ def main():
         render_messages()
 
         # 백그라운드 결과 체크
-        if not st.session_state.rebuttal_ready and "rebuttal" in _bg_result:
-            st.session_state.state = _bg_result.pop("rebuttal")
-            st.session_state.rebuttal_ready = True
+        thread = st.session_state.get("_rebuttal_thread")
+        if not st.session_state.rebuttal_ready:
+            if "rebuttal" in _bg_result:
+                st.session_state.state = _bg_result.pop("rebuttal")
+                st.session_state.rebuttal_ready = True
+            elif thread and not thread.is_alive():
+                state = chained_rebuttal_node(st.session_state.state)
+                st.session_state.state = dict(state)
+                st.session_state.rebuttal_ready = True
 
         if not st.session_state.rebuttal_ready:
             st.warning("🤖 AI 에이전트들이 연쇄논박을 생성하고 있습니다... 반박을 미리 준비하세요!")
@@ -337,11 +350,10 @@ def main():
                 st.session_state.phase = "free_select"
                 st.rerun()
 
-        # AI 생성 완료 대기
+        # AI 아직 생성 중이면 새로고침 버튼
         if not st.session_state.rebuttal_ready:
-            import time
-            time.sleep(1)
-            st.rerun()
+            if st.button("🔄 AI 생성 상태 확인"):
+                st.rerun()
 
     # ══════════════════════════════════════════════
     # 3단계: 자유논박 — 상대 선택
