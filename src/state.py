@@ -163,6 +163,9 @@ class DebateState(TypedDict):
     rebuttal_pairs: Optional[List[RebuttalPair]]
     current_rebuttal_round: int
 
+    # 자유 논박 (3단계) — 1:1 핑퐁
+    selected_opponent_id: Optional[str]  # 사용자가 선택한 상대 에이전트 ID
+
     # 역할 반전 (4단계)
     role_reversed: bool
 
@@ -306,7 +309,8 @@ def build_initial_state(
         current_cycle=0, # 자유논박은 시작 안 했으니 0
         max_cycle=max_cycle, # 기본으로 4
         rebuttal_pairs=None,       # 2단계 진입 시 build_chained_rebuttal_pairs()로 생성
-        current_rebuttal_round=0, # 라운드 시작 전, 기본은 0 
+        current_rebuttal_round=0, # 라운드 시작 전, 기본은 0
+        selected_opponent_id=None, # 3단계 진입 시 사용자가 선택
         role_reversed=False, # 역할 반전 아직 시작 안 함
         synthesis_draft=None,      # 5단계 진입 전까지 None
         is_finished=False, # 토론 시작 상태이므로 종료 아님 

@@ -2,14 +2,10 @@
 nodes.py — 3단계: 자유 논박(Free Rebuttal) 노드
 
 [동작 흐름]
-    1. speaking_order 순서대로 각 발언자의 차례
-    2. 자기 차례에 skip 가능 (질문 받은 경우 제외)
-    3. skip 안 하면 반대편 상대 지정 → 최대 4번 핑퐁
-       sub-turn 1: 공격자 → 타겟 (공격/질문)
-       sub-turn 2: 타겟 → 공격자 (응답, skip 불가)
-       sub-turn 3: 공격자 → 타겟 (후속 공격)
-       sub-turn 4: 타겟 → 공격자 (최종 응답, skip 불가)
-    4. 사용자(user) 차례는 건너뛰고 API에서 처리
+    1. 사용자 vs 선택된 상대 에이전트 1:1 핑퐁
+    2. 매 호출마다 에이전트가 1회 발언 생성
+    3. 사용자 발언은 API에서 history에 삽입 후 재호출
+    4. selected_opponent_id가 없으면 ValueError 발생
 
 [설계 노트]
     - delimiter-free, 한국어 추출 방식
@@ -164,25 +160,6 @@ _FALLBACK_MSGS = {
 _fallback_idx: Dict[str, int] = {}
 
 
-# ── 타겟 자동 선정 ───────────────────────────────────────────────────────────
-
-def _pick_target(
-    history: List[DebateEntry],
-    speaker_id: str,
-    speaker_stance: str,
-    agents: List[Dict],
-) -> Optional[str]:
-    """가장 최근에 발언한 상대 진영 발언자를 타겟으로 선택한다."""
-    opposite = "CON" if speaker_stance == "PRO" else "PRO"
-    for entry in reversed(history):
-        if entry["stance"] == opposite and entry["speaker_id"] != speaker_id:
-            return entry["speaker_id"]
-    for a in agents:
-        if a["stance"] == opposite:
-            return a["agent_id"]
-    return None
-
-
 # ── 표시명 유틸리티 ──────────────────────────────────────────────────────────
 
 def _get_display_name(
@@ -219,7 +196,8 @@ def _build_free_rebuttal_prompt(
 
 나쁜 예) 환경 규제가 필요합니다. (질문 없음)
 
-이전 발언 반복 금지. 2~3문장."""
+이전 발언 반복 금지. 2~3문장.
+상대가 질문을 했다면 반드시 먼저 답변할 것. 질문을 회피하거나 무시하지 마라. 답변이 어려우면 전제를 반박하라."""
 
 
 # ── 단일 발언 생성 ───────────────────────────────────────────────────────────
@@ -275,155 +253,87 @@ def _generate_free_rebuttal(
     return speech, raw
 
 
-# ── 핑퐁 교환 실행 ──────────────────────────────────────────────────────────
-
-def run_pingpong_exchange(
-    history: List[DebateEntry],
-    attacker: Dict,
-    defender: Dict,
-    attacker_display: str,
-    defender_display: str,
-    current_turn: int,
-    max_sub_turns: int = MAX_PINGPONG,
-) -> Tuple[List[DebateEntry], int]:
-    """공격자와 방어자 간 최대 max_sub_turns회 핑퐁 교환."""
-    entries: List[DebateEntry] = []
-    participants = [attacker, defender]
-    prev_exchange = ""
-
-    for sub_turn_idx in range(max_sub_turns):
-        sub_turn_num = sub_turn_idx + 1
-        is_attacker_turn = sub_turn_idx % 2 == 0
-        current_agent = participants[sub_turn_idx % 2]
-        target_agent = participants[(sub_turn_idx + 1) % 2]
-
-        current_display = attacker_display if is_attacker_turn else defender_display
-        target_display = defender_display if is_attacker_turn else attacker_display
-
-        # 직전 발언 가져오기
-        if entries:
-            target_speech = entries[-1]["content"]
-        else:
-            target_speech = "(발언 기록 없음)"
-            for entry in reversed(history):
-                if entry["speaker_id"] == target_agent["agent_id"]:
-                    target_speech = entry["content"]
-                    break
-
-        turn_label = "공격" if is_attacker_turn else "응답"
-        print(f"    [{current_display}] sub-turn {sub_turn_num}/{max_sub_turns} ({turn_label}) → {target_display}")
-
-        prompt = _build_free_rebuttal_prompt(
-            target_speech=target_speech,
-            stance_kr="찬성" if current_agent["stance"] == "PRO" else "반대",
-            prev_exchange=prev_exchange,
-        )
-
-        speech, raw = _generate_free_rebuttal(
-            agent=current_agent,
-            prompt=prompt,
-            stance=current_agent["stance"],
-            prev_entries=entries,
-        )
-
-        entry = DebateEntry(
-            turn=current_turn,
-            speaker_id=current_agent["agent_id"],
-            stance=current_agent["stance"],
-            phase="free_rebuttal",
-            content=speech,
-            target_id=target_agent["agent_id"],
-            tool_calls_log=[],
-            json_raw=raw,
-        )
-        entries.append(entry)
-        history.append(entry)
-        current_turn += 1
-        prev_exchange += f"\n[{current_display}] {speech}\n"
-
-    return entries, current_turn
-
-
-# ── 메인 노드 ─────────────────────────────────────────────────────────────────
+# ── 메인 노드 (1:1 핑퐁) ──────────────────────────────────────────────────────
 
 def free_rebuttal_node(state: DebateState) -> DebateState:
-    """3단계 자유 논박 노드."""
+    """3단계 자유 논박 노드.
+
+    사용자 vs 선택된 상대 에이전트 1:1 핑퐁.
+    매 호출마다 에이전트가 1회 발언을 생성하고, 사용자 입력을 기다린다.
+    """
     _opening_mod._used_doc_ids = set()
 
+    # ── 상대 에이전트 확인
+    selected_id = state.get("selected_opponent_id")
+    if not selected_id:
+        raise ValueError(
+            "[free_rebuttal] selected_opponent_id가 필요합니다. "
+            "자유논박 시작 전에 사용자가 상대 에이전트를 선택해야 합니다."
+        )
+
+    agent_map = {a["agent_id"]: a for a in state["agents"]}
+    if selected_id not in agent_map:
+        raise ValueError(f"[free_rebuttal] 존재하지 않는 에이전트: {selected_id}")
+
+    opponent = agent_map[selected_id]
     history: List[DebateEntry] = list(state["debate_history"])
     current_turn: int = state["current_turn"]
-    agent_map = {a["agent_id"]: a for a in state["agents"]}
     speaking_order = state["speaking_order"]
     stance_nums = build_agent_stance_nums(state["agents"], speaking_order)
 
-    print(f"\n[3단계: 자유 논박]\n")
+    opponent_display = _get_display_name(selected_id, agent_map, stance_nums)
+    print(f"\n[3단계: 자유 논박] 사용자 ↔ {opponent_display}\n")
 
-    user_encountered = False
-    for speaker_id in speaking_order:
-        if speaker_id == "user":
-            user_encountered = True
-            print(f"  [사용자] 사용자 차례 → API 대기\n")
-            continue
+    # ── 사용자의 최근 발언 찾기
+    user_speech = "(발언 기록 없음)"
+    for entry in reversed(history):
+        if entry["speaker_id"] == "user":
+            user_speech = entry["content"]
+            break
 
-        agent = agent_map[speaker_id]
-        attacker_display = _get_display_name(speaker_id, agent_map, stance_nums)
+    # ── 이전 자유논박 교환 기록 구성
+    prev_exchange = ""
+    fr_entries = [e for e in history if e["phase"] == "free_rebuttal"]
+    for e in fr_entries[-6:]:  # 최근 6턴만
+        speaker = "사용자" if e["speaker_id"] == "user" else opponent_display
+        prev_exchange += f"[{speaker}] {e['content']}\n"
 
-        target_id = _pick_target(history, speaker_id, agent["stance"], state["agents"])
-        if target_id is None:
-            logger.warning("[free_rebuttal] %s의 반박 대상을 찾을 수 없음", speaker_id)
-            continue
+    # ── 에이전트 발언 생성
+    stance_kr = "찬성" if opponent["stance"] == "PRO" else "반대"
+    prompt = _build_free_rebuttal_prompt(
+        target_speech=user_speech,
+        stance_kr=stance_kr,
+        prev_exchange=prev_exchange,
+    )
 
-        if target_id == "user":
-            target_display = "사용자"
-            print(f"  [{attacker_display}] → {target_display} (단일 공격)")
+    prev_entries = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
+    speech, raw = _generate_free_rebuttal(
+        agent=opponent,
+        prompt=prompt,
+        stance=opponent["stance"],
+        prev_entries=prev_entries,
+    )
 
-            target_speech = "(발언 기록 없음)"
-            for entry in reversed(history):
-                if entry["speaker_id"] == "user":
-                    target_speech = entry["content"]
-                    break
+    # ── 발언 기록
+    history.append(DebateEntry(
+        turn=current_turn,
+        speaker_id=selected_id,
+        stance=opponent["stance"],
+        phase="free_rebuttal",
+        content=speech,
+        target_id="user",
+        tool_calls_log=[],
+        json_raw=raw,
+    ))
+    current_turn += 1
 
-            prompt = _build_free_rebuttal_prompt(
-                target_speech=target_speech,
-                stance_kr="찬성" if agent["stance"] == "PRO" else "반대",
-            )
-            speech, raw = _generate_free_rebuttal(agent, prompt, agent["stance"], prev_entries=[])
-
-            history.append(DebateEntry(
-                turn=current_turn, speaker_id=speaker_id,
-                stance=agent["stance"], phase="free_rebuttal",
-                content=speech, target_id="user",
-                tool_calls_log=[], json_raw=raw,
-            ))
-            current_turn += 1
-            print(f"    완료 (turn={current_turn - 1})\n")
-            continue
-
-        # AI vs AI: 핑퐁
-        defender = agent_map[target_id]
-        defender_display = _get_display_name(target_id, agent_map, stance_nums)
-        print(f"  [{attacker_display}] ↔ {defender_display} 핑퐁 교환")
-
-        _, current_turn = run_pingpong_exchange(
-            history=history,
-            attacker=agent,
-            defender=defender,
-            attacker_display=attacker_display,
-            defender_display=defender_display,
-            current_turn=current_turn,
-        )
-        print(f"  [{attacker_display}] ↔ {defender_display} 완료\n")
-
-    if user_encountered:
-        next_phase = "free_rebuttal"
-        print(f"[3단계: 자유 논박] AI 발언 완료 → 사용자 발언 대기\n")
-    else:
-        next_phase = "role_reversal"
-        print(f"[3단계: 자유 논박] 완료 → 4단계로 전환\n")
+    print(f"  [{opponent_display}] → 사용자 (turn={current_turn - 1})")
+    print(f"  {speech}\n")
+    print(f"[3단계: 자유 논박] 에이전트 발언 완료 → 사용자 발언 대기\n")
 
     return DebateState(**{
         **state,
         "debate_history": history,
         "current_turn": current_turn,
-        "phase": next_phase,
+        "phase": "free_rebuttal",
     })
