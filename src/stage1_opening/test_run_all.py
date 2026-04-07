@@ -77,7 +77,7 @@ def run_single_topic(topic_dict: dict) -> dict:
     from src.stage1_opening.nodes import _pre_search, _build_opening_prompt, _generate_opening
     from src.state import DebateEntry
 
-    user_turn = len([e for e in result_state["debate_history"] if e["phase"] == "opening"])
+    user_turn = state["speaking_order"].index("user") if "user" in state["speaking_order"] else len(result_state["debate_history"])
     stance_kr = "찬성" if USER_STANCE == "PRO" else "반대"
     search_results, tool_log = _pre_search(
         state["topic"], USER_STANCE,

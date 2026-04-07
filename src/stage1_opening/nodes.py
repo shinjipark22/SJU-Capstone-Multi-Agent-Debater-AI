@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import random
 import re
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
@@ -30,33 +29,6 @@ from tavily import TavilyClient
 
 from src.stage1_opening.vector_db import query_vector_db
 from src.state import DebateEntry, DebateState
-
-
-# ── NLLB 번역 모델 (외국어 후처리용, CPU) ──────────────────────────────────────
-_nllb_tokenizer = None
-_nllb_model = None
-_nllb_kor_id = None
-
-def _load_nllb():
-    """NLLB-200-distilled-600M 모델을 지연 로드한다."""
-    global _nllb_tokenizer, _nllb_model, _nllb_kor_id
-    if _nllb_model is not None:
-        return
-    from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-    logger.info("[NLLB] 번역 모델 로드 중...")
-    _nllb_tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
-    _nllb_model = AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M")
-    _nllb_kor_id = _nllb_tokenizer.convert_tokens_to_ids("kor_Hang")
-    logger.info("[NLLB] 번역 모델 로드 완료")
-
-
-def _nllb_translate(text: str, src_lang: str) -> str:
-    """NLLB로 텍스트를 한국어로 번역한다."""
-    _load_nllb()
-    _nllb_tokenizer.src_lang = src_lang
-    inputs = _nllb_tokenizer(text, return_tensors="pt", max_length=128, truncation=True)
-    translated = _nllb_model.generate(**inputs, forced_bos_token_id=_nllb_kor_id, max_new_tokens=64)
-    return _nllb_tokenizer.decode(translated[0], skip_special_tokens=True)
 
 
 # ── 세션 중복 문서 추적 ─────────────────────────────────────────────────────────
@@ -87,7 +59,7 @@ def search_web(query: str) -> str:
     try:
         results = _tavily_client.search(
             query,
-            max_results=5,
+            max_results=3,
             search_depth="basic",
             exclude_domains=[
                 "blog.naver.com", "m.blog.naver.com",
@@ -99,8 +71,8 @@ def search_web(query: str) -> str:
         items = results.get("results", [])
         if not items:
             return "[검색 결과] 관련 결과를 찾을 수 없습니다."
-        return "[참고 자료]\n" + "\n".join(
-            f"- {r['content'][:300]}" for r in items
+        return "[검색 결과]\n" + "\n".join(
+            f"- {r['title']}: {r['content'][:200]}" for r in items
         )
     except Exception as e:
         return f"[검색 오류] {e}"
@@ -234,15 +206,13 @@ def _extract_delimited_text(content: str) -> str:
     if m and m.group(1).strip():
         return m.group(1).strip()
 
-    # delimiter 없지만 ### 섹션이 있으면 사용
-    m = re.search(r'(###\s*자기소개.*)', text, re.DOTALL)
-    if m and m.group(1).strip():
-        logger.warning("[_extract_delimited_text] delimiter 없음, ### 섹션 사용")
-        return m.group(1).strip()
-
-    # 아무것도 없으면 재시도 유도
-    logger.warning("[_extract_delimited_text] delimiter 없음, 재시도 유도")
-    return ""
+    # fallback: 한국어 부분만 추출
+    logger.warning("[_extract_delimited_text] delimiter 없음, 한국어 부분만 추출")
+    text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
+    text = re.sub(r'\{[^}]*\}', '', text, flags=re.DOTALL)
+    # 메타 문장 제거
+    text = re.sub(r'^.*(?:followed by|then the|end with).*$', '', text, flags=re.MULTILINE)
+    return text.strip()
 
 
 def _postprocess_speech(text: str) -> str:
@@ -250,40 +220,12 @@ def _postprocess_speech(text: str) -> str:
     # 제목 정규화
     text = re.sub(r'^#+[^가-힣a-zA-Z0-9\n]*(?=[가-힣a-zA-Z])', '### ', text, flags=re.MULTILINE)
     text = re.sub(r'^(### .*)$', lambda m: m.group(1).replace('*', ''), text, flags=re.MULTILINE)
-    # 외국어 구간 통째로 감지 → NLLB 번역
-    # "한글이 아닌 연속 구간"을 하나로 잡아서 번역
-    _LANG_DETECT = [
-        (r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]', 'zho_Hans'),
-        (r'[\u3040-\u309f\u30a0-\u30ff]', 'jpn_Jpan'),
-        (r'[\u0400-\u04ff]', 'rus_Cyrl'),
-        (r'[\u0600-\u06ff]', 'arb_Arab'),
-        (r'[\u0590-\u05ff]', 'heb_Hebr'),
-        (r'[\u0e00-\u0e7f]', 'tha_Thai'),
-    ]
-    def _translate_foreign_segment(m):
-        seg = m.group(0).strip()
-        if not seg:
-            return ''
-        # 대문자 약어 보존 (AI, GDP, IEA, UNDP, ESG 등)
-        if re.fullmatch(r'[A-Z][A-Z0-9]{1,7}', seg):
-            return seg
-        # 언어 감지: 비라틴 문자 우선
-        for pattern, lang in _LANG_DETECT:
-            if re.search(pattern, seg):
-                try:
-                    return _nllb_translate(seg, lang)
-                except Exception as e:
-                    logger.warning("[NLLB] 번역 실패(%s): %s → 삭제", lang, e)
-                    return ''
-        # 라틴 문자(영어/베트남어 등) → 영어로 번역
-        if re.search(r'[a-zA-Z\u00c0-\u024f\u1e00-\u1eff]', seg):
-            try:
-                return _nllb_translate(seg, 'eng_Latn')
-            except Exception:
-                return seg
-        return ''
-    # 한글·숫자·기본구두점 이외의 연속 구간을 통째로 매칭
-    text = re.sub(r'(?:(?![가-힣ㄱ-ㅎㅏ-ㅣ0-9\s\n*#:()（）\[\]{}.,!?·…—~\-\"/\'%])[\S])+(?:\s+(?:(?![가-힣ㄱ-ㅎㅏ-ㅣ0-9\s\n*#:()（）\[\]{}.,!?·…—~\-\"/\'%])[\S])+)*', _translate_foreign_segment, text)
+    # 외국 문자 제거 (한자, 일본어, 러시아어, 태국어, 아랍어, 베트남어 등)
+    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff]+', '', text)
+    # 영어 줄 제거 (한글 없이 영어로만 이루어진 줄)
+    lines = text.split('\n')
+    text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l) or l.strip().startswith('###'))
+    # 영어 고유명사/기관명은 유지, 혼종단어와 영어 전용 줄만 제거
     # 도구명 흔적 제거
     text = re.sub(r'search_web|search_vector_db', '', text)
     text = re.sub(r'를 통해 확인되는 자료에 따르면[,.]?\s*', '', text)
@@ -298,6 +240,7 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'블로그에\s*따르면[,.]?\s*', '', text)
     # "의장은" → 앞에 이름 없으면 제거
     text = re.sub(r'(?<![가-힣a-zA-Z])의장은\s*', '', text)
+    # 영어 단어/혼종단어 제거는 프롬프트로 제어 (후처리에서 삭제 시 구멍 발생)
     # 목록 형태 제거 (- 로 시작하는 줄 → 일반 문장으로)
     text = re.sub(r'^-\s+', '', text, flags=re.MULTILINE)
     text = re.sub(r'^\*\s+', '', text, flags=re.MULTILINE)
@@ -307,7 +250,6 @@ def _postprocess_speech(text: str) -> str:
     text = text.replace('검색결과', '관련 분석')
     text = text.replace('자료 조사', '관련 분석')
     # 프롬프트 형식 유출 제거
-    text = re.sub(r'\(소제목\)\s*', '', text)
     text = re.sub(r'\*{0,2}핵심\s*주장\*{0,2}\s*[:：]?\s*', '', text)
     text = re.sub(r'\*{0,2}입장\s*재확인\*{0,2}\s*[:：]?\s*', '', text)
     # 메타 표현 제거
@@ -334,13 +276,15 @@ def _postprocess_speech(text: str) -> str:
 
 def _has_cot_leakage(text: str) -> bool:
     """영어 CoT 유출 감지."""
-    # 영어 CoT 패턴
     cot_patterns = [
         r'\b(?:First|Second|Third|Next|Then|Finally),?\s+I\b',
         r'\bI (?:need|should|will|can|must)\b',
         r'\bLet me\b',
         r'\bIn order to\b',
         r'\bthe (?:answer|response|argument|topic)\b',
+        r'\b(?:Okay|OK),?\s+so\b',
+        r'\bHmm\b',
+        r'\bAssuming\b',
     ]
     for pattern in cot_patterns:
         if re.search(pattern, text, re.IGNORECASE):
@@ -420,9 +364,7 @@ def _pre_search(topic: str, stance: str, topic_id: str = "") -> Tuple[str, List[
         keywords = _SEARCH_QUERIES[topic_id].get(stance, [])
         if keywords:
             key = f"{topic_id}_{stance}"
-            if key not in _query_idx:
-                _query_idx[key] = random.randint(0, len(keywords) - 1)
-            idx = _query_idx[key]
+            idx = _query_idx.get(key, 0)
             query = keywords[idx % len(keywords)]
             _query_idx[key] = idx + 1
 
@@ -445,7 +387,7 @@ def _build_opening_prompt(
 ) -> str:
     stance_kr = "찬성" if stance == "PRO" else "반대"
 
-    return f"""'{topic}'에 대한 {stance_kr} 입론을 작성하라.
+    return f"""아래 참고 자료를 바탕으로 '{topic}'에 대한 {stance_kr} 입론을 작성하라.
 
 [참고 자료]
 {search_results}
@@ -453,16 +395,18 @@ def _build_opening_prompt(
 [구조]
 - "{agent_name}"이라고 자기소개
 - 논거 2개, 각 3줄 이내
-- 각 논거 끝에 (출처: 기관명) 표기
 - 핵심 문장에 **강조** 사용
 
-[금지]
-- 참고 자료에 없는 내용이나 출처를 밝힐 수 없는 주장 금지
+[인용 규칙]
+- 참고 자료의 수치/기관명을 반드시 인용할 것
+- 참고 자료에 없는 수치를 지어내지 마라
 - 과장 금지. 데이터 범위 내에서만 주장
-- 자체 계산·환율 변환 금지
+- 원문 그대로 인용. 자체 계산·환율 변환 금지
+- 출처는 국제기구, 연구기관, 대학, 기업만 밝힐 것 (블로그·커뮤니티·개인 사이트 제외)
 
 [형식]
-- 한국어만. 합니다체(격식체)
+- 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용. 그 외 모든 서술은 한국어로
+- 합니다체(격식체)
 
 반드시 아래 형식으로만 출력:
 
@@ -470,9 +414,9 @@ def _build_opening_prompt(
 ### 자기소개와 입장 표명
 (자기소개와 입장)
 ### 논거 1: (소제목)
-(논거) (출처: 기관명)
+(논거)
 ### 논거 2: (소제목)
-(논거) (출처: 기관명)
+(논거)
 ### 결론
 (결론)
 ### 답변 끝"""
@@ -481,26 +425,36 @@ def _build_opening_prompt(
 # ── 입론 생성 (사전 검색 + 단일 LLM 호출) ───────────────────────────────────
 
 def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str]:
-    """입론 생성. CoT 유출 또는 무효 시 최대 2회 재시도 (새 호출)."""
-    max_attempts = 3
+    """단일 LLM 호출로 입론 생성. 1회 재시도 + fallback."""
+    messages = [
+        SystemMessage(content=agent["system_prompt"]),
+        HumanMessage(content=prompt),
+    ]
 
-    for attempt in range(1, max_attempts + 1):
-        messages = [
-            SystemMessage(content=agent["system_prompt"]),
-            HumanMessage(content=prompt),
-        ]
+    response: AIMessage = _invoke_with_retry(_llm, messages, label="opening")
+    raw = response.content if isinstance(response.content, str) else str(response.content)
+    speech = _postprocess_speech(_extract_delimited_text(raw))
 
-        response: AIMessage = _invoke_with_retry(_llm, messages, label=f"opening_attempt{attempt}")
-        raw = response.content if isinstance(response.content, str) else str(response.content)
+    if not _is_valid_speech(speech):
+        logger.warning("[opening] speech 무효, 재시도")
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content='한국어로만 입론을 작성하세요.\n\n### 답변 시작\n(입론)\n### 답변 끝'))
+        retry: AIMessage = _invoke_with_retry(_llm, messages, label="opening_retry")
+        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
 
-        if _is_valid_speech(speech):
-            break
-
-        reason = "CoT 유출" if _has_cot_leakage(speech) else "speech 무효"
-        logger.warning("[opening] %s (시도 %d/%d), 새로 재시도", reason, attempt, max_attempts)
-
-    # 외국어 번역은 _postprocess_speech 내 NLLB가 처리
+    # 영어 잔재 감지 → 수정 요청
+    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
+    if eng_words:
+        logger.warning("[opening] 영어 감지: %s → 수정 요청", eng_words[:3])
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
+        fix: AIMessage = _invoke_with_retry(_llm, messages, label="opening_fix_eng")
+        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
+        fixed = _postprocess_speech(_extract_delimited_text(raw_fix))
+        if _is_valid_speech(fixed):
+            speech = fixed
+            raw = raw_fix
 
     return speech, raw
 
