@@ -27,7 +27,7 @@ from src.stage1_opening.nodes import opening_arguments_node
 
 # ── 테스트 설정 ───────────────────────────────────────────────────────────────
 
-TOPIC_ID = "tech_001"          # data/topics_20260323_processed.json 에서 사용할 토픽 ID
+TOPIC_ID = "poli_001"          # data/topics_20260323_processed.json 에서 사용할 토픽 ID
 DEBATE_FORMAT = "3:3"
 USER_STANCE = "PRO"
 USER_INTENSITY = 3
@@ -125,7 +125,7 @@ def main():
         user_turn = len([e for e in result_state["debate_history"] if e["phase"] == "opening"])
         stance_kr = "찬성" if USER_STANCE == "PRO" else "반대"
         search_results, tool_log = _pre_search(
-            state["topic"], USER_STANCE, "검색 방향: 시장 규모, 고용 통계, 기업 도입 사례",
+            state["topic"], USER_STANCE,
             topic_id=topic_dict["id"],
         )
         prompt = _build_opening_prompt(state["topic"], USER_STANCE, f"{stance_kr} 에이전트(사용자 대리)", search_results)
