@@ -89,7 +89,7 @@ def _build_system_prompt(
     my_claim = pro if stance == "PRO" else con
     opp_claim = con if stance == "PRO" else pro
 
-    prompt = f"""당신은 {stance_kr} 토론자입니다.
+    prompt = f"""당신은 {profile['label']} {stance_kr} 토론자입니다.
 반드시 {stance_kr} 입장만 주장하세요. 상대 입장에 동조하지 마세요.
 한국어만 사용. 영어는 고유명사만 허용.
 
