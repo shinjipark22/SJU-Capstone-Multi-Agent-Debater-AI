@@ -10,6 +10,7 @@ nodes.py — 2단계: 연쇄 논박(Chained Rebuttal) 노드
 from __future__ import annotations
 
 import logging
+import random
 import re
 from typing import Dict, List, Tuple
 
@@ -23,18 +24,124 @@ from src.stage1_opening.nodes import (
     _invoke_with_retry,
     _postprocess_speech,
     _truncate_tool_result,
+    _remove_english_blocks,
     search_web,
     search_vector_db,
     _LLM_KWARGS,
 )
+
+
+def _is_valid_rebuttal(speech: str) -> bool:
+    """연쇄논박 전용 검증. 입론보다 영어 임계값 완화 (짧은 텍스트 특성 반영)."""
+    if not speech or len(speech.strip()) < 15:
+        logger.warning("[rebuttal 검증] 실패: 15자 미만 (%d자)", len(speech.strip()) if speech else 0)
+        return False
+    # 영어 CoT 패턴 감지
+    cot_patterns = [
+        r'\b(?:First|Second|Third|Next|Then|Finally),?\s+I\b',
+        r'\bI (?:need|should|will|can|must)\b',
+        r'\bLet me\b',
+        r'\bIn order to\b',
+        r'\b(?:Okay|OK),?\s+so\b',
+        r'\bHmm\b',
+        r'\bAssuming\b',
+    ]
+    for pattern in cot_patterns:
+        m = re.search(pattern, speech, re.IGNORECASE)
+        if m:
+            logger.warning("[rebuttal 검증] 실패: CoT 패턴 '%s'", m.group())
+            return False
+    # 영어 비율 50% 초과 시 유출
+    korean_chars = len(re.findall(r'[가-힣]', speech))
+    english_chars = len(re.findall(r'[a-zA-Z]', speech))
+    if korean_chars + english_chars > 0:
+        ratio = english_chars / (korean_chars + english_chars)
+        if ratio > 0.5:
+            logger.warning("[rebuttal 검증] 실패: 영어 비율 %.1f%%", ratio * 100)
+            return False
+    return True
 from src.state import (
     DebateEntry,
     DebateState,
     build_chained_rebuttal_pairs,
 )
 
-# ── 연쇄논박 전용 LLM (max_tokens=1024) ──────────────────────────────────────
+# ── 연쇄논박 전용 LLM (DeepSeek — 반박 생성용) ─────────────────────────────
 _rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
+
+# ── 소형 모델 (Qwen2.5-1.5B — 검색 판단 + 쿼리 생성, CPU) ──────────────────
+_tool_model = None
+_tool_tokenizer = None
+
+
+def _load_tool_model():
+    """Qwen2.5-1.5B-Instruct를 CPU에 지연 로드한다."""
+    global _tool_model, _tool_tokenizer
+    if _tool_model is not None:
+        return
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    logger.info("[tool_model] Qwen2.5-1.5B-Instruct 로드 중 (CPU)...")
+    import os
+    cache_dir = os.environ.get("HF_HOME", "/disk1/SJ/huggingface/hub")
+    model_id = "Qwen/Qwen2.5-1.5B-Instruct"
+    _tool_tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir)
+    _tool_model = AutoModelForCausalLM.from_pretrained(
+        model_id, dtype="auto", device_map="cpu", cache_dir=cache_dir,
+    )
+    logger.info("[tool_model] 로드 완료")
+
+
+_SEARCH_TOOL_DEF = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_web",
+            "description": "웹에서 반박 근거를 검색합니다. 논리만으로 반박 가능하면 호출하지 마세요.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "반박 근거를 찾기 위한 검색 키워드 (한국어, 30자 이내)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    }
+]
+
+
+def _decide_search(target_argument: str, attack_style: str) -> str:
+    """소형 모델이 tool calling으로 검색 필요 여부를 판단한다. 불필요 시 빈 문자열."""
+    _load_tool_model()
+
+    messages = [
+        {"role": "user", "content": f"다음 주장을 반박하라. 필요하면 검색하라.\n\n주장: {target_argument[:200]}"}
+    ]
+
+    text = _tool_tokenizer.apply_chat_template(
+        messages, tools=_SEARCH_TOOL_DEF, tokenize=False, add_generation_prompt=True,
+    )
+    inputs = _tool_tokenizer(text, return_tensors="pt")
+    outputs = _tool_model.generate(**inputs, max_new_tokens=100, do_sample=False)
+    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=False).strip()
+
+    # <tool_call> 파싱
+    m = re.search(r'<tool_call>\s*(\{.*?\})\s*</tool_call>', response, re.DOTALL)
+    if m:
+        try:
+            import json
+            call = json.loads(m.group(1))
+            query = call.get("arguments", {}).get("query", "")
+            if query:
+                logger.info("[tool_model] tool_call 감지: search_web('%s')", query)
+                return query[:40]
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    logger.info("[tool_model] tool_call 없음 → 검색 불필요")
+    return ""
 
 
 # ── 텍스트 추출 (delimiter 없이, <think> + 영어 제거 후 한국어만) ────────────
@@ -43,24 +150,27 @@ def _extract_rebuttal_text(content: str) -> str:
     """<think> 블록과 영어를 제거하고 한국어 문장만 추출한다."""
     text = content.strip()
 
+    # 깨진 유니코드 제거
+    text = text.replace('\ufffd', '')
+
     # <think> 제거
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
     text = text.replace('</think>', '').strip()
 
-    # 영어 CoT 제거: 문장별로 한글 비율이 30% 미만이면 삭제
-    parts = re.split(r'(?<=[.!?])\s+', text)
-    cleaned = []
-    for p in parts:
-        if not p.strip():
-            continue
-        korean_chars = len(re.findall(r'[가-힣]', p))
-        total_alpha = len(re.findall(r'[a-zA-Z가-힣]', p))
-        if total_alpha > 0 and korean_chars / total_alpha < 0.3:
-            continue  # 영어 비중 70% 이상 → CoT로 판단
-        cleaned.append(p)
-    text = ' '.join(cleaned)
+    # 영어 CoT 블록 제거 (입론과 동일 로직)
+    text = _remove_english_blocks(text)
 
+    # delimiter 추출: ### 반박 시작 ~ ### 반박 끝
+    m = re.search(r'###\s*반박\s*시작\s*(?:###)?\s*\n?(.*?)\n?\s*###\s*반박\s*끝', text, re.DOTALL)
+    if m and m.group(1).strip():
+        return m.group(1).strip()
+    # '### 반박 시작' 이후 전체
+    m = re.search(r'###\s*반박\s*시작\s*(?:###)?\s*\n?(.*)', text, re.DOTALL)
+    if m and m.group(1).strip():
+        return m.group(1).strip()
+
+    # delimiter 없으면 기존 로직으로 fallback
     # 한국어가 포함된 줄만 추출
     korean_lines = []
     for l in text.split('\n'):
@@ -71,13 +181,10 @@ def _extract_rebuttal_text(content: str) -> str:
         if s.startswith('상대의 주장을 반박') or s.startswith('반박'):
             if len(s) < 15:
                 continue
-        # 번호 매김 제거 (줄 시작 + 문장 중간 + 볼드 앞)
+        # 번호 매김 제거
         s = re.sub(r'^\d+\.\s*', '', s)
         s = re.sub(r'\s+\d+\.\s+', ' ', s)
-        s = re.sub(r'^\d+\.\s*\d+\.\s*', '', s)  # "3. 1." 패턴
-        # 영어 잔해 제거 (" is , ." 같은 깨진 인용)
-        s = re.sub(r'\*\*"\s*[a-zA-Z\s,."\']+\s*"\*\*', '', s)
-        s = re.sub(r'"\s*[a-zA-Z\s,."\']+\s*"', '', s)
+        s = re.sub(r'^\d+\.\s*\d+\.\s*', '', s)
         # 빈 볼드/다중 공백 정리
         s = re.sub(r'\*{2,}\s*\*{2,}', '', s)
         s = re.sub(r'\s{2,}', ' ', s).strip()
@@ -88,18 +195,32 @@ def _extract_rebuttal_text(content: str) -> str:
 
 # ── 반박 프롬프트 ────────────────────────────────────────────────────────────
 
-def _pre_search_rebuttal(topic: str, target_speech: str, stance: str, focus_area: str) -> Tuple[str, List[Dict]]:
-    """연쇄논박용 사전검색. 토픽 + focus_area 기반."""
-    tool_calls_log: List[Dict] = []
-    results = []
+def _generate_search_query(topic: str, target_argument: str) -> str:
+    """상대 논거에서 핵심 키워드를 추출해 반박 검색 쿼리를 생성한다."""
+    # 볼드/마크다운 제거
+    clean = re.sub(r'\*{1,2}', '', target_argument)
+    # 핵심 주장 추출
+    key = _extract_key_claim(clean)
+    # 한국어 명사구만 추출 (조사/어미 제거는 하지 않고 길이로 자름)
+    key = re.sub(r'[^\w가-힣\s]', '', key).strip()
+    # 너무 길면 앞부분만
+    words = key.split()
+    if len(words) > 5:
+        words = words[:5]
+    query = ' '.join(words) + ' 반박 근거'
+    return query[:40]
 
-    focus_hint = focus_area.replace("검색 방향: ", "").strip() if focus_area else topic
-    query = f"{topic} {focus_hint}"
+
+def _pre_search_rebuttal(topic: str, target_argument: str) -> Tuple[str, List[Dict]]:
+    """연쇄논박용 사전검색. LLM이 생성한 쿼리로 팩트체크 검색."""
+    tool_calls_log: List[Dict] = []
+
+    query = _generate_search_query(topic, target_argument)
     tool_calls_log.append({"name": "search_web", "args": {"query": query}})
     web_result = search_web.invoke({"query": query})
-    results.append(_truncate_tool_result(web_result))
+    result = _truncate_tool_result(web_result)
 
-    return "\n".join(results), tool_calls_log
+    return result, tool_calls_log
 
 
 def _extract_key_claim(speech: str) -> str:
@@ -119,18 +240,34 @@ def _build_rebuttal_prompt(
     target_speech: str,
     target_display: str,
     stance_kr: str,
+    search_results: str = "",
     my_previous: str = "",
     attack_style: str = "",
 ) -> str:
     context = ""
+    if search_results:
+        context += f"\n[참고 자료 — 반박 근거로 활용하라]\n{search_results}\n"
     if my_previous:
         context += f"\n[이전 발언 — 같은 내용 반복 금지]\n{my_previous}\n"
 
     return f"""상대 발언:
 {target_speech}
 {context}
-이 주장의 어디가 틀렸는지 공격하라. ({attack_style})
-~입니다/~습니다 체. 핵심에 **강조**. 소제목·번호·목록 금지."""
+상대 주장에서 틀린 부분을 찾아 반박하라. ({attack_style})
+
+[규칙]
+- 3~4문장으로만 답변
+- 핵심에 **강조** 사용
+- 소제목·번호·목록·볼드 번호(**1.** 등) 금지. 문장으로만 서술
+- 반드시 합니다체(격식체). "~한다", "~이다" 금지. "~합니다", "~입니다"만 사용
+- 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용
+- 자체적으로 수치를 지어내지 마라. 검색 결과에 있는 수치만 인용 가능
+
+반드시 아래 형식으로만 출력:
+
+### 반박 시작
+(반박 내용)
+### 반박 끝"""
 
 
 # ── 반박 생성 ────────────────────────────────────────────────────────────────
@@ -140,8 +277,8 @@ def _generate_rebuttal_speech(
     prompt: str,
     target_display: str,
     stance: str,
-) -> Tuple[str, str]:
-    """단일 LLM 호출(max_tokens=256). delimiter 없으면 1회 재시도."""
+) -> Tuple[str, str, List[Dict]]:
+    """소형 모델 판단 + DeepSeek 생성. 필요할 때만 검색."""
     stance_kr = "찬성" if stance == "PRO" else "반대"
     system = (
         f"{agent['system_prompt']}\n\n"
@@ -154,21 +291,45 @@ def _generate_rebuttal_speech(
         HumanMessage(content=prompt),
     ]
 
+    tool_calls_log: List[Dict] = []
+
+    # DeepSeek으로 반박 생성
     response: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal")
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
-    # fallback: None 또는 5자 미만
-    if speech is None or len(speech.strip()) < 5:
+    # CoT 유출 또는 무효 → 1회 재시도
+    if not _is_valid_rebuttal(speech):
+        logger.warning("[rebuttal] speech 무효, 재시도")
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content="한국어로만 3~4문장으로 반박하세요."))
+        retry: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_retry")
+        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
+        speech = _postprocess_speech(_extract_rebuttal_text(raw))
+
+    # 영어 잔재 감지 → LLM 수정 요청
+    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
+    if eng_words:
+        logger.warning("[rebuttal] 영어 감지: %s → 수정 요청", eng_words[:3])
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
+        fix: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_fix_eng")
+        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
+        fixed = _postprocess_speech(_extract_rebuttal_text(raw_fix))
+        if _is_valid_rebuttal(fixed):
+            speech = fixed
+            raw = raw_fix
+
+    # fallback
+    if not _is_valid_rebuttal(speech):
         logger.warning("[rebuttal] fallback 사용")
-        stance_kr = "찬성" if stance == "PRO" else "반대"
         speech = (
             f"{target_display}의 주장은 핵심 전제가 부족합니다. "
             f"따라서 설득력이 없습니다. "
             f"저는 {stance_kr} 입장을 유지합니다."
         )
 
-    return speech, raw
+    return speech, raw, tool_calls_log
 
 
 # ── 공개 유틸리티 ────────────────────────────────────────────────────────────
@@ -186,6 +347,26 @@ def build_agent_stance_nums(
         counter[agent_map[sid]["stance"]] += 1
         nums[sid] = counter[agent_map[sid]["stance"]]
     return nums
+
+
+def _pick_one_argument(speech: str) -> str:
+    """입론에서 논거 1 또는 논거 2를 랜덤으로 하나만 추출한다."""
+    parts = re.split(r'###\s*논거\s*\d+\s*[:：]?', speech)
+    arguments = []
+    for i, p in enumerate(parts):
+        if i == 0:
+            continue  # 자기소개 부분 스킵
+        # 결론 이후 제거
+        conclusion_idx = p.find('### 결론')
+        if conclusion_idx != -1:
+            p = p[:conclusion_idx]
+        text = p.strip()
+        if text and len(text) > 20:
+            arguments.append(text)
+    if arguments:
+        return random.choice(arguments)
+    # 파싱 실패 시 원문 그대로 반환
+    return speech
 
 
 _ATTACK_STYLES = [
@@ -212,8 +393,9 @@ def generate_ai_rebuttal(
 ) -> DebateEntry:
     target_speech = "(발언 기록 없음)"
     target_stance = "CON" if agent["stance"] == "PRO" else "PRO"
+    # 연쇄논박은 상대의 입론만 공격 (상대의 연쇄논박 발언이 아님)
     for entry in reversed(history):
-        if entry["speaker_id"] == target_id:
+        if entry["speaker_id"] == target_id and entry["phase"] == "opening":
             target_speech = entry["content"]
             target_stance = entry["stance"]
             break
@@ -235,15 +417,31 @@ def generate_ai_rebuttal(
     target_display = f"{t_label} 에이전트{target_stance_num}" if target_id != "user" else "사용자"
     stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
 
+    # 상대 입론에서 논거 하나만 랜덤 추출
+    target_argument = _pick_one_argument(target_speech)
+
+    # 소형 모델이 검색 필요 여부 판단
+    search_query = _decide_search(target_argument, attack_style)
+    search_results = ""
+    tool_calls_log: List[Dict] = []
+    if search_query:
+        logger.info("[rebuttal] 검색 판단: '%s'", search_query)
+        tool_calls_log.append({"name": "search_web", "args": {"query": search_query}})
+        web_result = search_web.invoke({"query": search_query})
+        search_results = _truncate_tool_result(web_result)
+    else:
+        logger.info("[rebuttal] 검색 불필요 판단")
+
     prompt = _build_rebuttal_prompt(
-        target_speech=target_speech,
+        target_speech=target_argument,
         target_display=target_display,
         stance_kr=stance_kr,
+        search_results=search_results,
         my_previous=my_previous,
         attack_style=attack_style,
     )
 
-    speech, raw = _generate_rebuttal_speech(
+    speech, raw, _tool_log = _generate_rebuttal_speech(
         agent=agent, prompt=prompt,
         target_display=target_display, stance=agent["stance"],
     )
@@ -252,7 +450,7 @@ def generate_ai_rebuttal(
         turn=current_turn, speaker_id=agent["agent_id"],
         stance=agent["stance"], phase="chained_rebuttal",
         content=speech, target_id=target_id,
-        tool_calls_log=[], json_raw=raw,
+        tool_calls_log=tool_calls_log, json_raw=raw,
     )
 
 
