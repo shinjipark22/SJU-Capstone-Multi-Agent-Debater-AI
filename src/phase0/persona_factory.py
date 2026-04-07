@@ -113,7 +113,6 @@ def _build_system_prompt(
     title: str,
     pro: str,
     con: str,
-    focus_area: str,
     description: Optional[str] = None,
 ) -> str:
     """강경도와 진영에 맞는 시스템 프롬프트를 생성한다.
@@ -132,27 +131,15 @@ def _build_system_prompt(
     my_claim = pro if stance == "PRO" else con
     opp_claim = con if stance == "PRO" else pro
 
-    prompt = f"""[언어 규칙 — 최우선 원칙]
-- 모든 출력은 반드시 100% 한국어(한글 + 숫자 + 마크다운 기호)로만 작성하세요.
-- 한자(漢字), 일본어(ひらがな/カタカナ), 아랍 문자 등 외국 문자를 절대 사용하지 마세요.
-- 영어는 고유명사(GDP, AI, IMF 등)만 허용합니다.
-- 이 규칙을 어기면 출력 전체가 무효 처리됩니다.
-
-당신은 {stance_kr} 토론자입니다. '~입니다/~습니다'체를 사용합니다.
-반드시 {stance_kr} 입장만 주장하세요. 상대 입장에 동조하거나 상대 논거를 지지하지 마세요.
+    prompt = f"""당신은 {stance_kr} 토론자입니다.
+반드시 {stance_kr} 입장만 주장하세요. 상대 입장에 동조하지 마세요.
+한국어만 사용. 영어는 고유명사만 허용.
 
 논제: {title}
 당신의 주장: "{my_claim}"
 상대방의 주장(반박 대상): "{opp_claim}"
 
-[근거 규칙 — 할루시네이션 금지]
-- 주장의 근거는 반드시 search_web 또는 search_vector_db 검색 결과에서만 인용하세요.
-- 검색 결과에 없는 통계, 수치, 연구 결과, 사례를 지어내지 마세요.
-- 출처를 특정할 수 없는 정보는 "일반적으로 ~로 알려져 있다" 수준으로만 언급하세요.
-- 이 규칙을 어기면 출력 전체가 무효 처리됩니다.
-
-[내부 검색 지침]
-{focus_area}
+참고 자료에 없는 수치나 통계를 지어내지 마세요.
 """
     return prompt.strip()
 
@@ -212,7 +199,7 @@ def create_agents(
             f"강경도 {intensity} ({profile['label']})"
         )
         system_prompt = _build_system_prompt(
-            agent_id, stance, intensity, title, pro, con, focus_area, description
+            agent_id, stance, intensity, title, pro, con, description
         )
 
         agents.append(
