@@ -11,59 +11,17 @@ from dataclasses import dataclass, field
 
 # ── 강경도별 행동 특성 정의 ───────────────────────────────────────────────────
 INTENSITY_PROFILES: Dict[int, Dict[str, str]] = {
-    1: {
-        "label": "매우 온건",
-        "style": "질문 중심으로 상대방의 관점을 탐색하며, 공통점 발견을 우선시한다.",
-        "tone": "부드럽고 개방적인 어조로 소통한다.",
-    },
-    2: {
-        "label": "온건",
-        "style": "상대방 주장을 인정한 후 부드럽게 반박하며, 협력적 논의를 지향한다.",
-        "tone": "정중하고 배려 있는 어조를 유지한다.",
-    },
-    3: {
-        "label": "균형형",
-        "style": "논리적 근거를 바탕으로 주장과 반박을 균형 있게 수행한다.",
-        "tone": "중립적이고 객관적인 어조를 사용한다.",
-    },
-    4: {
-        "label": "강경",
-        "style": "논리적 압박을 통해 상대방 주장의 약점을 구체적으로 지적하고 반박한다.",
-        "tone": "단호하고 명확한 어조로 논점을 전달한다.",
-    },
-    5: {
-        "label": "매우 강경",
-        "style": "상대방 주장의 모순과 논리적 오류를 적극적으로 지적하며, 자신의 입장을 강하게 견지한다.",
-        "tone": "직접적이고 강한 어조로 핵심 모순을 집중 공략한다.",
-    },
+    1: {"label": "매우 온건"},
+    2: {"label": "온건"},
+    3: {"label": "균형형"},
+    4: {"label": "강경"},
+    5: {"label": "매우 강경"},
 }
 
 # ── 카테고리별 논증 분석 시각 (에이전트 번호 순서대로 순환 할당) ──────────────────
 # 같은 진영 에이전트끼리 동일한 검색어·논거를 중복 사용하는 문제를 방지한다.
 # 에이전트 수가 정의된 수보다 많으면 인덱스를 순환(modulo)하여 재사용한다.
 # 토픽 ID 접두사(tech/econ/poli/env)로 카테고리를 판별하여 해당 분야에 특화된 시각을 할당한다.
-FOCUS_AREAS: Dict[str, List[str]] = {
-    "tech": [
-        "검색 방향: 시장 규모, 고용 통계, 기업 도입 사례",
-        "검색 방향: 기술 성숙도, 구현 사례, 인프라 요건",
-        "검색 방향: 규제 동향, 사회적 부작용 사례, 형평성 논란",
-    ],
-    "econ": [
-        "검색 방향: GDP, 물가, 고용률, 성장률 전망",
-        "검색 방향: 지정학 분석, 공급망 재편, 국제기구 전망",
-        "검색 방향: 소비자 물가, 식량 가격, 소득 불평등",
-    ],
-    "poli": [
-        "검색 방향: 입법 사례, 비용 효과, 집행 역량",
-        "검색 방향: 수혜 집단, 피해 집단, 형평성 논란",
-        "검색 방향: 해외 사례, 성공·실패 비교, 국제 기준",
-    ],
-    "env": [
-        "검색 방향: 통계 데이터, 연구 보고서, 인과 분석",
-        "검색 방향: 정책 사례, 규제 효과, 국제 협약 이행",
-        "검색 방향: 이주·난민 통계, 물가 영향, 취약계층 피해",
-    ],
-}
 
 # ── 토론 포맷별 AI 진영 분배 규칙 ────────────────────────────────────────────
 # Key: (debate_format, user_stance)
@@ -113,7 +71,6 @@ def _build_system_prompt(
     title: str,
     pro: str,
     con: str,
-    focus_area: str,
     description: Optional[str] = None,
 ) -> str:
     """강경도와 진영에 맞는 시스템 프롬프트를 생성한다.
@@ -132,29 +89,15 @@ def _build_system_prompt(
     my_claim = pro if stance == "PRO" else con
     opp_claim = con if stance == "PRO" else pro
 
-    prompt = f"""[언어 규칙 — 최우선 원칙]
-- 모든 출력은 반드시 100% 한국어(한글 + 숫자 + 마크다운 기호)로만 작성하세요.
-- 한자(漢字), 일본어(ひらがな/カタカナ), 아랍 문자 등 외국 문자를 절대 사용하지 마세요.
-- 영어는 고유명사(GDP, AI, IMF 등)만 허용합니다.
-- 이 규칙을 어기면 출력 전체가 무효 처리됩니다.
-
-당신은 {stance_kr} 토론자입니다. '~입니다/~습니다'체를 사용합니다.
+    prompt = f"""당신은 {profile['label']} {stance_kr} 토론자입니다.
+반드시 {stance_kr} 입장만 주장하세요. 상대 입장에 동조하지 마세요.
+한국어만 사용. 영어는 고유명사만 허용.
 
 논제: {title}
-찬성 입장: {pro}
-반대 입장: {con}
-
 당신의 주장: "{my_claim}"
-상대방의 주장: "{opp_claim}"
+상대방의 주장(반박 대상): "{opp_claim}"
 
-[근거 규칙 — 할루시네이션 금지]
-- 주장의 근거는 반드시 search_web 또는 search_vector_db 검색 결과에서만 인용하세요.
-- 검색 결과에 없는 통계, 수치, 연구 결과, 사례를 지어내지 마세요.
-- 출처를 특정할 수 없는 정보는 "일반적으로 ~로 알려져 있다" 수준으로만 언급하세요.
-- 이 규칙을 어기면 출력 전체가 무효 처리됩니다.
-
-[내부 검색 지침]
-{focus_area}
+참고 자료에 없는 수치나 통계를 지어내지 마세요.
 """
     return prompt.strip()
 
@@ -186,11 +129,6 @@ def create_agents(
     con = topic["con"]
     description = topic.get("description_long")
 
-    # 토픽 ID 접두사로 카테고리 판별 (예: "tech_001" → "tech")
-    topic_id: str = topic.get("id", "")
-    category = topic_id.split("_")[0] if "_" in topic_id else ""
-    focus_list = FOCUS_AREAS.get(category, list(FOCUS_AREAS.values())[0])
-
     stance_list = STANCE_DISTRIBUTION[(debate_format, user_stance)]
 
     # 길이 검증 (models.py에서도 검증하지만 factory 독립 사용 대비 이중 방어)
@@ -206,15 +144,12 @@ def create_agents(
         agent_id = f"agent_{idx}"
         profile = INTENSITY_PROFILES[intensity]
 
-        # 에이전트 전체 순번(0-based)으로 분석 시각을 순환 할당
-        focus_area = focus_list[(idx - 1) % len(focus_list)]
-
         role_description = (
             f"{('찬성' if stance == 'PRO' else '반대')} 진영 | "
             f"강경도 {intensity} ({profile['label']})"
         )
         system_prompt = _build_system_prompt(
-            agent_id, stance, intensity, title, pro, con, focus_area, description
+            agent_id, stance, intensity, title, pro, con, description
         )
 
         agents.append(
@@ -224,7 +159,7 @@ def create_agents(
                 intensity=intensity,
                 role_description=role_description,
                 system_prompt=system_prompt,
-                focus_area=focus_area,
+                focus_area="",
             )
         )
 
