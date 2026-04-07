@@ -324,7 +324,7 @@ if os.path.exists(_SEARCH_QUERIES_PATH):
 _query_idx: Dict[str, int] = {}
 
 
-def _pre_search(topic: str, stance: str, focus_area: str, topic_id: str = "") -> Tuple[str, List[Dict]]:
+def _pre_search(topic: str, stance: str, topic_id: str = "") -> Tuple[str, List[Dict]]:
     """입론 전 사전 검색. search_queries.json 쿼리만 사용.
 
     Returns:
@@ -459,7 +459,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
 
         # 1. 사전 검색
         search_results, tool_calls_log = _pre_search(
-            topic, agent["stance"], agent["focus_area"],
+            topic, agent["stance"],
             topic_id=state.get("topic_id", ""),
         )
 
