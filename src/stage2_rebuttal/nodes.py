@@ -66,10 +66,51 @@ from src.state import (
     build_chained_rebuttal_pairs,
 )
 
-# ── 연쇄논박 전용 LLM (max_tokens=1024) ──────────────────────────────────────
+# ── 연쇄논박 전용 LLM (DeepSeek — 반박 생성용) ─────────────────────────────
 _rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
-# ── 쿼리 생성 전용 LLM (짧은 응답 유도) ──────────────────────────────────────
-_query_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 64, "temperature": 0.3})
+
+# ── 소형 모델 (Qwen2.5-1.5B — 검색 판단 + 쿼리 생성, CPU) ──────────────────
+_tool_model = None
+_tool_tokenizer = None
+
+
+def _load_tool_model():
+    """Qwen2.5-1.5B-Instruct를 CPU에 지연 로드한다."""
+    global _tool_model, _tool_tokenizer
+    if _tool_model is not None:
+        return
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    logger.info("[tool_model] Qwen2.5-1.5B-Instruct 로드 중 (CPU)...")
+    import os
+    cache_dir = os.environ.get("HF_HOME", "/disk1/SJ/huggingface/hub")
+    model_id = "Qwen/Qwen2.5-1.5B-Instruct"
+    _tool_tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir)
+    _tool_model = AutoModelForCausalLM.from_pretrained(
+        model_id, dtype="auto", device_map="cpu", cache_dir=cache_dir,
+    )
+    logger.info("[tool_model] 로드 완료")
+
+
+def _decide_search(target_argument: str, attack_style: str) -> str:
+    """소형 모델이 검색 필요 여부를 판단하고, 필요 시 쿼리를 반환한다. 불필요 시 빈 문자열."""
+    _load_tool_model()
+
+    prompt = f"""주장: {target_argument[:150]}
+
+위 주장을 반박할 검색어를 만들어라. 반박이 필요 없으면 "없음"이라고 답하라.
+검색어:"""
+
+    messages = [{"role": "user", "content": prompt}]
+    text = _tool_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = _tool_tokenizer(text, return_tensors="pt")
+    outputs = _tool_model.generate(**inputs, max_new_tokens=20, do_sample=False)
+    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True).strip()
+
+    if "없음" in response or "불필요" in response or len(response) < 3:
+        return ""
+    # 첫 줄만, 특수문자 제거
+    query = response.split('\n')[0].strip().strip('"').strip("'")
+    return query[:40] if query else ""
 
 
 # ── 텍스트 추출 (delimiter 없이, <think> + 영어 제거 후 한국어만) ────────────
@@ -189,7 +230,7 @@ def _build_rebuttal_prompt(
 - 소제목·번호·목록·볼드 번호(**1.** 등) 금지. 문장으로만 서술
 - 반드시 합니다체(격식체). "~한다", "~이다" 금지. "~합니다", "~입니다"만 사용
 - 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용
-- 참고 자료의 수치만 인용 가능. 자체적으로 수치를 지어내지 마라
+- 자체적으로 수치를 지어내지 마라. 검색 결과에 있는 수치만 인용 가능
 
 반드시 아래 형식으로만 출력:
 
@@ -205,8 +246,8 @@ def _generate_rebuttal_speech(
     prompt: str,
     target_display: str,
     stance: str,
-) -> Tuple[str, str]:
-    """LLM 호출로 반박 생성. CoT 유출 또는 무효 시 1회 재시도."""
+) -> Tuple[str, str, List[Dict]]:
+    """소형 모델 판단 + DeepSeek 생성. 필요할 때만 검색."""
     stance_kr = "찬성" if stance == "PRO" else "반대"
     system = (
         f"{agent['system_prompt']}\n\n"
@@ -219,6 +260,9 @@ def _generate_rebuttal_speech(
         HumanMessage(content=prompt),
     ]
 
+    tool_calls_log: List[Dict] = []
+
+    # DeepSeek으로 반박 생성
     response: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal")
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_rebuttal_text(raw))
@@ -254,7 +298,7 @@ def _generate_rebuttal_speech(
             f"저는 {stance_kr} 입장을 유지합니다."
         )
 
-    return speech, raw
+    return speech, raw, tool_calls_log
 
 
 # ── 공개 유틸리티 ────────────────────────────────────────────────────────────
@@ -344,8 +388,17 @@ def generate_ai_rebuttal(
     # 상대 입론에서 논거 하나만 랜덤 추출
     target_argument = _pick_one_argument(target_speech)
 
-    # 상대 논거 핵심 주장으로 팩트체크 검색
-    search_results, tool_calls_log = _pre_search_rebuttal(topic, target_argument)
+    # 소형 모델이 검색 필요 여부 판단
+    search_query = _decide_search(target_argument, attack_style)
+    search_results = ""
+    tool_calls_log: List[Dict] = []
+    if search_query:
+        logger.info("[rebuttal] 검색 판단: '%s'", search_query)
+        tool_calls_log.append({"name": "search_web", "args": {"query": search_query}})
+        web_result = search_web.invoke({"query": search_query})
+        search_results = _truncate_tool_result(web_result)
+    else:
+        logger.info("[rebuttal] 검색 불필요 판단")
 
     prompt = _build_rebuttal_prompt(
         target_speech=target_argument,
@@ -356,7 +409,7 @@ def generate_ai_rebuttal(
         attack_style=attack_style,
     )
 
-    speech, raw = _generate_rebuttal_speech(
+    speech, raw, _tool_log = _generate_rebuttal_speech(
         agent=agent, prompt=prompt,
         target_display=target_display, stance=agent["stance"],
     )
