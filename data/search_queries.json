@@ -37,26 +37,26 @@
   },
   "econ_001": {
     "PRO": [
-      "미국 중동 전쟁 GDP 영향 연구",
-      "미국 이라크 아프간 전쟁 교훈 분석",
-      "미국 중동 개입 비판 전문가 의견"
+      "US Middle East war GDP economic impact study",
+      "US Iraq Afghanistan war lessons learned analysis",
+      "US Middle East military intervention criticism expert analysis"
     ],
     "CON": [
-      "이란 호르무즈 해협 봉쇄 위험 분석",
-      "이란 핵개발 경제 제재 효과",
-      "이란 도발 국제 원유 시장 영향 연구"
+      "Iran Strait of Hormuz blockade risk analysis",
+      "Iran nuclear program economic sanctions effectiveness",
+      "Iran provocation global oil market impact study"
     ]
   },
   "econ_002": {
     "PRO": [
-      "트럼프 관세 정책 부작용 전문가 비판",
-      "미중 무역전쟁 글로벌 공급망 피해 분석",
-      "보호무역 스태그플레이션 역사적 교훈"
+      "Trump tariff policy negative effects expert criticism",
+      "US China trade war global supply chain damage analysis",
+      "protectionism stagflation historical lessons Smoot-Hawley"
     ],
     "CON": [
-      "트럼프 관세 미국 제조업 부활 성공 사례",
-      "보호무역 자국 산업 보호 효과 연구",
-      "관세 리쇼어링 제조업 회귀 전문가 분석"
+      "Trump tariff US manufacturing revival success cases",
+      "protectionism domestic industry protection effectiveness study",
+      "tariff reshoring manufacturing return expert analysis"
     ]
   },
   "econ_003": {
@@ -73,14 +73,14 @@
   },
   "poli_001": {
     "PRO": [
-      "펜타곤 페이퍼 사건 언론 자유 판례 의미",
-      "미국 국방부 언론 출입 폐쇄 비판 반응",
-      "펜타곤 언론 통제 국민 알권리 침해 비판"
+      "Vietnam War press coverage anti-war public opinion effect",
+      "Pentagon press room closure media criticism democracy",
+      "Pentagon press restrictions First Amendment freedom of press violation"
     ],
     "CON": [
-      "펜타곤 기밀 유출 군사 작전 피해 미국 사례",
-      "펜타곤 문서 유출 미군 작전 피해 위키리크스 분석",
-      "미국 걸프전 이라크전 언론 통제 작전 보호 효과"
+      "WikiLeaks Afghan war logs leak military operations damage",
+      "Chelsea Manning classified documents leak national security harm",
+      "Gulf War Iraq War press pool media control military operation success"
     ]
   },
   "poli_002": {

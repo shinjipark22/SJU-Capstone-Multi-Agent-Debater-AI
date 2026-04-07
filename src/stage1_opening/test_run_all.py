@@ -71,6 +71,34 @@ def run_single_topic(topic_dict: dict) -> dict:
     )
 
     result_state = opening_arguments_node(state)
+    result_state = dict(result_state)
+
+    # 사용자 자리도 AI가 대신 입론 생성
+    from src.stage1_opening.nodes import _pre_search, _build_opening_prompt, _generate_opening
+    from src.state import DebateEntry
+
+    user_turn = len([e for e in result_state["debate_history"] if e["phase"] == "opening"])
+    stance_kr = "찬성" if USER_STANCE == "PRO" else "반대"
+    search_results, tool_log = _pre_search(
+        state["topic"], USER_STANCE,
+        topic_id=topic_dict["id"],
+    )
+    prompt = _build_opening_prompt(state["topic"], USER_STANCE, f"{stance_kr} 에이전트(사용자 대리)", search_results)
+    user_agent = {
+        "system_prompt": f"너는 {stance_kr} 토론자다. 한국어만 사용하라.",
+        "stance": USER_STANCE,
+    }
+    speech, raw = _generate_opening(user_agent, prompt)
+    if '### 자기소개' not in speech:
+        speech = f"### 자기소개와 입장 표명\n{speech}"
+    result_state["debate_history"].append(DebateEntry(
+        turn=user_turn, speaker_id="user_proxy", stance=USER_STANCE,
+        phase="opening", content=speech, target_id=None,
+        tool_calls_log=tool_log, json_raw=raw,
+    ))
+    result_state["debate_history"].sort(key=lambda e: e["turn"])
+    print(f"  [사용자 대리] 입론 생성 완료 (turn={user_turn})")
+
     return result_state
 
 
@@ -133,11 +161,11 @@ def main():
                 f.write(format_result(result_state))
 
             history = result_state["debate_history"]
-            ai_count = len([sid for sid in result_state["speaking_order"] if sid != "user"])
+            expected_count = len([sid for sid in result_state["speaking_order"] if sid != "user"]) + 1  # +1 사용자 대리
             no_tool = sum(1 for e in history if not e.get("tool_calls_log"))
 
             status = "OK"
-            if len(history) != ai_count:
+            if len(history) != expected_count:
                 status = "FAIL(history)"
             elif no_tool > 0:
                 status = f"WARN(도구미사용 {no_tool}명)"
