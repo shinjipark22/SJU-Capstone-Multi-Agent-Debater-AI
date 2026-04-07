@@ -91,26 +91,57 @@ def _load_tool_model():
     logger.info("[tool_model] 로드 완료")
 
 
+_SEARCH_TOOL_DEF = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_web",
+            "description": "웹에서 반박 근거를 검색합니다. 논리만으로 반박 가능하면 호출하지 마세요.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "반박 근거를 찾기 위한 검색 키워드 (한국어, 30자 이내)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    }
+]
+
+
 def _decide_search(target_argument: str, attack_style: str) -> str:
-    """소형 모델이 검색 필요 여부를 판단하고, 필요 시 쿼리를 반환한다. 불필요 시 빈 문자열."""
+    """소형 모델이 tool calling으로 검색 필요 여부를 판단한다. 불필요 시 빈 문자열."""
     _load_tool_model()
 
-    prompt = f"""주장: {target_argument[:150]}
+    messages = [
+        {"role": "user", "content": f"다음 주장을 반박하라. 필요하면 검색하라.\n\n주장: {target_argument[:200]}"}
+    ]
 
-위 주장을 반박할 검색어를 만들어라. 반박이 필요 없으면 "없음"이라고 답하라.
-검색어:"""
-
-    messages = [{"role": "user", "content": prompt}]
-    text = _tool_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    text = _tool_tokenizer.apply_chat_template(
+        messages, tools=_SEARCH_TOOL_DEF, tokenize=False, add_generation_prompt=True,
+    )
     inputs = _tool_tokenizer(text, return_tensors="pt")
-    outputs = _tool_model.generate(**inputs, max_new_tokens=20, do_sample=False)
-    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True).strip()
+    outputs = _tool_model.generate(**inputs, max_new_tokens=100, do_sample=False)
+    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=False).strip()
 
-    if "없음" in response or "불필요" in response or len(response) < 3:
-        return ""
-    # 첫 줄만, 특수문자 제거
-    query = response.split('\n')[0].strip().strip('"').strip("'")
-    return query[:40] if query else ""
+    # <tool_call> 파싱
+    m = re.search(r'<tool_call>\s*(\{.*?\})\s*</tool_call>', response, re.DOTALL)
+    if m:
+        try:
+            import json
+            call = json.loads(m.group(1))
+            query = call.get("arguments", {}).get("query", "")
+            if query:
+                logger.info("[tool_model] tool_call 감지: search_web('%s')", query)
+                return query[:40]
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    logger.info("[tool_model] tool_call 없음 → 검색 불필요")
+    return ""
 
 
 # ── 텍스트 추출 (delimiter 없이, <think> + 영어 제거 후 한국어만) ────────────
