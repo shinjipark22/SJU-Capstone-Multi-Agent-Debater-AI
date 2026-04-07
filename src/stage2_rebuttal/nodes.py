@@ -68,6 +68,8 @@ from src.state import (
 
 # ── 연쇄논박 전용 LLM (max_tokens=1024) ──────────────────────────────────────
 _rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
+# ── 쿼리 생성 전용 LLM (짧은 응답 유도) ──────────────────────────────────────
+_query_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 64, "temperature": 0.3})
 
 
 # ── 텍스트 추출 (delimiter 없이, <think> + 영어 제거 후 한국어만) ────────────
@@ -121,18 +123,32 @@ def _extract_rebuttal_text(content: str) -> str:
 
 # ── 반박 프롬프트 ────────────────────────────────────────────────────────────
 
-def _pre_search_rebuttal(topic: str, target_speech: str, stance: str, focus_area: str) -> Tuple[str, List[Dict]]:
-    """연쇄논박용 사전검색. 토픽 + focus_area 기반."""
-    tool_calls_log: List[Dict] = []
-    results = []
+def _generate_search_query(topic: str, target_argument: str) -> str:
+    """상대 논거에서 핵심 키워드를 추출해 반박 검색 쿼리를 생성한다."""
+    # 볼드/마크다운 제거
+    clean = re.sub(r'\*{1,2}', '', target_argument)
+    # 핵심 주장 추출
+    key = _extract_key_claim(clean)
+    # 한국어 명사구만 추출 (조사/어미 제거는 하지 않고 길이로 자름)
+    key = re.sub(r'[^\w가-힣\s]', '', key).strip()
+    # 너무 길면 앞부분만
+    words = key.split()
+    if len(words) > 5:
+        words = words[:5]
+    query = ' '.join(words) + ' 반박 근거'
+    return query[:40]
 
-    focus_hint = focus_area.replace("검색 방향: ", "").strip() if focus_area else topic
-    query = f"{topic} {focus_hint}"
+
+def _pre_search_rebuttal(topic: str, target_argument: str) -> Tuple[str, List[Dict]]:
+    """연쇄논박용 사전검색. LLM이 생성한 쿼리로 팩트체크 검색."""
+    tool_calls_log: List[Dict] = []
+
+    query = _generate_search_query(topic, target_argument)
     tool_calls_log.append({"name": "search_web", "args": {"query": query}})
     web_result = search_web.invoke({"query": query})
-    results.append(_truncate_tool_result(web_result))
+    result = _truncate_tool_result(web_result)
 
-    return "\n".join(results), tool_calls_log
+    return result, tool_calls_log
 
 
 def _extract_key_claim(speech: str) -> str:
@@ -152,10 +168,13 @@ def _build_rebuttal_prompt(
     target_speech: str,
     target_display: str,
     stance_kr: str,
+    search_results: str = "",
     my_previous: str = "",
     attack_style: str = "",
 ) -> str:
     context = ""
+    if search_results:
+        context += f"\n[참고 자료 — 반박 근거로 활용하라]\n{search_results}\n"
     if my_previous:
         context += f"\n[이전 발언 — 같은 내용 반복 금지]\n{my_previous}\n"
 
@@ -170,7 +189,7 @@ def _build_rebuttal_prompt(
 - 소제목·번호·목록·볼드 번호(**1.** 등) 금지. 문장으로만 서술
 - 반드시 합니다체(격식체). "~한다", "~이다" 금지. "~합니다", "~입니다"만 사용
 - 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용
-- 근거 없는 수치를 지어내지 마라
+- 참고 자료의 수치만 인용 가능. 자체적으로 수치를 지어내지 마라
 
 반드시 아래 형식으로만 출력:
 
@@ -325,10 +344,14 @@ def generate_ai_rebuttal(
     # 상대 입론에서 논거 하나만 랜덤 추출
     target_argument = _pick_one_argument(target_speech)
 
+    # 상대 논거 핵심 주장으로 팩트체크 검색
+    search_results, tool_calls_log = _pre_search_rebuttal(topic, target_argument)
+
     prompt = _build_rebuttal_prompt(
         target_speech=target_argument,
         target_display=target_display,
         stance_kr=stance_kr,
+        search_results=search_results,
         my_previous=my_previous,
         attack_style=attack_style,
     )
@@ -342,7 +365,7 @@ def generate_ai_rebuttal(
         turn=current_turn, speaker_id=agent["agent_id"],
         stance=agent["stance"], phase="chained_rebuttal",
         content=speech, target_id=target_id,
-        tool_calls_log=[], json_raw=raw,
+        tool_calls_log=tool_calls_log, json_raw=raw,
     )
 
 
