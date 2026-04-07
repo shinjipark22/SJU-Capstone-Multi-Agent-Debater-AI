@@ -393,8 +393,9 @@ def generate_ai_rebuttal(
 ) -> DebateEntry:
     target_speech = "(발언 기록 없음)"
     target_stance = "CON" if agent["stance"] == "PRO" else "PRO"
+    # 연쇄논박은 상대의 입론만 공격 (상대의 연쇄논박 발언이 아님)
     for entry in reversed(history):
-        if entry["speaker_id"] == target_id:
+        if entry["speaker_id"] == target_id and entry["phase"] == "opening":
             target_speech = entry["content"]
             target_stance = entry["stance"]
             break
