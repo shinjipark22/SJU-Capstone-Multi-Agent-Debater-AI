@@ -29,11 +29,14 @@ from src.stage1_opening.nodes import (
     _invoke_with_retry,
     _postprocess_speech,
     _truncate_tool_result,
+    _remove_english_blocks,
+    _has_cot_leakage,
     search_web,
     _LLM_KWARGS,
 )
 from src.stage2_rebuttal.nodes import (
     _extract_rebuttal_text,
+    _decide_search,
     build_agent_stance_nums,
 )
 from src.state import DebateEntry, DebateState
@@ -73,10 +76,9 @@ def _truncate_to_sentences(text: str, max_sentences: int = 2) -> str:
     text = re.sub(r'~?입니다/~?습니다\s*체?[.]?\s*', '', text)
     text = re.sub(r'핵심에\s*\*{0,2}강조\*{0,2}[.]?\s*', '', text)
     text = re.sub(r'일반적으로\s*~로\s*알려져\s*있다[.]?\s*', '', text)
-    # 영어 CoT 유출 제거 (Putting it together, Next I need to 등)
-    text = re.sub(r'[A-Z][a-z]+(?:\s+[a-z]+){2,}[^가-힣]*', '', text)
-    # 영어 단어 3개 이상 연속 → 제거
-    text = re.sub(r'(?:\b[a-zA-Z]+\b\s*){3,}', '', text)
+    # 영어 전용 줄 제거 (한글 없는 줄만)
+    lines = text.split('\n')
+    text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l))
     # 연속 구두점/쓰레기 제거
     text = re.sub(r'[,.\s]{3,}', ' ', text)
     text = re.sub(r'[""\'"]{2,}', '', text)
@@ -186,31 +188,14 @@ def _get_display_name(
     return speaker_id
 
 
-# ── 검색 필요 여부 판단 ──────────────────────────────────────────────────────
-
-_SEARCH_TRIGGER_PATTERNS = [
-    r'근거[를가]?\s*(제시|보여|있)',
-    r'사례[를가]?\s*(있|제시|보여)',
-    r'데이터|통계|수치|보고서',
-    r'실제로|실증|입증|증거',
-    r'어떤\s*(사례|근거|데이터)',
-    r'구체적',
-]
-
-
-def _needs_search(target_speech: str) -> bool:
-    """상대 발언이 근거/사례/데이터를 요구하는지 판단한다."""
-    for pattern in _SEARCH_TRIGGER_PATTERNS:
-        if re.search(pattern, target_speech):
-            return True
-    return False
-
+# ── 검색 (Qwen2.5-1.5B 조건부 검색 — 연쇄논박과 동일) ──────────────────────
 
 def _search_for_response(topic: str, target_speech: str) -> Tuple[str, List[Dict]]:
-    """답변에 필요한 근거를 웹 검색으로 확보한다."""
+    """Qwen2.5-1.5B가 검색 필요 여부를 판단하고, 필요 시 검색한다."""
     tool_calls_log: List[Dict] = []
-    keywords = re.findall(r'[가-힣]{2,}', target_speech)
-    query = f"{topic} {' '.join(keywords[:3])}"
+    query = _decide_search(target_speech, "")
+    if not query:
+        return "", tool_calls_log
     tool_calls_log.append({"name": "search_web", "args": {"query": query}})
     web_result = search_web.invoke({"query": query})
     return _truncate_tool_result(web_result, 200), tool_calls_log
@@ -260,7 +245,13 @@ def _build_free_rebuttal_prompt(
 - 참고 자료가 있으면 수치/사례를 1개 인용하라
 - 일반론 금지, 구체적으로
 
-1~2문장만. 한국어만.
+1~2문장만. 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용.
+
+반드시 아래 형식으로만 출력:
+
+### 반박 시작
+(반박 내용)
+### 반박 끝
 """
 
     # Step 2 프롬프트: 질문 생성
@@ -335,12 +326,17 @@ def _generate_free_rebuttal(
     raw1 = response1.content if isinstance(response1.content, str) else str(response1.content)
     rebuttal = _clean(raw1)
 
-    # Step 1 품질 체크
+    # Step 1 품질 체크 (CoT 유출 감지 포함)
     korean_count = len(re.findall(r'[가-힣]', rebuttal))
     total_count = len(rebuttal.strip())
     if not rebuttal or total_count < 10 or (total_count > 0 and korean_count / total_count < 0.3):
         logger.warning("[free_rebuttal] step1 품질 불량 → fallback")
         return _get_fallback(), raw1
+    if _has_cot_leakage(rebuttal):
+        logger.warning("[free_rebuttal] step1 CoT 유출 → 재생성")
+        response1_cot: AIMessage = _invoke_with_retry(_fr_llm, messages1, label="free_rebuttal_step1_cot_retry")
+        raw1 = response1_cot.content if isinstance(response1_cot.content, str) else str(response1_cot.content)
+        rebuttal = _clean(raw1)
 
     # 반복 체크
     if prev_entries and _is_repetitive(rebuttal, prev_entries, topic=topic):
@@ -458,14 +454,16 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     else:
         print(f"  [디버그] 이전 발언 없음 — 첫 턴\n")
 
-    # ── 조건부 검색: 상대가 근거/사례/데이터를 요구할 때만
+    # ── 조건부 검색: Qwen2.5-1.5B가 검색 필요 여부 판단
     search_result = ""
     tool_calls_log: List[Dict] = []
-    if _needs_search(user_speech):
-        search_result, tool_calls_log = _search_for_response(
-            topic=state["topic"], target_speech=user_speech,
-        )
-        print(f"  [검색] 근거 요구 감지 → 웹 검색 실행\n")
+    search_result, tool_calls_log = _search_for_response(
+        topic=state["topic"], target_speech=user_speech,
+    )
+    if tool_calls_log:
+        print(f"  [검색] Qwen2.5-1.5B 판단 → 웹 검색 실행\n")
+    else:
+        print(f"  [검색] Qwen2.5-1.5B 판단 → 검색 불필요\n")
 
     # ── 에이전트 발언 생성 (2-Step)
     stance_kr = "찬성" if opponent["stance"] == "PRO" else "반대"
