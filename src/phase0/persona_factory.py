@@ -22,28 +22,6 @@ INTENSITY_PROFILES: Dict[int, Dict[str, str]] = {
 # 같은 진영 에이전트끼리 동일한 검색어·논거를 중복 사용하는 문제를 방지한다.
 # 에이전트 수가 정의된 수보다 많으면 인덱스를 순환(modulo)하여 재사용한다.
 # 토픽 ID 접두사(tech/econ/poli/env)로 카테고리를 판별하여 해당 분야에 특화된 시각을 할당한다.
-FOCUS_AREAS: Dict[str, List[str]] = {
-    "tech": [
-        "검색 방향: 시장 규모, 고용 통계, 기업 도입 사례",
-        "검색 방향: 기술 성숙도, 구현 사례, 인프라 요건",
-        "검색 방향: 규제 동향, 사회적 부작용 사례, 형평성 논란",
-    ],
-    "econ": [
-        "검색 방향: GDP, 물가, 고용률, 성장률 전망",
-        "검색 방향: 지정학 분석, 공급망 재편, 국제기구 전망",
-        "검색 방향: 소비자 물가, 식량 가격, 소득 불평등",
-    ],
-    "poli": [
-        "검색 방향: 입법 사례, 비용 효과, 집행 역량",
-        "검색 방향: 수혜 집단, 피해 집단, 형평성 논란",
-        "검색 방향: 해외 사례, 성공·실패 비교, 국제 기준",
-    ],
-    "env": [
-        "검색 방향: 통계 데이터, 연구 보고서, 인과 분석",
-        "검색 방향: 정책 사례, 규제 효과, 국제 협약 이행",
-        "검색 방향: 이주·난민 통계, 물가 영향, 취약계층 피해",
-    ],
-}
 
 # ── 토론 포맷별 AI 진영 분배 규칙 ────────────────────────────────────────────
 # Key: (debate_format, user_stance)
@@ -151,11 +129,6 @@ def create_agents(
     con = topic["con"]
     description = topic.get("description_long")
 
-    # 토픽 ID 접두사로 카테고리 판별 (예: "tech_001" → "tech")
-    topic_id: str = topic.get("id", "")
-    category = topic_id.split("_")[0] if "_" in topic_id else ""
-    focus_list = FOCUS_AREAS.get(category, list(FOCUS_AREAS.values())[0])
-
     stance_list = STANCE_DISTRIBUTION[(debate_format, user_stance)]
 
     # 길이 검증 (models.py에서도 검증하지만 factory 독립 사용 대비 이중 방어)
@@ -170,9 +143,6 @@ def create_agents(
     for idx, (stance, intensity) in enumerate(zip(stance_list, agent_intensities), start=1):
         agent_id = f"agent_{idx}"
         profile = INTENSITY_PROFILES[intensity]
-
-        # 에이전트 전체 순번(0-based)으로 분석 시각을 순환 할당
-        focus_area = focus_list[(idx - 1) % len(focus_list)]
 
         role_description = (
             f"{('찬성' if stance == 'PRO' else '반대')} 진영 | "
@@ -189,7 +159,7 @@ def create_agents(
                 intensity=intensity,
                 role_description=role_description,
                 system_prompt=system_prompt,
-                focus_area=focus_area,
+                focus_area="",
             )
         )
 
