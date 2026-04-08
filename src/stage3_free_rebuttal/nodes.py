@@ -324,8 +324,15 @@ def _generate_free_rebuttal(
 
         reason = "CoT 유출" if is_cot else "영어/빈 응답"
         logger.warning("[free_rebuttal] %s → 재시도 %d/2", reason, retry_idx + 1)
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content="한국어로만 2~3문장으로 반박하고 질문하세요."))
+        # 영어 응답을 대화에 쌓지 않고 마지막 HumanMessage만 유지하며 한국어 강제
+        last_human = None
+        for m in reversed(messages):
+            if isinstance(m, HumanMessage):
+                last_human = m.content
+                break
+        messages = [messages[0]]  # SystemMessage만 유지
+        if last_human:
+            messages.append(HumanMessage(content=f"{last_human}\n\n반드시 한국어로만 답하라. 2~3문장."))
         retry: AIMessage = _invoke_with_retry(_fr_llm, messages, label=f"free_rebuttal_retry{retry_idx}")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _clean(raw)
