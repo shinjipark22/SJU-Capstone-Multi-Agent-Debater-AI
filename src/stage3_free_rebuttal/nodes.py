@@ -288,9 +288,13 @@ def _generate_free_rebuttal(
         text = text.replace('</think>', '').strip()
         # 외국 문자 제거 (한자, 일본어, 러시아어 등)
         text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff]+', '', text)
-        # 영어 전용 줄만 제거 (한글 없는 줄)
+        # 영어 전용 줄 제거 (한글 없는 줄)
         lines = text.split('\n')
         text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l))
+        # 한국어 문장 앞의 영어 CoT 제거 ("So, my response..." 같은 패턴)
+        text = re.sub(r'^[a-zA-Z\s,.\'"():;!?]+(?=[가-힣])', '', text.strip())
+        # 깨진 유니코드
+        text = text.replace('\ufffd', '')
         return text.strip()
 
     # 시스템 프롬프트 구성
