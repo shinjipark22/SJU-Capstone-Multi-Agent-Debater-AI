@@ -371,12 +371,6 @@ def _generate_free_rebuttal(
         logger.warning("[free_rebuttal] 반복 감지 → fallback")
         return _get_fallback(), raw
 
-    # Step 2: Qwen2.5-1.5B가 공격 질문 생성
-    question = _generate_attack_question(target_speech, stance, topic)
-    if question:
-        logger.info("[free_rebuttal] 공격 질문: %s", question)
-        speech = f"{speech} {question}"
-
     return speech, raw
 
 
