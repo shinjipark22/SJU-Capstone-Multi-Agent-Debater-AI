@@ -146,6 +146,58 @@ def _decide_search(target_argument: str, attack_style: str) -> str:
 
 # ── 텍스트 추출 (delimiter 없이, <think> + 영어 제거 후 한국어만) ────────────
 
+def _check_stance(text: str, expected_stance: str, topic: str) -> bool:
+    """Qwen2.5-1.5B로 발언이 기대 입장과 일치하는지 판별한다. 일치하면 True."""
+    _load_tool_model()
+    stance_kr = "찬성" if expected_stance == "PRO" else "반대"
+    messages = [
+        {"role": "user", "content": f"""주제: {topic[:100]}
+
+발언: {text[:200]}
+
+이 발언은 위 주제에 대해 "찬성"인가 "반대"인가? 한 단어로만 답하라."""}
+    ]
+    inp_text = _tool_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = _tool_tokenizer(inp_text, return_tensors="pt")
+    outputs = _tool_model.generate(**inputs, max_new_tokens=10, do_sample=False)
+    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True).strip()
+    # 첫 단어만
+    first_word = response.split()[0] if response.split() else ""
+    detected = "찬성" if "찬성" in first_word else ("반대" if "반대" in first_word else "")
+    if detected and detected != stance_kr:
+        logger.warning("[stance_check] 입장 혼동: 기대=%s, 감지=%s", stance_kr, detected)
+        return False
+    return True
+
+
+def _generate_attack_question(target_speech: str, stance: str, topic: str) -> str:
+    """Qwen2.5-1.5B로 상대 논거에 대한 공격 질문을 생성한다."""
+    _load_tool_model()
+    stance_kr = "찬성" if stance == "PRO" else "반대"
+
+    messages = [
+        {"role": "user", "content": f"""너는 {stance_kr} 토론자다. 상대의 주장에 대해 답하기 곤란한 질문을 1개 만들어라.
+
+토론 주제: {topic[:80]}
+상대 주장: {target_speech[:200]}
+
+반드시 ?로 끝나는 한국어 한 문장만 출력하라."""}
+    ]
+
+    text = _tool_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = _tool_tokenizer(text, return_tensors="pt")
+    outputs = _tool_model.generate(**inputs, max_new_tokens=60, do_sample=False)
+    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True).strip()
+
+    # 첫 줄에서 ?로 끝나는 문장 추출
+    for line in response.split('\n'):
+        line = line.strip()
+        if line.endswith('?') and re.search(r'[가-힣]', line):
+            return line
+    # 못 찾으면 빈 문자열
+    return ""
+
+
 def _extract_rebuttal_text(content: str) -> str:
     """<think> 블록과 영어를 제거하고 한국어 문장만 추출한다."""
     text = content.strip()
