@@ -304,24 +304,34 @@ def _generate_free_rebuttal(
                 messages.append(HumanMessage(content=entry["content"]))
                 break
 
-    # LLM 호출
+    # LLM 호출 + 영어/CoT 유출 시 재시도 (최대 2회)
     response: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal")
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _clean(raw)
 
-    # 품질 체크
+    for retry_idx in range(2):
+        korean_count = len(re.findall(r'[가-힣]', speech))
+        total_count = len(speech.strip())
+        is_bad = not speech or total_count < 10 or (total_count > 0 and korean_count / total_count < 0.3)
+        is_cot = _has_cot_leakage(speech) if speech else False
+
+        if not is_bad and not is_cot:
+            break
+
+        reason = "CoT 유출" if is_cot else "영어/빈 응답"
+        logger.warning("[free_rebuttal] %s → 재시도 %d/2", reason, retry_idx + 1)
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content="한국어로만 2~3문장으로 반박하고 질문하세요."))
+        retry: AIMessage = _invoke_with_retry(_fr_llm, messages, label=f"free_rebuttal_retry{retry_idx}")
+        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
+        speech = _clean(raw)
+
+    # 최종 품질 체크
     korean_count = len(re.findall(r'[가-힣]', speech))
     total_count = len(speech.strip())
     if not speech or total_count < 10 or (total_count > 0 and korean_count / total_count < 0.3):
-        logger.warning("[free_rebuttal] 품질 불량 → fallback")
+        logger.warning("[free_rebuttal] 최종 품질 불량 → fallback")
         return _get_fallback(), raw
-
-    # CoT 유출 → 재생성
-    if _has_cot_leakage(speech):
-        logger.warning("[free_rebuttal] CoT 유출 → 재생성")
-        retry: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal_retry")
-        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
-        speech = _clean(raw)
 
     # 반복 체크
     if prev_entries and _is_repetitive(speech, prev_entries, topic=topic):
