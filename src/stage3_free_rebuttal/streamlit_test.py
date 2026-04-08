@@ -326,13 +326,13 @@ def main():
                 state = dict(state)
                 st.session_state.state = state
 
-            agent_entries = [
-                e for e in state["debate_history"]
-                if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"
-            ]
-            if agent_entries:
-                latest = agent_entries[-1]["content"]
-                add_msg("assistant", f"**[{selected.agent_id}]** {latest}")
+            # 이번 턴에 생성된 에이전트 발언 모두 표시 (답변+공격)
+            prev_turn = state["current_turn"]
+            for e in state["debate_history"]:
+                if (e["speaker_id"] == selected.agent_id
+                    and e["phase"] == "free_rebuttal"
+                    and e["turn"] >= prev_turn - 2):
+                    add_msg("assistant", f"**[{selected.agent_id}]** {e['content']}")
             st.rerun()
 
 
