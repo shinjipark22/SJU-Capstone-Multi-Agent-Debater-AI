@@ -304,36 +304,67 @@ def main():
             st.rerun()
 
     # ══════════════════════════════════════════════
-    # 3단계: 자유논박 — 채팅
+    # 3단계: 자유논박 — 답변+공격 구조
     # ══════════════════════════════════════════════
     elif st.session_state.phase == "free_rebuttal":
         selected = st.session_state.selected_opponent
         render_messages()
 
-        user_input = st.chat_input("발언을 입력하세요")
-        if user_input:
-            add_msg("user", user_input)
-            state = st.session_state.state
-            state["debate_history"].append(DebateEntry(
-                turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
-                phase="free_rebuttal", content=user_input, target_id=selected.agent_id,
-                tool_calls_log=[], json_raw="",
-            ))
-            state["current_turn"] += 1
-
-            with st.spinner(f"{selected.agent_id} 응답 생성 중..."):
+        # 첫 턴: 에이전트가 먼저 공격
+        state = st.session_state.state
+        agent_fr = [e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"]
+        if not agent_fr:
+            with st.spinner(f"{selected.agent_id} 첫 공격 생성 중..."):
                 state = free_rebuttal_node(state)
                 state = dict(state)
                 st.session_state.state = state
-
-            # 이번 턴에 생성된 에이전트 발언 모두 표시 (답변+공격)
-            prev_turn = state["current_turn"]
             for e in state["debate_history"]:
-                if (e["speaker_id"] == selected.agent_id
-                    and e["phase"] == "free_rebuttal"
-                    and e["turn"] >= prev_turn - 2):
-                    add_msg("assistant", f"**[{selected.agent_id}]** {e['content']}")
+                if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal":
+                    add_msg("assistant", f"**[{selected.agent_id} - 공격]** {e['content']}")
             st.rerun()
+
+        # 사용자 입력: 답변 + 공격 2개
+        st.markdown("##### 💬 답변 (상대 공격에 대한 반박)")
+        user_defense = st.text_area("상대의 공격에 반박하세요", key="user_defense", height=100)
+        st.markdown("##### ⚔️ 공격 (상대 입론/발언의 허점 공격)")
+        user_attack = st.text_area("상대의 논거를 공격하세요", key="user_attack", height=100)
+
+        if st.button("발언 제출", type="primary"):
+            if user_defense or user_attack:
+                # 사용자 답변 기록
+                if user_defense:
+                    add_msg("user", f"**[답변]** {user_defense}")
+                    state["debate_history"].append(DebateEntry(
+                        turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
+                        phase="free_rebuttal", content=user_defense, target_id=selected.agent_id,
+                        tool_calls_log=[], json_raw="",
+                    ))
+                    state["current_turn"] += 1
+
+                # 사용자 공격 기록
+                if user_attack:
+                    add_msg("user", f"**[공격]** {user_attack}")
+                    state["debate_history"].append(DebateEntry(
+                        turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
+                        phase="free_rebuttal", content=user_attack, target_id=selected.agent_id,
+                        tool_calls_log=[], json_raw="",
+                    ))
+                    state["current_turn"] += 1
+
+                # 에이전트 답변+공격 생성
+                with st.spinner(f"{selected.agent_id} 답변+공격 생성 중..."):
+                    before_count = len([e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"])
+                    state = free_rebuttal_node(state)
+                    state = dict(state)
+                    st.session_state.state = state
+
+                # 새로 생성된 에이전트 발언 표시
+                all_agent = [e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"]
+                new_entries = all_agent[before_count:]
+                for e in new_entries:
+                    label = "답변" if len(new_entries) > 1 and e == new_entries[0] else "공격"
+                    add_msg("assistant", f"**[{selected.agent_id} - {label}]** {e['content']}")
+                st.rerun()
 
 
 if __name__ == "__main__":
