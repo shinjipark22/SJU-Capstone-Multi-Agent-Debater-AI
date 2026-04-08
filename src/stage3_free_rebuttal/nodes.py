@@ -89,6 +89,11 @@ def _truncate_to_sentences(text: str, max_sentences: int = 2) -> str:
     # 잘린 문장 제거 (한국어 종결어미 없이 끝나는 마지막 토큰)
     text = re.sub(r'[가-힣]{1,5}[.]$', lambda m: m.group() if len(m.group()) > 3 else '', text)
 
+    # 영어 CoT 잔재 제거 (문장 앞뒤 영어 구간)
+    text = re.sub(r'^[a-zA-Z\s,.\'"():;!?]+(?=[가-힣])', '', text)  # 앞쪽 영어
+    text = re.sub(r'(?<=[.!?])\s*[a-zA-Z\s,.\'"():;!?]{20,}$', '', text)  # 뒤쪽 영어 (20자 이상)
+    text = re.sub(r'"[^"]*".*?(?:translates?|means?|refers?).*?[.]\s*', '', text)  # "..." translates to 패턴
+
     # 문장 분리 (.!? 뒤 공백 또는 줄바꿈)
     sentences = re.split(r'(?<=[.!?다])\s+', text.strip())
     kept = []
@@ -98,6 +103,11 @@ def _truncate_to_sentences(text: str, max_sentences: int = 2) -> str:
             continue
         # 한글이 포함된 문장만
         if not re.search(r'[가-힣]', s):
+            continue
+        # 영어 비율이 50% 이상인 문장 제거
+        kor = len(re.findall(r'[가-힣]', s))
+        eng = len(re.findall(r'[a-zA-Z]', s))
+        if kor + eng > 0 and eng / (kor + eng) > 0.5:
             continue
         # 너무 짧은 문장 (10자 미만) 제거
         if len(s) < 10:
@@ -313,7 +323,7 @@ def _generate_free_rebuttal(
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _clean(raw)
 
-    for retry_idx in range(2):
+    for retry_idx in range(3):
         korean_count = len(re.findall(r'[가-힣]', speech))
         total_count = len(speech.strip())
         is_bad = not speech or total_count < 10 or (total_count > 0 and korean_count / total_count < 0.3)
@@ -323,7 +333,7 @@ def _generate_free_rebuttal(
             break
 
         reason = "CoT 유출" if is_cot else "영어/빈 응답"
-        logger.warning("[free_rebuttal] %s → 재시도 %d/2", reason, retry_idx + 1)
+        logger.warning("[free_rebuttal] %s → 재시도 %d/3", reason, retry_idx + 1)
         # 영어 응답을 대화에 쌓지 않고 마지막 HumanMessage만 유지하며 한국어 강제
         last_human = None
         for m in reversed(messages):
