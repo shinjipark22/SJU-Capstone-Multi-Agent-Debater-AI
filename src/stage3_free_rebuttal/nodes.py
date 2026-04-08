@@ -234,7 +234,7 @@ def _build_system_prompt(
         f"너는 세계 최고 수준의 {stance_kr} 토론자다. "
         f"토론 주제: {topic}\n"
         f"{opposite_kr} 입장 절대 금지. 반드시 {stance_kr} 입장을 유지하라.\n"
-        f"상대 발언에 반박하라. 2~3문장. 합니다체. 한국어만."
+        f"상대 발언에 반박하라. 2~3문장. 합니다체(격식체). 반드시 한국어만 사용."
     )
 
 
@@ -324,15 +324,20 @@ def _generate_free_rebuttal(
 
         reason = "CoT 유출" if is_cot else "영어/빈 응답"
         logger.warning("[free_rebuttal] %s → 재시도 %d/3", reason, retry_idx + 1)
-        # 영어 응답을 대화에 쌓지 않고 마지막 HumanMessage만 유지하며 한국어 강제
-        last_human = None
-        for m in reversed(messages):
-            if isinstance(m, HumanMessage):
-                last_human = m.content
-                break
-        messages = [messages[0]]  # SystemMessage만 유지
-        if last_human:
-            messages.append(HumanMessage(content=f"{last_human}\n\n반드시 한국어로만 답하라. 2~3문장."))
+        # 대화 유지하면서 한국어 강제 지시 추가
+        if retry_idx == 0:
+            # 1차 재시도: 대화 유지 + 한국어 강제
+            messages.append(HumanMessage(content="반드시 한국어로만 2~3문장으로 반박하세요."))
+        else:
+            # 2차+ 재시도: 대화 리셋 (대화 유지로도 안 되면 리셋)
+            last_human = None
+            for m in reversed(messages):
+                if isinstance(m, HumanMessage):
+                    last_human = m.content
+                    break
+            messages = [messages[0]]
+            if last_human:
+                messages.append(HumanMessage(content=f"{last_human}\n\n반드시 한국어로만 답하라. 2~3문장."))
         retry: AIMessage = _invoke_with_retry(_fr_llm, messages, label=f"free_rebuttal_retry{retry_idx}")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _clean(raw)
