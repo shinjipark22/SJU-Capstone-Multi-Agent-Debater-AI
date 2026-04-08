@@ -104,12 +104,16 @@ def _generate_single_shot(
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
-    # 무효 시 1회 재시도
-    if not _is_valid_rebuttal(speech):
-        logger.warning("[free_rebuttal] speech 무효, 재시도")
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content="한국어로만 3~4문장으로 반박하세요."))
-        retry: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal_retry")
+    # 무효 시 최대 3회 재시도 (1차: 대화 유지, 2차+: 대화 리셋)
+    for retry_idx in range(3):
+        if _is_valid_rebuttal(speech):
+            break
+        logger.warning("[free_rebuttal] speech 무효 → 재시도 %d/3", retry_idx + 1)
+        if retry_idx == 0:
+            messages.append(HumanMessage(content="반드시 한국어로만 3~4문장으로 반박하세요."))
+        else:
+            messages = [messages[0], HumanMessage(content=f"{prompt}\n\n반드시 한국어로만 답하라. 3~4문장.")]
+        retry: AIMessage = _invoke_with_retry(_fr_llm, messages, label=f"free_rebuttal_retry{retry_idx}")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
