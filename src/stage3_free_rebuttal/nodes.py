@@ -271,13 +271,11 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         defense, raw_def = _generate_single_shot(opponent, defense_prompt, opponent["stance"], state["topic"])
         speeches.append(("답변", defense, raw_def))
 
-    # ── Step 2: 공격 (상대 입론 또는 직전 턴의 논리적/통계적 문제 공격)
-    # 공격 대상: 입론 논거 또는 직전 발언 중 랜덤
+    # ── Step 2: 공격 (직전 발언의 허점 공격, 첫 턴만 입론 공격)
     if user_latest and not is_first_turn:
-        attack_targets = [_pick_one_argument(opp_opening), user_latest]
+        target_argument = user_latest  # 직전 발언의 허점 공격
     else:
-        attack_targets = [_pick_one_argument(opp_opening)]
-    target_argument = random.choice(attack_targets)
+        target_argument = _pick_one_argument(opp_opening)  # 첫 턴만 입론 공격
 
     print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
 
