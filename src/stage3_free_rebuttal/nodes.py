@@ -232,64 +232,51 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     user_entries = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "free_rebuttal"]
     agent_entries = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
 
-    is_first_turn = len(agent_entries) == 0
     speeches = []
     tool_calls_log: List[Dict] = []
+    user_latest = user_entries[-1]["content"] if user_entries else ""
+    is_first_turn = len(agent_entries) == 0
 
-    if is_first_turn:
-        # ── 첫 턴: 사용자 입론의 논거를 공격
-        print(f"  [첫 턴] 사용자 입론 논거 공격\n")
-        target_argument = _pick_one_argument(opp_opening)
+    # ── Step 1: 답변 (상대 직전 턴에 대한 반박)
+    if not is_first_turn and user_latest:
+        print(f"  [Step 1 - 답변] 상대 직전 턴에 반박\n")
 
-        # 조건부 검색
-        query = _decide_search(target_argument, "")
-        search_results = ""
-        if query:
-            tool_calls_log.append({"name": "search_web", "args": {"query": query}})
-            web_result = search_web.invoke({"query": query})
-            search_results = _truncate_tool_result(web_result)
-            print(f"  [검색] '{query}'\n")
-
-        prompt = _build_attack_prompt(target_argument, search_results)
-        attack, raw = _generate_single_shot(opponent, prompt, opponent["stance"], state["topic"])
-        speeches.append(("attack", attack, raw))
-
-    else:
-        # ── 이후 턴: [답변] 사용자 공격에 방어 + [공격] 사용자 입론 다른 논거 공격
-        user_latest = user_entries[-1]["content"] if user_entries else ""
-
-        # Step 1: 방어
-        print(f"  [방어] 사용자 공격에 반박\n")
         query_def = _decide_search(user_latest, "")
         search_def = ""
         if query_def:
             tool_calls_log.append({"name": "search_web", "args": {"query": query_def}})
             web_result = search_web.invoke({"query": query_def})
             search_def = _truncate_tool_result(web_result)
-            print(f"  [검색-방어] '{query_def}'\n")
+            print(f"  [검색] '{query_def}'\n")
 
         defense_prompt = _build_defense_prompt(user_latest, my_opening, search_def)
         defense, raw_def = _generate_single_shot(opponent, defense_prompt, opponent["stance"], state["topic"])
-        speeches.append(("defense", defense, raw_def))
+        speeches.append(("답변", defense, raw_def))
 
-        # Step 2: 공격
-        print(f"  [공격] 사용자 입론 논거 공격\n")
-        target_argument = _pick_one_argument(opp_opening)
+    # ── Step 2: 공격 (상대 입론 또는 직전 턴의 논리적/통계적 문제 공격)
+    # 공격 대상: 입론 논거 또는 직전 발언 중 랜덤
+    if user_latest and not is_first_turn:
+        attack_targets = [_pick_one_argument(opp_opening), user_latest]
+    else:
+        attack_targets = [_pick_one_argument(opp_opening)]
+    target_argument = random.choice(attack_targets)
 
-        query_atk = _decide_search(target_argument, "")
-        search_atk = ""
-        if query_atk:
-            tool_calls_log.append({"name": "search_web", "args": {"query": query_atk}})
-            web_result = search_web.invoke({"query": query_atk})
-            search_atk = _truncate_tool_result(web_result)
-            print(f"  [검색-공격] '{query_atk}'\n")
+    print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
 
-        attack_prompt = _build_attack_prompt(target_argument, search_atk)
-        attack, raw_atk = _generate_single_shot(opponent, attack_prompt, opponent["stance"], state["topic"])
-        speeches.append(("attack", attack, raw_atk))
+    query_atk = _decide_search(target_argument, "")
+    search_atk = ""
+    if query_atk:
+        tool_calls_log.append({"name": "search_web", "args": {"query": query_atk}})
+        web_result = search_web.invoke({"query": query_atk})
+        search_atk = _truncate_tool_result(web_result)
+        print(f"  [검색] '{query_atk}'\n")
 
-    # ── 발언 기록 (방어+공격을 각각 기록)
-    for speech_type, speech, raw in speeches:
+    attack_prompt = _build_attack_prompt(target_argument, search_atk)
+    attack, raw_atk = _generate_single_shot(opponent, attack_prompt, opponent["stance"], state["topic"])
+    speeches.append(("공격", attack, raw_atk))
+
+    # ── 발언 기록
+    for label, speech, raw in speeches:
         history.append(DebateEntry(
             turn=current_turn,
             speaker_id=selected_id,
@@ -302,7 +289,6 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         ))
         current_turn += 1
 
-        label = "방어" if speech_type == "defense" else "공격"
         print(f"  [{opponent_display} - {label}] (turn={current_turn - 1})")
         print(f"  {speech}\n")
 
