@@ -146,6 +146,30 @@ def _decide_search(target_argument: str, attack_style: str) -> str:
 
 # ── 텍스트 추출 (delimiter 없이, <think> + 영어 제거 후 한국어만) ────────────
 
+def _check_stance(text: str, expected_stance: str, topic: str) -> bool:
+    """Qwen2.5-1.5B로 발언이 기대 입장과 일치하는지 판별한다. 일치하면 True."""
+    _load_tool_model()
+    stance_kr = "찬성" if expected_stance == "PRO" else "반대"
+    messages = [
+        {"role": "user", "content": f"""주제: {topic[:100]}
+
+발언: {text[:200]}
+
+이 발언은 위 주제에 대해 "찬성"인가 "반대"인가? 한 단어로만 답하라."""}
+    ]
+    inp_text = _tool_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = _tool_tokenizer(inp_text, return_tensors="pt")
+    outputs = _tool_model.generate(**inputs, max_new_tokens=10, do_sample=False)
+    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True).strip()
+    # 첫 단어만
+    first_word = response.split()[0] if response.split() else ""
+    detected = "찬성" if "찬성" in first_word else ("반대" if "반대" in first_word else "")
+    if detected and detected != stance_kr:
+        logger.warning("[stance_check] 입장 혼동: 기대=%s, 감지=%s", stance_kr, detected)
+        return False
+    return True
+
+
 def _extract_rebuttal_text(content: str) -> str:
     """<think> 블록과 영어를 제거하고 한국어 문장만 추출한다."""
     text = content.strip()

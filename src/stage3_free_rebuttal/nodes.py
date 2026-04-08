@@ -203,107 +203,75 @@ def _search_for_response(topic: str, target_speech: str) -> Tuple[str, List[Dict
 
 # ── 자유논박 프롬프트 ────────────────────────────────────────────────────────
 
-def _build_free_rebuttal_prompt(
-    target_speech: str,
-    stance_kr: str,
-    topic: str = "",
-    prev_exchange: str = "",
-    used_arguments: str = "",
-    used_questions: str = "",
+def _build_system_prompt(
+    agent: Dict,
+    stance: str,
+    topic: str,
+    my_opening: str = "",
+    opp_opening: str = "",
     search_result: str = "",
 ) -> str:
-    """자유논박 프롬프트: 답변 → 반박 → 질문."""
-    exchange_block = ""
-    if prev_exchange:
-        exchange_block = f"\n[이전 교환]\n{prev_exchange}\n"
+    """시스템 프롬프트: 입론 + 참고 자료를 포함한 정적 컨텍스트."""
+    stance_kr = "찬성" if stance == "PRO" else "반대"
+    opposite_kr = "반대" if stance == "PRO" else "찬성"
 
-    used_block = ""
-    if used_arguments:
-        used_block = f"\n[이미 사용한 논점 — 반복 금지]\n{used_arguments}\n"
-
-    ref_block = ""
+    parts = [
+        agent["system_prompt"],
+        f"\n너는 {stance_kr} 토론자다. {opposite_kr} 입장 절대 금지.",
+        f"토론 주제: {topic}",
+    ]
+    if my_opening:
+        parts.append(f"\n나의 입론:\n{my_opening[:300]}")
+    if opp_opening:
+        parts.append(f"\n상대 입론:\n{opp_opening[:300]}")
     if search_result:
-        ref_block = f"\n[참고 자료 — 답변 근거로만 활용]\n{search_result}\n"
-
-    # 입장에 따른 핵심 주장 설명
-    opposite_kr = "반대" if stance_kr == "찬성" else "찬성"
-    if stance_kr == "찬성":
-        my_position = f"'{topic}'에 찬성한다"
-    else:
-        my_position = f"'{topic}'에 반대한다"
-
-    # Step 1 프롬프트: 답변 + 반박
-    step1 = f"""[토론 주제] {topic}
-[내 입장] {my_position}
-
-상대: {target_speech[:250]}
-{exchange_block}{used_block}{ref_block}
-[규칙]
-- 반드시 내 입장({stance_kr})을 유지하라. 상대 입장에 동조 금지.
-- 첫 문장에서 상대 질문에 직접 답하라
-- 둘째 문장에서 상대 논리의 약점을 공격하라
-- 참고 자료가 있으면 수치/사례를 1개 인용하라
-- 일반론 금지, 구체적으로
-
-1~2문장만. 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용.
-
-반드시 아래 형식으로만 출력:
-
-### 반박 시작
-(반박 내용)
-### 반박 끝
-"""
-
-    # Step 2 프롬프트: 질문 생성
-    used_q_block = ""
-    if used_questions:
-        used_q_block = f"\n[이미 던진 질문 — 같은 질문 금지]\n{used_questions}\n"
-
-    step2_template = """[내 입장] {my_position}
-
-[내 발언]
-{my_response}
-
-[상대 발언]
-{target_speech}
-{used_q_block}
-상대({opposite_kr})의 논리적 허점을 찌르는 질문을 1개만 만들어라.
-내 입장({stance_kr})을 강화하는 방향이어야 한다. 이전에 던진 질문과 다른 새로운 질문이어야 한다.
-반드시 ?로 끝나는 한 문장. 한국어만.""".replace(
-        "{opposite_kr}", opposite_kr
-    ).replace(
-        "{my_position}", my_position
-    ).replace(
-        "{used_q_block}", used_q_block
+        parts.append(f"\n참고 자료:\n{search_result}")
+    parts.append(
+        "\n[지시] 상대 발언에 반박하고 질문을 던져라."
+        "\n- 2~3문장. 마지막은 ?로 끝"
+        "\n- 합니다체(격식체)"
+        "\n- 반드시 한국어로만 답하라. 영어 사용 금지. 고유명사만 영어 허용"
+        "\n- 이전에 했던 주장과 다른 새로운 논점을 제시하라"
     )
+    return "\n".join(parts)
 
-    return step1, step2_template
+
+def _build_conversation_messages(
+    system: str,
+    history: List[DebateEntry],
+    agent_id: str,
+    max_turns: int = 8,
+) -> List:
+    """debate_history를 실제 대화 메시지 리스트로 변환한다."""
+    messages = [SystemMessage(content=system)]
+
+    fr_entries = [e for e in history if e["phase"] == "free_rebuttal"]
+    window = fr_entries[-max_turns:]
+
+    for entry in window:
+        content = entry["content"]
+        if entry["speaker_id"] == agent_id:
+            messages.append(AIMessage(content=content))
+        else:
+            messages.append(HumanMessage(content=content))
+
+    return messages
 
 
-# ── 2-Step 발언 생성 ─────────────────────────────────────────────────────────
+# ── 자유논박 발언 생성 (챗봇 패턴) ──────────────────────────────────────────
 
 def _generate_free_rebuttal(
     agent: Dict,
-    step1_prompt: str,
-    step2_template: str,
-    target_speech: str,
+    agent_id: str,
     stance: str,
+    topic: str,
+    history: List[DebateEntry],
+    search_result: str = "",
+    my_opening: str = "",
+    opp_opening: str = "",
     prev_entries: Optional[List[DebateEntry]] = None,
-    topic: str = "",
 ) -> Tuple[str, str]:
-    """2-Step 자유논박 발언 생성.
-
-    Step 1: 답변+반박 (1~2문장)
-    Step 2: 압박 질문 (1문장)
-    결합하여 최종 발언.
-    """
-    stance_kr = "찬성" if stance == "PRO" else "반대"
-    opposite_kr = "반대" if stance == "PRO" else "찬성"
-    system = (
-        f"{agent['system_prompt']}\n\n"
-        f"너는 {stance_kr} 토론자다. {opposite_kr} 입장 절대 금지.\n"
-        f"실제 토론처럼 날카롭고 구체적으로 말하라."
-    )
+    """챗봇 패턴 자유논박: 대화 히스토리를 HumanMessage/AIMessage로 변환."""
 
     def _get_fallback() -> str:
         msgs = _FALLBACK_MSGS.get(stance, _FALLBACK_MSGS["PRO"])
@@ -312,69 +280,53 @@ def _generate_free_rebuttal(
         return msgs[idx % len(msgs)]
 
     def _clean(text: str) -> str:
-        text = _postprocess_speech(_extract_rebuttal_text(text))
+        # <think> 제거
+        text = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL)
+        text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+        text = text.replace('</think>', '').strip()
+        text = _postprocess_speech(text)
         text = _remove_self_repeat(text)
-        text = _truncate_to_sentences(text, max_sentences=2)
+        text = _truncate_to_sentences(text, max_sentences=3)
         return text
 
-    # ── Step 1: 답변 + 반박
-    messages1 = [
-        SystemMessage(content=system),
-        HumanMessage(content=step1_prompt),
-    ]
-    response1: AIMessage = _invoke_with_retry(_fr_llm, messages1, label="free_rebuttal_step1")
-    raw1 = response1.content if isinstance(response1.content, str) else str(response1.content)
-    rebuttal = _clean(raw1)
+    # 시스템 프롬프트 구성
+    system = _build_system_prompt(
+        agent, stance, topic, my_opening, opp_opening, search_result,
+    )
 
-    # Step 1 품질 체크 (CoT 유출 감지 포함)
-    korean_count = len(re.findall(r'[가-힣]', rebuttal))
-    total_count = len(rebuttal.strip())
-    if not rebuttal or total_count < 10 or (total_count > 0 and korean_count / total_count < 0.3):
-        logger.warning("[free_rebuttal] step1 품질 불량 → fallback")
-        return _get_fallback(), raw1
-    if _has_cot_leakage(rebuttal):
-        logger.warning("[free_rebuttal] step1 CoT 유출 → 재생성")
-        response1_cot: AIMessage = _invoke_with_retry(_fr_llm, messages1, label="free_rebuttal_step1_cot_retry")
-        raw1 = response1_cot.content if isinstance(response1_cot.content, str) else str(response1_cot.content)
-        rebuttal = _clean(raw1)
+    # 대화 히스토리를 메시지 리스트로 변환
+    messages = _build_conversation_messages(system, history, agent_id)
+
+    # 마지막이 HumanMessage인지 확인 (사용자 발언이 마지막이어야 함)
+    if not messages or not isinstance(messages[-1], HumanMessage):
+        for entry in reversed(history):
+            if entry["speaker_id"] == "user":
+                messages.append(HumanMessage(content=entry["content"]))
+                break
+
+    # LLM 호출
+    response: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal")
+    raw = response.content if isinstance(response.content, str) else str(response.content)
+    speech = _clean(raw)
+
+    # 품질 체크
+    korean_count = len(re.findall(r'[가-힣]', speech))
+    total_count = len(speech.strip())
+    if not speech or total_count < 10 or (total_count > 0 and korean_count / total_count < 0.3):
+        logger.warning("[free_rebuttal] 품질 불량 → fallback")
+        return _get_fallback(), raw
+
+    # CoT 유출 → 재생성
+    if _has_cot_leakage(speech):
+        logger.warning("[free_rebuttal] CoT 유출 → 재생성")
+        retry: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal_retry")
+        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
+        speech = _clean(raw)
 
     # 반복 체크
-    if prev_entries and _is_repetitive(rebuttal, prev_entries, topic=topic):
-        logger.warning("[free_rebuttal] step1 반복 감지 → fallback")
-        return _get_fallback(), raw1
-
-    # 입장 혼동 체크: 상대 입장에 완전히 동조하는 경우만 (부분 인정은 허용)
-    if re.search(r'상대의?\s*(주장|의견)에\s*(전적으로\s*)?(동의|공감)합니다', rebuttal):
-        logger.warning("[free_rebuttal] step1 입장 혼동 감지 → 재생성")
-        response1_retry: AIMessage = _invoke_with_retry(_fr_llm, messages1, label="free_rebuttal_step1_retry")
-        raw1_retry = response1_retry.content if isinstance(response1_retry.content, str) else str(response1_retry.content)
-        rebuttal = _clean(raw1_retry)
-        raw1 = raw1_retry
-
-    # ── Step 2: 질문 생성
-    step2_prompt = step2_template.format(
-        stance_kr=stance_kr,
-        my_response=rebuttal,
-        target_speech=target_speech[:150],
-    )
-    messages2 = [
-        SystemMessage(content=f"너는 {stance_kr} 토론자다. 질문만 생성하라."),
-        HumanMessage(content=step2_prompt),
-    ]
-    response2: AIMessage = _invoke_with_retry(_fr_llm, messages2, label="free_rebuttal_step2")
-    raw2 = response2.content if isinstance(response2.content, str) else str(response2.content)
-    question = _postprocess_speech(_extract_rebuttal_text(raw2)).strip()
-
-    # 질문이 ?로 끝나는 한국어 문장인지 확인
-    q_sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', question) if s.strip().endswith('?') and re.search(r'[가-힣]', s)]
-    if q_sentences:
-        question = q_sentences[-1]  # 마지막 질문만
-    else:
-        question = "이에 대한 구체적 근거를 제시할 수 있습니까?"
-
-    # ── 결합
-    speech = f"{rebuttal} {question}"
-    raw = f"[STEP1]\n{raw1}\n\n[STEP2]\n{raw2}"
+    if prev_entries and _is_repetitive(speech, prev_entries, topic=topic):
+        logger.warning("[free_rebuttal] 반복 감지 → fallback")
+        return _get_fallback(), raw
 
     return speech, raw
 
@@ -417,75 +369,38 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
             user_speech = entry["content"]
             break
 
-    # ── 이전 자유논박 교환 기록 구성
-    prev_exchange = ""
-    fr_entries = [e for e in history if e["phase"] == "free_rebuttal"]
-    for e in fr_entries[-4:]:  # 최근 4턴만 (너무 길면 모델 혼란)
-        speaker = "사용자" if e["speaker_id"] == "user" else opponent_display
-        prev_exchange += f"[{speaker}] {e['content']}\n"
+    # ── 입론 추출
+    my_opening = ""
+    opp_opening = ""
+    for e in history:
+        if e["phase"] == "opening" and e["speaker_id"] == selected_id:
+            my_opening = e["content"][:300]
+        if e["phase"] == "opening" and e["speaker_id"] == "user":
+            opp_opening = e["content"][:300]
 
-    # ── 이미 사용한 논점 추출 (에이전트 이전 발언에서 핵심 키워드)
-    used_arguments = ""
-    agent_prev = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
-    if agent_prev:
-        used_points = []
-        for e in agent_prev:
-            # 각 발언에서 첫 문장만 요약으로 사용
-            first_sent = e["content"].split('.')[0] + '.'
-            if len(first_sent) > 15:
-                used_points.append(f"- {first_sent[:60]}")
-        used_arguments = "\n".join(used_points[-3:])  # 최근 3개만
-
-    # ── 이전에 던진 질문 추출 (Step 2 반복 방지용)
-    used_questions = ""
-    if agent_prev:
-        prev_qs = []
-        for e in agent_prev:
-            sentences = re.split(r'(?<=[.!?])\s+', e["content"])
-            for s in sentences:
-                if s.strip().endswith('?'):
-                    prev_qs.append(f"- {s.strip()}")
-        if prev_qs:
-            used_questions = "\n".join(prev_qs[-3:])
-
-    # 디버그
-    if used_arguments:
-        print(f"  [디버그] 이미 사용한 논점:\n{used_arguments}\n")
-    else:
-        print(f"  [디버그] 이전 발언 없음 — 첫 턴\n")
-
-    # ── 조건부 검색: Qwen2.5-1.5B가 검색 필요 여부 판단
+    # ── 조건부 검색: Qwen2.5-1.5B
     search_result = ""
     tool_calls_log: List[Dict] = []
     search_result, tool_calls_log = _search_for_response(
         topic=state["topic"], target_speech=user_speech,
     )
     if tool_calls_log:
-        print(f"  [검색] Qwen2.5-1.5B 판단 → 웹 검색 실행\n")
+        print(f"  [검색] Qwen2.5-1.5B → 검색 실행\n")
     else:
-        print(f"  [검색] Qwen2.5-1.5B 판단 → 검색 불필요\n")
+        print(f"  [검색] Qwen2.5-1.5B → 검색 불필요\n")
 
-    # ── 에이전트 발언 생성 (2-Step)
-    stance_kr = "찬성" if opponent["stance"] == "PRO" else "반대"
-    step1_prompt, step2_template = _build_free_rebuttal_prompt(
-        target_speech=user_speech,
-        stance_kr=stance_kr,
-        topic=state["topic"],
-        prev_exchange=prev_exchange,
-        used_arguments=used_arguments,
-        used_questions=used_questions,
-        search_result=search_result,
-    )
-
+    # ── 에이전트 발언 생성 (챗봇 패턴)
     prev_entries = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
     speech, raw = _generate_free_rebuttal(
         agent=opponent,
-        step1_prompt=step1_prompt,
-        step2_template=step2_template,
-        target_speech=user_speech,
+        agent_id=selected_id,
         stance=opponent["stance"],
-        prev_entries=prev_entries,
         topic=state["topic"],
+        history=history,
+        search_result=search_result,
+        my_opening=my_opening,
+        opp_opening=opp_opening,
+        prev_entries=prev_entries,
     )
 
     # ── 발언 기록
