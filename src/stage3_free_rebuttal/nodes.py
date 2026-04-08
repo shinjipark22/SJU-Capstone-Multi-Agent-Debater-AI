@@ -36,6 +36,7 @@ from src.stage1_opening.nodes import (
 )
 from src.stage2_rebuttal.nodes import (
     _extract_rebuttal_text,
+    _check_stance,
     _decide_search,
     build_agent_stance_nums,
 )
@@ -56,6 +57,9 @@ def _truncate_to_sentences(text: str, max_sentences: int = 2) -> str:
     text = text.replace('：', ':')
     # CJK 기호·전각문자 제거
     text = re.sub(r'[\u3000-\u303f\uff00-\uffef]', '', text)
+    # 재시도 프롬프트 유출 제거
+    text = re.sub(r'한국어로만\s*으?로?\s*(?:하고|으로)?\s*하세요[.]?\s*', '', text)
+    text = re.sub(r'한국어로만\s*\d*~?\d*문장으로\s*반박하고\s*질문하세요[.]?\s*', '', text)
     # 앞쪽 쓰레기 문자 제거 (한글 시작 전의 구두점/따옴표/공백)
     text = re.sub(r'^[^가-힣]*(?=[가-힣])', '', text.strip())
     # "상대:" 프롬프트 유출 제거
@@ -332,6 +336,17 @@ def _generate_free_rebuttal(
     if not speech or total_count < 10 or (total_count > 0 and korean_count / total_count < 0.3):
         logger.warning("[free_rebuttal] 최종 품질 불량 → fallback")
         return _get_fallback(), raw
+
+    # 입장 판별: Qwen2.5-1.5B가 발언이 자기 진영인지 확인
+    stance_kr = "찬성" if stance == "PRO" else "반대"
+    if not _check_stance(speech, stance, topic):
+        logger.warning("[free_rebuttal] 입장 혼동 감지 → 재생성")
+        messages_retry = list(messages)  # 복사
+        messages_retry.append(AIMessage(content=raw))
+        messages_retry.append(HumanMessage(content=f"너는 {stance_kr} 입장이다. 상대 입장에 동의하지 마라. 다시 반박하라."))
+        retry_stance: AIMessage = _invoke_with_retry(_fr_llm, messages_retry, label="free_rebuttal_stance_retry")
+        raw = retry_stance.content if isinstance(retry_stance.content, str) else str(retry_stance.content)
+        speech = _clean(raw)
 
     # 반복 체크
     if prev_entries and _is_repetitive(speech, prev_entries, topic=topic):
