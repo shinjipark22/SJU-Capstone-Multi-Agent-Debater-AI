@@ -191,7 +191,7 @@ def _build_defense_prompt(
     return f"""상대의 공격:
 {user_attack}
 {my_block}{ref_block}
-나의 입론을 근거로 상대의 공격에 반박하라.
+상대가 질문했으면 그 질문에 먼저 직접 답한 뒤 반박하라. 나의 입론을 근거로 방어하라.
 
 [규칙]
 - 3~4문장으로만 답변
