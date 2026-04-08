@@ -295,14 +295,14 @@ def _generate_free_rebuttal(
         return msgs[idx % len(msgs)]
 
     def _clean(text: str) -> str:
-        # <think> 제거
+        # <think> 제거만
         text = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL)
         text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
         text = text.replace('</think>', '').strip()
-        text = _postprocess_speech(text)
-        text = _remove_self_repeat(text)
-        text = _truncate_to_sentences(text, max_sentences=3)
-        return text
+        # 영어 전용 줄만 제거 (한글 없는 줄)
+        lines = text.split('\n')
+        text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l))
+        return text.strip()
 
     # 시스템 프롬프트 구성
     system = _build_system_prompt(
