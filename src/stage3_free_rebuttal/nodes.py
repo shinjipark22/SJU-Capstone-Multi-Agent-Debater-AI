@@ -49,6 +49,16 @@ _fr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024, "temperature": 0.6})
 
 # ── 입론에서 논거 추출 (연쇄논박과 동일) ────────────────────────────────────
 
+_ATTACK_STYLES = [
+    "전제 공격: 상대 주장에 깔린 가정이 틀렸음을 지적하라",
+    "현실성 공격: 실제 상황에서 작동하지 않는다는 점을 지적하라",
+    "부작용 공격: 해당 주장으로 인해 발생하는 문제를 강조하라",
+    "비교 공격: 더 나은 대안이 있음을 제시하라",
+    "데이터 공격: 상대 근거의 신뢰성이나 부족함을 지적하라",
+]
+_attack_idx: int = 0
+
+
 def _pick_one_argument(speech: str) -> str:
     """입론에서 논거 1 또는 논거 2를 랜덤으로 하나만 추출한다."""
     parts = re.split(r'###\s*논거\s*\d+\s*[:：]?', speech)
@@ -135,10 +145,14 @@ def _build_attack_prompt(
     if search_results:
         ref_block = f"\n[참고 자료 — 반박 근거로 활용하라]\n{search_results}\n"
 
+    global _attack_idx
+    style = _ATTACK_STYLES[_attack_idx % len(_ATTACK_STYLES)]
+    _attack_idx += 1
+
     return f"""상대 논거:
 {target_argument}
 {ref_block}
-상대 논거에서 틀린 부분을 찾아 반박하라.
+상대 논거에서 틀린 부분을 찾아 반박하라. ({style})
 
 [규칙]
 - 3~4문장으로만 답변
