@@ -153,10 +153,12 @@ def _build_attack_prompt(
     style = _ATTACK_STYLES[_attack_idx % len(_ATTACK_STYLES)]
     _attack_idx += 1
 
-    return f"""상대 논거:
+    return f"""상대 발언:
 {target_argument}
 {ref_block}
-상대 논거에서 틀린 부분을 찾아 반박하라. ({style})
+상대 발언에서 논리적 허점, 근거 부족, 과장된 주장을 찾아 공격하라. ({style})
+- 상대가 인용한 수치/출처의 신뢰성을 검증하라
+- 참고 자료에 반박 근거가 있으면 활용하라
 
 [규칙]
 - 3~4문장으로만 답변
