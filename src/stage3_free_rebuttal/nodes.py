@@ -37,6 +37,7 @@ from src.stage1_opening.nodes import (
 from src.stage2_rebuttal.nodes import (
     _extract_rebuttal_text,
     _check_stance,
+    _generate_attack_question,
     _decide_search,
     build_agent_stance_nums,
 )
@@ -369,6 +370,12 @@ def _generate_free_rebuttal(
     if prev_entries and _is_repetitive(speech, prev_entries, topic=topic):
         logger.warning("[free_rebuttal] 반복 감지 → fallback")
         return _get_fallback(), raw
+
+    # Step 2: Qwen2.5-1.5B가 공격 질문 생성
+    question = _generate_attack_question(target_speech, stance, topic)
+    if question:
+        logger.info("[free_rebuttal] 공격 질문: %s", question)
+        speech = f"{speech} {question}"
 
     return speech, raw
 
