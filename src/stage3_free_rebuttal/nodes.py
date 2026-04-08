@@ -230,25 +230,12 @@ def _build_system_prompt(
     stance_kr = "찬성" if stance == "PRO" else "반대"
     opposite_kr = "반대" if stance == "PRO" else "찬성"
 
-    parts = [
-        agent["system_prompt"],
-        f"\n너는 {stance_kr} 토론자다. {opposite_kr} 입장 절대 금지.",
-        f"토론 주제: {topic}",
-    ]
-    if my_opening:
-        parts.append(f"\n나의 입론:\n{my_opening[:300]}")
-    if opp_opening:
-        parts.append(f"\n상대 입론:\n{opp_opening[:300]}")
-    if search_result:
-        parts.append(f"\n참고 자료:\n{search_result}")
-    parts.append(
-        "\n[지시] 상대 발언에 반박하고 질문을 던져라."
-        "\n- 2~3문장. 마지막은 ?로 끝"
-        "\n- 합니다체(격식체)"
-        "\n- 반드시 한국어로만 답하라. 영어 사용 금지. 고유명사만 영어 허용"
-        "\n- 이전에 했던 주장과 다른 새로운 논점을 제시하라"
+    return (
+        f"너는 세계 최고 수준의 {stance_kr} 토론자다. "
+        f"토론 주제: {topic}\n"
+        f"{opposite_kr} 입장 절대 금지. 반드시 {stance_kr} 입장을 유지하라.\n"
+        f"상대 발언에 반박하라. 2~3문장. 합니다체. 한국어만."
     )
-    return "\n".join(parts)
 
 
 def _build_conversation_messages(
@@ -299,6 +286,8 @@ def _generate_free_rebuttal(
         text = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL)
         text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
         text = text.replace('</think>', '').strip()
+        # 외국 문자 제거 (한자, 일본어, 러시아어 등)
+        text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff]+', '', text)
         # 영어 전용 줄만 제거 (한글 없는 줄)
         lines = text.split('\n')
         text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l))
