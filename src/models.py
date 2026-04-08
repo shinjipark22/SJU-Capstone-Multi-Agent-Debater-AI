@@ -203,3 +203,37 @@ class UserFreeRebuttalResponse(BaseModel):
     max_cycle: int
     debate_history: List[Dict[str, Any]]
     message: str
+
+
+# ── Stage 4: 역할 반전 API 모델 ─────────────────────────────────────────────────
+
+class RoleReversalRunResponse(BaseModel):
+    """AI 역할반전 생성 응답."""
+
+    session_id: str
+    phase: str
+    representative_id: str  # 대표로 선정된 AI 에이전트 ID
+    debate_history: List[Dict[str, Any]]
+    message: str
+
+
+class UserRoleReversalRequest(BaseModel):
+    """사용자 역할반전 제출 요청."""
+
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("역할반전 발언 내용은 비어 있을 수 없습니다.")
+        return v.strip()
+
+
+class UserRoleReversalResponse(BaseModel):
+    """사용자 역할반전 제출 응답."""
+
+    session_id: str
+    phase: str
+    debate_history: List[Dict[str, Any]]
+    message: str
