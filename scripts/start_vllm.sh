@@ -10,7 +10,7 @@ export HF_HOME
 
 echo "[GPU 0] DeepSeek-R1-Distill-Qwen-14B AWQ 시작 (포트 8000)..."
 CUDA_VISIBLE_DEVICES=0 vllm serve \
-    TheBloke/deepseek-r1-distill-qwen-14b-AWQ \
+    Corianas/DeepSeek-R1-Distill-Qwen-14B-AWQ \
     --port 8000 \
     --gpu-memory-utilization 0.85 \
     --max-model-len 4096 \
