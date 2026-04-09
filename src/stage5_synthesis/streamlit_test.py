@@ -476,7 +476,8 @@ def main():
             st.rerun()
 
     # ══════════════════════════════════════════════
-    # 5단계: 종합 및 재개념화 — 최적해 회의
+    # 5단계: 종합 및 재개념화 — 최적해 회의 (2턴 고정)
+    #   AI 초기 의견 → 사용자(1/2) → AI 응답 → 사용자(2/2) → AI 응답 → 자동 확정 화면
     # ══════════════════════════════════════════════
     elif st.session_state.phase == "synthesis":
         render_messages()
@@ -499,51 +500,53 @@ def main():
                     display = f"{s_label}{snum}"
                     add_msg("assistant", f"**[{display}]** {e['content']}")
 
-            add_msg("assistant", "💬 토론자들의 의견을 들었습니다. 사용자의 생각을 말씀해주세요.\n\n"
-                    "회의가 충분히 진행되면 **'최적해 확정'** 버튼으로 최종 결론을 작성할 수 있습니다.")
+            add_msg("assistant", "💬 토론자들의 의견을 들었습니다. 사용자의 생각을 말씀해주세요.")
             st.rerun()
 
-        # 사용자 의견 입력 + AI 응답 반복
-        st.markdown("##### 💬 최적해에 대한 의견")
+        # 사용자 턴 수 카운트
+        user_syn = [e for e in state["debate_history"] if e["speaker_id"] == "user" and e["phase"] == "synthesis"]
+        user_syn_count = len(user_syn)
+
+        # 사용자 2턴 완료 → 자동으로 최적해 확정 화면
+        if user_syn_count >= 2:
+            st.session_state.phase = "synthesis_final"
+            st.rerun()
+
+        # 사용자 의견 입력
+        turn_label = f"({user_syn_count + 1}/2)"
+        st.markdown(f"##### 💬 최적해에 대한 의견 {turn_label}")
         user_opinion = st.text_area("의견을 입력하세요", key="user_syn_opinion", height=100,
                                      placeholder="예: 저는 ~라고 생각합니다. ~는 어떨까요?")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            submit_opinion = st.button("의견 제출", type="primary")
-        with col2:
-            finalize = st.button("최적해 확정", type="secondary")
+        if st.button("의견 제출", type="primary"):
+            if not user_opinion.strip():
+                st.warning("의견을 입력해주세요.")
+            else:
+                # 사용자 의견 기록
+                state["debate_history"].append(DebateEntry(
+                    turn=state["current_turn"], speaker_id="user",
+                    stance=USER_STANCE, phase="synthesis",
+                    content=user_opinion.strip(), target_id=None,
+                    tool_calls_log=[], json_raw="",
+                ))
+                state["current_turn"] += 1
+                add_msg("user", f"**[사용자]** {user_opinion.strip()}")
 
-        if submit_opinion and user_opinion.strip():
-            # 사용자 의견 기록
-            state["debate_history"].append(DebateEntry(
-                turn=state["current_turn"], speaker_id="user",
-                stance=USER_STANCE, phase="synthesis",
-                content=user_opinion.strip(), target_id=None,
-                tool_calls_log=[], json_raw="",
-            ))
-            state["current_turn"] += 1
-            add_msg("user", f"**[사용자]** {user_opinion.strip()}")
+                # AI 에이전트들 응답
+                with st.spinner("🧠 토론자들이 응답하고 있습니다..."):
+                    before_count = len([e for e in state["debate_history"] if e["phase"] == "synthesis" and e["speaker_id"] != "user"])
+                    state = synthesis_discuss_node(state)
+                    state = dict(state)
+                    st.session_state.state = state
 
-            # AI 에이전트들 응답
-            with st.spinner("🧠 토론자들이 응답하고 있습니다..."):
-                before_count = len([e for e in state["debate_history"] if e["phase"] == "synthesis" and e["speaker_id"] != "user"])
-                state = synthesis_discuss_node(state)
-                state = dict(state)
-                st.session_state.state = state
-
-            all_syn = [e for e in state["debate_history"] if e["phase"] == "synthesis" and e["speaker_id"] != "user"]
-            new_entries = all_syn[before_count:]
-            for e in new_entries:
-                s_label = "찬성" if e["stance"] == "PRO" else "반대"
-                snum = stance_nums.get(e["speaker_id"], 1)
-                display = f"{s_label}{snum}"
-                add_msg("assistant", f"**[{display}]** {e['content']}")
-            st.rerun()
-
-        if finalize:
-            st.session_state.phase = "synthesis_final"
-            st.rerun()
+                all_syn = [e for e in state["debate_history"] if e["phase"] == "synthesis" and e["speaker_id"] != "user"]
+                new_entries = all_syn[before_count:]
+                for e in new_entries:
+                    s_label = "찬성" if e["stance"] == "PRO" else "반대"
+                    snum = stance_nums.get(e["speaker_id"], 1)
+                    display = f"{s_label}{snum}"
+                    add_msg("assistant", f"**[{display}]** {e['content']}")
+                st.rerun()
 
     # ══════════════════════════════════════════════
     # 5단계: 최적해 최종 확정
