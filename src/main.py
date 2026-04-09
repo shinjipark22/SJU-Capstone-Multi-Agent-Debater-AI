@@ -1,8 +1,7 @@
 """
-main.py — FastAPI 애플리케이션 진입점 (Phase 0)
+main.py — FastAPI 애플리케이션 진입점
 
-사용자 입력을 받아 LangGraph 초기 상태를 생성하고,
-세션 정보를 반환한다. 실제 토론 실행은 Phase 1에서 구현한다.
+전체 토론 워크플로우(1~5단계) API 엔드포인트를 제공한다.
 """
 
 import json
@@ -81,7 +80,7 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
     Phase 1에서는 이 엔드포인트 이후 /debate/run 등을 추가한다.
     """
     # ── 1. topics.json에서 topic ID로 dict 조회 ──────────────────────────────
-    topics_path = Path(__file__).parent.parent / "data" / "topics_20260323_processed.json"
+    topics_path = Path(__file__).resolve().parent.parent / "data" / "topics_20260323_processed.json"
     if not topics_path.exists():
         raise HTTPException(status_code=404, detail="topics_20260323_processed.json 파일을 찾을 수 없습니다.")
 
@@ -163,7 +162,7 @@ def get_topics():
     import json
     from pathlib import Path
 
-    topics_path = Path(__file__).parent.parent / "data" / "topics_20260323_processed.json"
+    topics_path = Path(__file__).resolve().parent.parent / "data" / "topics_20260323_processed.json"
     if not topics_path.exists():
         raise HTTPException(status_code=404, detail="topics_20260323_processed.json 파일을 찾을 수 없습니다.")
 
