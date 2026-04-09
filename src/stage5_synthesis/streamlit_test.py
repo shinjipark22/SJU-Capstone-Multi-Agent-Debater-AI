@@ -328,7 +328,7 @@ def main():
             st.rerun()
 
         # 사용자 2턴 완료 + 에이전트 최종 답변 완료 → 자동 종료
-        if user_turn_count >= 2 and st.session_state.get("free_final_done"):
+        if should_end_free_rebuttal(state) and st.session_state.get("free_final_done"):
             state["phase"] = "role_reversal"
             st.session_state.state = state
             add_msg("assistant", "---\n## 4단계: 역할 반전\n자유논박이 종료되었습니다. 이제 역할반전을 진행합니다.")
@@ -336,7 +336,7 @@ def main():
             st.rerun()
 
         # 사용자 2턴 완료 → 턴4.5: 에이전트 최종 답변 (공격 없음)
-        if user_turn_count >= 2 and not st.session_state.get("free_final_done"):
+        if should_end_free_rebuttal(state) and not st.session_state.get("free_final_done"):
             with st.spinner(f"{selected.agent_id} 최종 답변 생성 중..."):
                 before_count = len([e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"])
                 state = free_rebuttal_node(state)
@@ -384,7 +384,7 @@ def main():
                 state["free_rebuttal_user_turns"] = new_user_turn_count
 
                 # 사용자 1턴 후 → 에이전트 답변+공격 (턴3)
-                if new_user_turn_count < 2:
+                if not should_end_free_rebuttal(state):
                     with st.spinner(f"{selected.agent_id} 답변+공격 생성 중..."):
                         before_count = len([e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"])
                         state = free_rebuttal_node(state)
