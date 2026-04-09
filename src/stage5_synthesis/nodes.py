@@ -123,44 +123,6 @@ def _build_proposal_prompt(
 ### 반박 끝"""
 
 
-# ── 회의 응답 프롬프트 (사용자 발언에 대한 반응) ─────────────────────────
-
-def _build_discuss_prompt(
-    topic: str,
-    original_stance: str,
-    user_message: str,
-    previous_discussion: str,
-) -> str:
-    """회의 중 사용자 발언에 대한 응답."""
-    stance_kr = "찬성" if original_stance == "PRO" else "반대"
-
-    return f"""[5단계: 최적해 회의 — 계속]
-'{topic}'에 대한 최적해를 함께 찾고 있다.
-
-[이전 회의 내용]
-{previous_discussion}
-
-[사용자 발언]
-{user_message}
-
-[지시]
-- 사용자의 의견에 기본적으로 동조하라. 사용자가 제시한 방향을 기반으로 발전시켜라
-- 동의하면서 빠진 부분을 보완하거나, 구체적인 수치/조건/사례를 덧붙여라
-- 사용자 의견을 정면 반박하지 마라. 같은 방향에서 더 나은 안을 제안하라
-- 1~2문장으로 짧게
-- 소제목/번호/목록 금지
-
-[형식]
-- 한국어. 합니다체(격식체)
-- 1~2문장
-
-반드시 아래 형식으로만 출력:
-
-### 반박 시작
-(의견)
-### 반박 끝"""
-
-
 # ── 멀티턴 메시지 체인 구축 (종합 회의) ───────────────────────────────────
 
 def _build_synthesis_chain(
@@ -313,7 +275,12 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
 
         # 멀티턴 체인으로 이전 회의 맥락 유지
         chain = _build_synthesis_chain(agent, history, speaker_id)
-        prompt = f"[사용자 발언]\n{user_latest}\n\n위 의견에 동조하면서 보완하거나 구체화하라. 1~2문장.\n\n### 반박 시작\n(의견)\n### 반박 끝"
+        prompt = (
+            f"[사용자 발언]\n{user_latest}\n\n"
+            f"사용자 의견에 동조하면서 빠진 부분을 보완하거나 구체적 수치/사례를 덧붙여라. "
+            f"정면 반박 금지. 같은 방향에서 발전시켜라. 1~2문장.\n\n"
+            f"### 반박 시작\n(의견)\n### 반박 끝"
+        )
         speech, raw = _generate_with_synthesis_chain(chain, prompt)
 
         entry = DebateEntry(
