@@ -301,7 +301,12 @@ def main():
             st.rerun()
 
     # ══════════════════════════════════════════════
-    # 3단계: 자유논박 — 답변+공격
+    # 3단계: 자유논박 — 4.5턴 고정
+    #   턴1:   에이전트 공격
+    #   턴2:   사용자 답변+공격
+    #   턴3:   에이전트 답변+공격
+    #   턴4:   사용자 답변+공격
+    #   턴4.5: 에이전트 답변 (마지막) → 자동 종료
     # ══════════════════════════════════════════════
     elif st.session_state.phase == "free_rebuttal":
         selected = st.session_state.selected_opponent
@@ -309,8 +314,12 @@ def main():
 
         state = st.session_state.state
         agent_fr = [e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"]
+        user_fr = [e for e in state["debate_history"] if e["speaker_id"] == "user" and e["phase"] == "free_rebuttal"]
+        user_turn_count = len(user_fr) // 2  # 답변+공격 1세트 = 1턴
+
+        # 턴1: 에이전트 첫 공격
         if not agent_fr:
-            with st.spinner(f"{selected.agent_id} 첫 공격 생성 중..."):
+            with st.spinner(f"{selected.agent_id} 공격 생성 중..."):
                 state = free_rebuttal_node(state)
                 state = dict(state)
                 st.session_state.state = state
@@ -319,56 +328,76 @@ def main():
                     add_msg("assistant", f"**[{selected.agent_id} - 공격]** {e['content']}")
             st.rerun()
 
-        st.markdown("##### 💬 답변 (상대 공격에 대한 반박)")
-        user_defense = st.text_area("상대의 공격에 반박하세요", key="user_defense", height=100)
-        st.markdown("##### ⚔️ 공격 (상대 입론/발언의 허점 공격)")
-        user_attack = st.text_area("상대의 논거를 공격하세요", key="user_attack", height=100)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            submit_free = st.button("발언 제출", type="primary")
-        with col2:
-            end_free = st.button("자유논박 종료 → 역할반전", type="secondary")
-
-        if submit_free:
-            if user_defense or user_attack:
-                if user_defense:
-                    add_msg("user", f"**[답변]** {user_defense}")
-                    state["debate_history"].append(DebateEntry(
-                        turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
-                        phase="free_rebuttal", content=user_defense, target_id=selected.agent_id,
-                        tool_calls_log=[], json_raw="",
-                    ))
-                    state["current_turn"] += 1
-
-                if user_attack:
-                    add_msg("user", f"**[공격]** {user_attack}")
-                    state["debate_history"].append(DebateEntry(
-                        turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
-                        phase="free_rebuttal", content=user_attack, target_id=selected.agent_id,
-                        tool_calls_log=[], json_raw="",
-                    ))
-                    state["current_turn"] += 1
-
-                with st.spinner(f"{selected.agent_id} 답변+공격 생성 중..."):
-                    before_count = len([e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"])
-                    state = free_rebuttal_node(state)
-                    state = dict(state)
-                    st.session_state.state = state
-
-                all_agent = [e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"]
-                new_entries = all_agent[before_count:]
-                for e in new_entries:
-                    label = "답변" if len(new_entries) > 1 and e == new_entries[0] else "공격"
-                    add_msg("assistant", f"**[{selected.agent_id} - {label}]** {e['content']}")
-                st.rerun()
-
-        if end_free:
+        # 사용자 2턴 완료 + 에이전트 최종 답변 완료 → 자동 종료
+        if user_turn_count >= 2 and st.session_state.get("free_final_done"):
             state["phase"] = "role_reversal"
             st.session_state.state = state
             add_msg("assistant", "---\n## 4단계: 역할 반전\n자유논박이 종료되었습니다. 이제 역할반전을 진행합니다.")
             st.session_state.phase = "role_reversal"
             st.rerun()
+
+        # 사용자 2턴 완료 → 턴4.5: 에이전트 최종 답변 (공격 없음)
+        if user_turn_count >= 2 and not st.session_state.get("free_final_done"):
+            with st.spinner(f"{selected.agent_id} 최종 답변 생성 중..."):
+                before_count = len([e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"])
+                state = free_rebuttal_node(state)
+                state = dict(state)
+                st.session_state.state = state
+
+            all_agent = [e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"]
+            new_entries = all_agent[before_count:]
+            # 마지막 턴이므로 답변만 표시 (공격 제외)
+            if new_entries:
+                add_msg("assistant", f"**[{selected.agent_id} - 답변]** {new_entries[0]['content']}")
+            st.session_state.free_final_done = True
+            st.rerun()
+
+        # 사용자 턴: 답변 + 공격
+        turn_label = f"({user_turn_count + 1}/2)"
+        st.markdown(f"##### 💬 답변 {turn_label} (상대 공격에 대한 반박)")
+        user_defense = st.text_area("상대의 공격에 반박하세요", key="user_defense", height=100)
+        st.markdown(f"##### ⚔️ 공격 {turn_label} (상대 논거의 허점 공격)")
+        user_attack = st.text_area("상대의 논거를 공격하세요", key="user_attack", height=100)
+
+        if st.button("답변+공격 제출", type="primary"):
+            if not user_defense.strip() or not user_attack.strip():
+                st.warning("답변과 공격을 모두 입력해주세요.")
+            else:
+                # 사용자 답변 기록
+                add_msg("user", f"**[답변]** {user_defense.strip()}")
+                state["debate_history"].append(DebateEntry(
+                    turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
+                    phase="free_rebuttal", content=user_defense.strip(), target_id=selected.agent_id,
+                    tool_calls_log=[], json_raw="",
+                ))
+                state["current_turn"] += 1
+
+                # 사용자 공격 기록
+                add_msg("user", f"**[공격]** {user_attack.strip()}")
+                state["debate_history"].append(DebateEntry(
+                    turn=state["current_turn"], speaker_id="user", stance=USER_STANCE,
+                    phase="free_rebuttal", content=user_attack.strip(), target_id=selected.agent_id,
+                    tool_calls_log=[], json_raw="",
+                ))
+                state["current_turn"] += 1
+
+                new_user_turn_count = user_turn_count + 1
+
+                # 사용자 1턴 후 → 에이전트 답변+공격 (턴3)
+                if new_user_turn_count < 2:
+                    with st.spinner(f"{selected.agent_id} 답변+공격 생성 중..."):
+                        before_count = len([e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"])
+                        state = free_rebuttal_node(state)
+                        state = dict(state)
+                        st.session_state.state = state
+
+                    all_agent = [e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"]
+                    new_entries = all_agent[before_count:]
+                    for e in new_entries:
+                        label = "답변" if len(new_entries) > 1 and e == new_entries[0] else "공격"
+                        add_msg("assistant", f"**[{selected.agent_id} - {label}]** {e['content']}")
+
+                st.rerun()
 
     # ══════════════════════════════════════════════
     # 4단계: 역할반전
