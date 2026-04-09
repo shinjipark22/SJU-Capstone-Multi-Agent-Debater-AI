@@ -19,9 +19,9 @@ from src.phase0.persona_factory import create_agents
 from src.state import AgentSnapshot, DebateEntry, build_initial_state
 from src.stage1_opening.nodes import opening_arguments_node
 from src.stage2_rebuttal.nodes import chained_rebuttal_node, build_agent_stance_nums
-from src.stage3_free_rebuttal.nodes import free_rebuttal_node
+from src.stage3_free_rebuttal.nodes import free_rebuttal_node, should_end_free_rebuttal
 from src.stage4_role_reversal.nodes import role_reversal_node
-from src.stage5_synthesis.nodes import synthesis_node, synthesis_discuss_node
+from src.stage5_synthesis.nodes import synthesis_node, synthesis_discuss_node, should_end_synthesis
 
 _DATA_PATH = Path(__file__).parent.parent.parent / "data" / "topics_20260323_processed.json"
 _OUTPUT_DIR = Path(__file__).parent.parent.parent / "test_results"
@@ -314,8 +314,7 @@ def main():
 
         state = st.session_state.state
         agent_fr = [e for e in state["debate_history"] if e["speaker_id"] == selected.agent_id and e["phase"] == "free_rebuttal"]
-        user_fr = [e for e in state["debate_history"] if e["speaker_id"] == "user" and e["phase"] == "free_rebuttal"]
-        user_turn_count = len(user_fr) // 2  # 답변+공격 1세트 = 1턴
+        user_turn_count = state.get("free_rebuttal_user_turns", 0)
 
         # 턴1: 에이전트 첫 공격
         if not agent_fr:
@@ -382,6 +381,7 @@ def main():
                 state["current_turn"] += 1
 
                 new_user_turn_count = user_turn_count + 1
+                state["free_rebuttal_user_turns"] = new_user_turn_count
 
                 # 사용자 1턴 후 → 에이전트 답변+공격 (턴3)
                 if new_user_turn_count < 2:
@@ -503,12 +503,11 @@ def main():
             add_msg("assistant", "💬 토론자들의 의견을 들었습니다. 사용자의 생각을 말씀해주세요.")
             st.rerun()
 
-        # 사용자 턴 수 카운트
-        user_syn = [e for e in state["debate_history"] if e["speaker_id"] == "user" and e["phase"] == "synthesis"]
-        user_syn_count = len(user_syn)
+        # state 기반 턴 카운트
+        user_syn_count = state.get("synthesis_user_turns", 0)
 
         # 사용자 2턴 완료 → 자동으로 최적해 확정 화면
-        if user_syn_count >= 2:
+        if should_end_synthesis(state):
             st.session_state.phase = "synthesis_final"
             st.rerun()
 
@@ -530,6 +529,7 @@ def main():
                     tool_calls_log=[], json_raw="",
                 ))
                 state["current_turn"] += 1
+                state["synthesis_user_turns"] = state.get("synthesis_user_turns", 0) + 1
                 add_msg("user", f"**[사용자]** {user_opinion.strip()}")
 
                 # AI 에이전트들 응답

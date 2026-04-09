@@ -340,3 +340,10 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
         "phase": "synthesis",
         "is_finished": False,
     })
+
+
+# ── 턴 라우터 ──────────────────────────────────────────────────────────────
+
+def should_end_synthesis(state: DebateState) -> bool:
+    """종합 회의 종료 조건: 사용자 2턴 완료."""
+    return state.get("synthesis_user_turns", 0) >= 2

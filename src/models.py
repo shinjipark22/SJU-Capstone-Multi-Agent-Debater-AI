@@ -269,6 +269,31 @@ class UserSynthesisResponse(BaseModel):
 
     session_id: str
     phase: str
+    synthesis_user_turns: int
+    debate_history: List[Dict[str, Any]]
+    is_finished: bool
+    message: str
+
+
+class SynthesisFinalizeRequest(BaseModel):
+    """우리의 최적해 확정 요청."""
+
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("최적해 내용은 비어 있을 수 없습니다.")
+        return v.strip()
+
+
+class SynthesisFinalizeResponse(BaseModel):
+    """우리의 최적해 확정 응답."""
+
+    session_id: str
+    phase: str
+    synthesis_draft: str
     debate_history: List[Dict[str, Any]]
     is_finished: bool
     message: str

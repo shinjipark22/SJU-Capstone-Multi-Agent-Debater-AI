@@ -320,3 +320,15 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         "current_turn": current_turn,
         "phase": "free_rebuttal",
     })
+
+
+# ── 턴 라우터 ──────────────────────────────────────────────────────────────
+
+def should_end_free_rebuttal(state: DebateState) -> bool:
+    """자유논박 종료 조건: 사용자 2턴 완료."""
+    return state.get("free_rebuttal_user_turns", 0) >= 2
+
+
+def is_final_agent_turn(state: DebateState) -> bool:
+    """에이전트 최종 답변(공격 없음) 차례인지: 사용자 2턴 완료 상태."""
+    return state.get("free_rebuttal_user_turns", 0) >= 2
