@@ -161,20 +161,42 @@ def _build_discuss_prompt(
 ### 반박 끝"""
 
 
-# ── 단발 생성 (자유논박과 동일 패턴) ──────────────────────────────────────
+# ── 멀티턴 메시지 체인 구축 (종합 회의) ───────────────────────────────────
 
-def _generate_single(agent: Dict, prompt: str) -> Tuple[str, str]:
-    """회의 발언 단발 생성."""
+def _build_synthesis_chain(
+    agent: Dict,
+    history: List,
+    speaker_id: str,
+) -> List:
+    """종합 회의 히스토리에서 멀티턴 메시지 체인을 구축한다.
+
+    해당 에이전트 발언 → AIMessage, 그 외(사용자+다른 에이전트) → HumanMessage.
+    """
     system = (
         f"{agent['system_prompt']}\n\n"
         f"[최우선 규칙] 지금은 최적해 회의 중이다. "
         f"입장을 버리고 최선의 해결책을 함께 찾아라. "
         f"1~2문장으로만 답변하라."
     )
-    messages = [
-        SystemMessage(content=system),
-        HumanMessage(content=prompt),
-    ]
+    messages = [SystemMessage(content=system)]
+
+    syn_entries = [e for e in history if e["phase"] == "synthesis"]
+    for entry in syn_entries:
+        if entry["speaker_id"] == speaker_id:
+            messages.append(AIMessage(content=entry["content"]))
+        else:
+            label = "사용자" if entry["speaker_id"] == "user" else entry["speaker_id"]
+            messages.append(HumanMessage(content=f"[{label}] {entry['content']}"))
+
+    return messages
+
+
+def _generate_with_synthesis_chain(
+    messages: List,
+    prompt: str,
+) -> Tuple[str, str]:
+    """멀티턴 체인에 새 프롬프트를 추가하고 생성한다."""
+    messages.append(HumanMessage(content=prompt))
 
     response: AIMessage = _invoke_with_retry(_syn_llm, messages, label="synthesis")
     raw = response.content if isinstance(response.content, str) else str(response.content)
@@ -182,26 +204,13 @@ def _generate_single(agent: Dict, prompt: str) -> Tuple[str, str]:
 
     if not _is_valid_rebuttal(speech):
         logger.warning("[synthesis] speech 무효, 재시도")
-        messages.append(HumanMessage(content="한국어로만 2~3문장으로 의견을 말하세요."))
+        messages.append(HumanMessage(content="한국어로만 1~2문장으로 의견을 말하세요."))
         retry: AIMessage = _invoke_with_retry(_syn_llm, messages, label="synthesis_retry")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
-    # 영어 잔재 감지
-    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
-    if eng_words:
-        logger.warning("[synthesis] 영어 감지: %s → 수정 요청", eng_words[:3])
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
-        fix: AIMessage = _invoke_with_retry(_syn_llm, messages, label="synthesis_fix_eng")
-        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
-        fixed = _postprocess_speech(_extract_rebuttal_text(raw_fix))
-        if _is_valid_rebuttal(fixed):
-            speech = fixed
-            raw = raw_fix
-
     if not _is_valid_rebuttal(speech):
-        speech = "이 문제의 핵심을 다시 짚어볼 필요가 있습니다. 구체적인 해결 방안을 함께 논의해야 합니다."
+        speech = "이 문제의 핵심을 다시 짚어볼 필요가 있습니다."
 
     return speech, raw
 
@@ -243,7 +252,8 @@ def synthesis_node(state: DebateState) -> DebateState:
             original_stance=agent["stance"],
             debate_summary=debate_summary,
         )
-        speech, raw = _generate_single(agent, prompt)
+        chain = _build_synthesis_chain(agent, history, speaker_id)
+        speech, raw = _generate_with_synthesis_chain(chain, prompt)
 
         entry = DebateEntry(
             turn=current_turn,
@@ -288,13 +298,6 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
     user_messages = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "synthesis"]
     user_latest = user_messages[-1]["content"] if user_messages else ""
 
-    # 이전 회의 내용 요약
-    syn_entries = [e for e in history if e["phase"] == "synthesis"]
-    previous = "\n".join(
-        f"- {'사용자' if e['speaker_id'] == 'user' else e['speaker_id']}: {e['content'][:150]}"
-        for e in syn_entries
-    )
-
     print(f"\n[5단계: 최적해 회의] AI 응답 생성 중...\n")
 
     for speaker_id in speaking_order:
@@ -308,13 +311,10 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
 
         print(f"  [{display}] 응답 중...")
 
-        prompt = _build_discuss_prompt(
-            topic=topic,
-            original_stance=agent["stance"],
-            user_message=user_latest,
-            previous_discussion=previous,
-        )
-        speech, raw = _generate_single(agent, prompt)
+        # 멀티턴 체인으로 이전 회의 맥락 유지
+        chain = _build_synthesis_chain(agent, history, speaker_id)
+        prompt = f"[사용자 발언]\n{user_latest}\n\n위 의견에 동조하면서 보완하거나 구체화하라. 1~2문장.\n\n### 반박 시작\n(의견)\n### 반박 끝"
+        speech, raw = _generate_with_synthesis_chain(chain, prompt)
 
         entry = DebateEntry(
             turn=current_turn,

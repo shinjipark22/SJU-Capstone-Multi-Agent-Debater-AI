@@ -78,17 +78,19 @@ def _pick_one_argument(speech: str) -> str:
     return speech
 
 
-# ── 단발 생성 (연쇄논박 방식) ──────────────────────────────────────────────
+# ── 멀티턴 메시지 체인 구축 ───────────────────────────────────────────────
 
-def _generate_single_shot(
+def _build_message_chain(
     agent: Dict,
-    prompt: str,
+    history: List,
+    selected_id: str,
     stance: str,
-    topic: str,
-) -> Tuple[str, str]:
-    """연쇄논박과 동일한 단발 생성. CoT 유출 시 재시도."""
+) -> List:
+    """자유논박 히스토리에서 멀티턴 메시지 체인을 구축한다.
+
+    에이전트 발언 → AIMessage, 사용자 발언 → HumanMessage로 매핑.
+    """
     stance_kr = "찬성" if stance == "PRO" else "반대"
-    opposite_kr = "반대" if stance == "PRO" else "찬성"
 
     system = (
         f"{agent['system_prompt']}\n\n"
@@ -96,45 +98,43 @@ def _generate_single_shot(
         f"반드시 3~4문장으로만 답변하라. "
         f"상대 주장의 오류만 공격하라."
     )
-    messages = [
-        SystemMessage(content=system),
-        HumanMessage(content=prompt),
-    ]
+    messages = [SystemMessage(content=system)]
+
+    # 자유논박 히스토리를 순서대로 메시지 체인에 추가
+    fr_entries = [e for e in history if e["phase"] == "free_rebuttal"]
+    for entry in fr_entries:
+        if entry["speaker_id"] == selected_id:
+            messages.append(AIMessage(content=entry["content"]))
+        elif entry["speaker_id"] == "user":
+            messages.append(HumanMessage(content=entry["content"]))
+
+    return messages
+
+
+def _generate_with_chain(
+    messages: List,
+    prompt: str,
+) -> Tuple[str, str]:
+    """멀티턴 체인에 새 프롬프트를 추가하고 생성한다."""
+    messages.append(HumanMessage(content=prompt))
 
     response: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal")
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
-    # 무효 시 최대 3회 재시도 (1차: 대화 유지, 2차+: 대화 리셋)
-    for retry_idx in range(3):
-        if _is_valid_rebuttal(speech):
-            break
-        logger.warning("[free_rebuttal] speech 무효 → 재시도 %d/3", retry_idx + 1)
-        if retry_idx == 0:
-            messages.append(HumanMessage(content="반드시 한국어로만 3~4문장으로 반박하세요."))
-        else:
-            messages = [messages[0], HumanMessage(content=f"{prompt}\n\n반드시 한국어로만 답하라. 3~4문장.")]
-        retry: AIMessage = _invoke_with_retry(_fr_llm, messages, label=f"free_rebuttal_retry{retry_idx}")
+    # 무효 시 1회 재시도
+    if not _is_valid_rebuttal(speech):
+        logger.warning("[free_rebuttal] speech 무효 → 재시도")
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content="반드시 한국어로만 3~4문장으로 반박하세요."))
+        retry: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal_retry")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_rebuttal_text(raw))
-
-    # 영어 잔재 감지 → LLM 수정 요청
-    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
-    if eng_words:
-        logger.warning("[free_rebuttal] 영어 감지: %s → 수정 요청", eng_words[:3])
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
-        fix: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal_fix_eng")
-        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
-        fixed = _postprocess_speech(_extract_rebuttal_text(raw_fix))
-        if _is_valid_rebuttal(fixed):
-            speech = fixed
-            raw = raw_fix
 
     # fallback
     if not _is_valid_rebuttal(speech):
         logger.warning("[free_rebuttal] fallback 사용")
-        speech = f"상대의 주장은 핵심 전제가 부족합니다. 따라서 설득력이 없습니다."
+        speech = "상대의 주장은 핵심 전제가 부족합니다. 따라서 설득력이 없습니다."
 
     return speech, raw
 
@@ -214,10 +214,10 @@ def _build_defense_prompt(
 # ── 메인 노드 ──────────────────────────────────────────────────────────────
 
 def free_rebuttal_node(state: DebateState) -> DebateState:
-    """3단계 자유 논박 노드.
+    """3단계 자유 논박 노드 (멀티턴 메시지 체인).
 
-    연쇄논박 스타일 라운드 반복.
-    매 호출마다 에이전트가 [답변] + [공격] 또는 [공격]만 생성.
+    이전 자유논박 대화 히스토리를 메시지 체인으로 구축하여
+    LLM이 대화 흐름을 기억한 상태에서 답변/공격을 생성한다.
     """
     _opening_mod._used_doc_ids = set()
 
@@ -251,7 +251,9 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         if e["phase"] == "opening" and e["speaker_id"] == "user":
             opp_opening = e["content"]
 
-    # ── 사용자의 최근 발언 찾기
+    # ── 멀티턴 메시지 체인 구축
+    chain = _build_message_chain(opponent, history, selected_id, opponent["stance"])
+
     user_entries = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "free_rebuttal"]
     agent_entries = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
 
@@ -273,14 +275,14 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
             print(f"  [검색] '{query_def}'\n")
 
         defense_prompt = _build_defense_prompt(user_latest, my_opening, search_def)
-        defense, raw_def = _generate_single_shot(opponent, defense_prompt, opponent["stance"], state["topic"])
+        defense, raw_def = _generate_with_chain(list(chain), defense_prompt)
         speeches.append(("답변", defense, raw_def))
 
     # ── Step 2: 공격 (직전 발언의 허점 공격, 첫 턴만 입론 공격)
     if user_latest and not is_first_turn:
-        target_argument = user_latest  # 직전 발언의 허점 공격
+        target_argument = user_latest
     else:
-        target_argument = _pick_one_argument(opp_opening)  # 첫 턴만 입론 공격
+        target_argument = _pick_one_argument(opp_opening)
 
     print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
 
@@ -299,7 +301,11 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
 
     weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
     attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint)
-    attack, raw_atk = _generate_single_shot(opponent, attack_prompt, opponent["stance"], state["topic"])
+    # 답변이 있으면 그 결과를 체인에 추가한 뒤 공격
+    attack_chain = list(chain)
+    if speeches:
+        attack_chain.append(AIMessage(content=speeches[0][1]))  # 답변을 체인에 포함
+    attack, raw_atk = _generate_with_chain(attack_chain, attack_prompt)
     speeches.append(("공격", attack, raw_atk))
 
     # ── 발언 기록
