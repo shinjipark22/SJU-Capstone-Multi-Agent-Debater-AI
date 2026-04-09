@@ -454,38 +454,33 @@ def main():
 
         state = st.session_state.state
 
-        # AI 종합 발언 생성
+        # AI 종합 + 합의 요약 생성
         if not st.session_state.get("synthesis_done"):
-            with st.spinner("🧠 모든 AI 에이전트가 최적해를 도출하고 있습니다..."):
+            with st.spinner("🧠 토론자들의 의견을 종합하고 있습니다..."):
                 state = synthesis_node(state)
                 state = dict(state)
                 st.session_state.state = state
                 st.session_state.synthesis_done = True
 
-            syn_entries = [e for e in state["debate_history"] if e["phase"] == "synthesis" and e["speaker_id"] != "user"]
-            stance_nums = build_agent_stance_nums(state["agents"], state["speaking_order"])
-            for entry in syn_entries:
-                s_label = "찬성" if entry["stance"] == "PRO" else "반대"
-                snum = stance_nums.get(entry["speaker_id"], 1)
-                display = f"{s_label} 에이전트{snum}"
-                add_msg("assistant", f"**[{display} — 최적해]**\n\n{entry['content']}")
-
-            add_msg("assistant", "🧠 이제 사용자도 토론 전체를 종합한 **최적해**를 작성해주세요.\n\n"
-                    "자기 입장 고수가 아닌, 양측 주장의 타당한 점을 인정하고 구체적 해결책을 제시하세요.")
+            # 합의 요약만 사용자에게 보여줌 (개별 AI 최적해는 숨김)
+            consensus = state.get("synthesis_draft", "")
+            add_msg("assistant", f"**📋 토론 합의 요약**\n\n{consensus}")
+            add_msg("assistant", "위 내용을 참고하여, 이 토론의 **최종 결론**을 작성해주세요.\n\n"
+                    "당신이 최종 의사결정자입니다.")
             st.rerun()
 
-        # 사용자 종합 입력 폼
-        st.subheader("✍️ 종합 및 재개념화: 최적해 도출")
-        st.info("토론 전체를 종합하여, 이 논제의 최적해를 자유롭게 작성하세요.")
+        # 사용자 최종 결정 폼
+        st.subheader("✍️ 우리의 최적해")
+        st.info("토론의 합의 요약을 참고하여, 최종 해결책을 자유롭게 작성하세요.")
 
         with st.form("synthesis_form"):
             user_syn_input = st.text_area(
-                "최적해",
+                "우리의 최적해",
                 placeholder="예: AI는 빠르게 일자리를 바꾸지만 사람은 그 속도를 따라가지 못하는 문제가 있습니다. "
                             "기업이 AI로 절감한 비용 일부를 전환 기금으로 활용해 직무 중심 재교육을 즉시 제공해야 합니다.",
                 height=200,
             )
-            submitted = st.form_submit_button("최적해 제출 → 토론 종료", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("최종 결론 제출 → 토론 종료", type="primary", use_container_width=True)
 
         if submitted:
             if not user_syn_input.strip():
@@ -504,8 +499,8 @@ def main():
             state["is_finished"] = True
             st.session_state.state = state
 
-            add_msg("user", f"**[사용자 — 최적해]**\n\n{user_syn}")
-            add_msg("assistant", "---\n## 토론 완료\n\n모든 참여자의 최적해가 제출되었습니다. 사이드바에서 결과를 저장할 수 있습니다.")
+            add_msg("user", f"**우리의 최적해:**\n\n{user_syn}")
+            add_msg("assistant", "---\n## 토론 완료\n\n최종 결론이 제출되었습니다. 사이드바에서 결과를 저장할 수 있습니다.")
             st.session_state.phase = "finished"
             st.rerun()
 
@@ -514,7 +509,7 @@ def main():
     # ══════════════════════════════════════════════
     elif st.session_state.phase == "finished":
         render_messages()
-        st.success("🎉 5단계 토론이 모두 완료되었습니다! 사이드바에서 결과를 저장할 수 있습니다.")
+        st.success("🎉 토론이 완료되었습니다! 사이드바에서 결과를 저장할 수 있습니다.")
 
 
 if __name__ == "__main__":

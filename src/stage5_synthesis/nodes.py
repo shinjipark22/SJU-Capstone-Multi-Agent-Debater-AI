@@ -3,12 +3,13 @@ nodes.py — 5단계: 종합 및 재개념화(Synthesis & Reconceptualization) �
 
 [동작 흐름]
     1. 전체 토론 히스토리(입론~역할반전)를 요약
-    2. 모든 AI 에이전트가 교차 순서로 각자의 최적해를 도출
-    3. 사용자도 최적해를 API로 제출 (노드 외부)
+    2. 모든 AI 에이전트가 교차 순서로 각자의 최적해를 도출 (내부 기록)
+    3. AI 최적해들을 종합하여 합의 요약(공통 동의점 + 핵심 갈등 + 해결 방향) 생성
+    4. 사용자에게 합의 요약만 제시 → 사용자가 최종 결정자로 "우리의 최적해" 작성
 
 [설계 노트]
-    - 입장 고수가 아닌, 토론 전체를 종합한 최적해 도출이 목표
-    - 양측 주장에서 타당한 부분을 인정하고, 구체적 해결책 제시
+    - AI 개별 최적해는 사용자에게 직접 보여주지 않음
+    - 합의 요약을 통해 사용자가 최종 의사결정자 역할
     - DeepSeek-R1-Distill-Qwen-14B 최적화
 """
 
@@ -191,13 +192,74 @@ def _generate_synthesis(agent: Dict, prompt: str) -> Tuple[str, str]:
     return speech, raw
 
 
+# ── 합의 요약 프롬프트 ────────────────────────────────────────────────────
+
+def _build_consensus_prompt(
+    topic: str,
+    agent_solutions: List[str],
+) -> str:
+    """AI 에이전트들의 개별 최적해를 종합하여 합의 요약을 생성하는 프롬프트."""
+    solutions_block = "\n---\n".join(
+        f"[에이전트 {i+1}]\n{s}" for i, s in enumerate(agent_solutions)
+    )
+
+    return f"""다음은 '{topic}'에 대해 여러 토론자가 제시한 최적해입니다.
+
+{solutions_block}
+
+위 최적해들을 분석하여 다음 3가지를 각각 1~2줄로 추출하라:
+
+1. 공통 동의점: 모든 토론자가 동의하는 사실 또는 전제
+2. 핵심 갈등: 토론자들 간에 여전히 남아있는 핵심 쟁점
+3. 공통 해결 방향: 토론자들의 해결책에서 공통으로 나타나는 방향성
+
+[절대 금지]
+- 새로운 해결책을 제시하지 마라. 위 내용을 요약만 하라
+- 추상적 표현 ("균형 필요", "조화를 이루어야") 금지
+
+[형식]
+- 한국어. 합니다체(격식체)
+- 간결하게. 각 항목 1~2줄
+
+반드시 아래 형식으로만 출력:
+
+### 답변 시작
+### 공통 동의점
+(1~2줄)
+### 핵심 갈등
+(1~2줄)
+### 공통 해결 방향
+(1~2줄)
+### 답변 끝"""
+
+
+def _generate_consensus(prompt: str) -> Tuple[str, str]:
+    """합의 요약 생성. 시스템 프롬프트 없이 단일 호출."""
+    messages = [HumanMessage(content=prompt)]
+
+    response: AIMessage = _invoke_with_retry(_syn_llm, messages, label="consensus")
+    raw = response.content if isinstance(response.content, str) else str(response.content)
+    speech = _postprocess_speech(_extract_delimited_text(raw))
+
+    if not _is_valid_speech(speech):
+        logger.warning("[consensus] speech 무효, 재시도")
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content="한국어로만 합의 요약을 작성하세요.\n\n### 답변 시작\n(요약)\n### 답변 끝"))
+        retry: AIMessage = _invoke_with_retry(_syn_llm, messages, label="consensus_retry")
+        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
+        speech = _postprocess_speech(_extract_delimited_text(raw))
+
+    return speech, raw
+
+
 # ── 메인 노드 ──────────────────────────────────────────────────────────────
 
 def synthesis_node(state: DebateState) -> DebateState:
     """5단계 종합 및 재개념화 노드.
 
-    모든 AI 에이전트가 교차 순서로 최적해를 도출한다.
-    사용자는 별도 API로 최적해를 제출한다.
+    1. 모든 AI 에이전트가 각자 최적해를 도출 (내부 기록, 사용자에게 직접 노출 안 함)
+    2. AI 최적해들을 종합하여 합의 요약 생성 (synthesis_draft에 저장)
+    3. 사용자에게 합의 요약만 제시 → 사용자가 "우리의 최적해" 작성
     """
     _opening_mod._used_doc_ids = set()
 
@@ -211,7 +273,9 @@ def synthesis_node(state: DebateState) -> DebateState:
     # ── 토론 히스토리 요약
     debate_summary = _summarize_debate(history, state["agents"], speaking_order)
 
-    print(f"\n[5단계: 종합 및 재개념화] 발언 순서: {speaking_order}\n")
+    print(f"\n[5단계: 종합 및 재개념화] AI 에이전트 최적해 도출 중...\n")
+
+    agent_solutions: List[str] = []
 
     for speaker_id in speaking_order:
         if speaker_id == "user":
@@ -224,7 +288,6 @@ def synthesis_node(state: DebateState) -> DebateState:
 
         print(f"  [{display}] 종합 발언 생성 중...")
 
-        # 프롬프트 구성 + LLM 호출
         prompt = _build_synthesis_prompt(
             topic=topic,
             original_stance=agent["stance"],
@@ -247,6 +310,7 @@ def synthesis_node(state: DebateState) -> DebateState:
                 f"충돌의 원인을 해소하는 구체적 방안이 필요합니다."
             )
 
+        # 내부 기록 (사용자에게 직접 노출하지 않음)
         entry = DebateEntry(
             turn=current_turn,
             speaker_id=speaker_id,
@@ -258,17 +322,32 @@ def synthesis_node(state: DebateState) -> DebateState:
             json_raw=raw,
         )
         history.append(entry)
+        agent_solutions.append(final_text)
         current_turn += 1
 
-        print(f"  [{display}] 종합 발언 완료 (turn={entry['turn']})")
-        print(f"  {final_text[:100]}...\n")
+        print(f"  [{display}] 종합 발언 완료 (turn={entry['turn']})\n")
 
-    print(f"[5단계: 종합 및 재개념화] AI 발언 완료 → 사용자 종합 발언 대기\n")
+    # ── 합의 요약 생성
+    print(f"  [합의 요약] 생성 중...")
+    consensus_prompt = _build_consensus_prompt(topic, agent_solutions)
+    consensus_text, consensus_raw = _generate_consensus(consensus_prompt)
+
+    if not _is_valid_speech(consensus_text):
+        consensus_text = (
+            "### 공통 동의점\n이 주제에 대해 양측 모두 문제의 존재를 인정합니다.\n\n"
+            "### 핵심 갈등\n해결 방식과 우선순위에서 의견이 갈립니다.\n\n"
+            "### 공통 해결 방향\n구체적인 메커니즘을 통한 문제 해소가 필요하다는 점에서 방향은 일치합니다."
+        )
+
+    print(f"  [합의 요약] 완료\n")
+    print(f"  {consensus_text[:100]}...\n")
+    print(f"[5단계: 종합 및 재개념화] 합의 요약 완료 → 사용자 최종 결정 대기\n")
 
     return DebateState(**{
         **state,
         "debate_history": history,
         "current_turn": current_turn,
         "phase": "synthesis",
+        "synthesis_draft": consensus_text,
         "is_finished": False,
     })
