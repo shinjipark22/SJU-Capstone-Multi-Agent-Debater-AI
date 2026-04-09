@@ -476,13 +476,14 @@ def main():
 
         # 사용자 종합 입력 폼
         st.subheader("✍️ 종합 및 재개념화: 최적해 도출")
-        st.info("지금까지의 토론을 종합하여, 이 논제의 **최적의 해결책**을 도출하세요.\n\n"
-                "양측 주장에서 타당한 부분을 인정하고, 구체적인 방안을 제시해주세요.")
+        st.info("지금까지의 토론을 종합하여, **논쟁의 핵심 충돌을 해결하는 구조적 최적해**를 도출하세요.\n\n"
+                "일반적 정책 나열이 아닌, 이 주제 고유의 문제 구조를 분석하고 해결 메커니즘을 제시해주세요.")
 
         with st.form("synthesis_form"):
-            pro_valid = st.text_area("찬성측 타당한 점", placeholder="찬성측 주장에서 인정할 만한 점을 작성하세요.", height=80)
-            con_valid = st.text_area("반대측 타당한 점", placeholder="반대측 주장에서 인정할 만한 점을 작성하세요.", height=80)
-            optimal = st.text_area("최적해", placeholder="양측을 종합한 구체적인 해결책을 제시하세요. (정책, 방안, 행동 등)", height=150)
+            pro_valid = st.text_area("찬성측 타당한 점", placeholder="찬성측 주장에서 인정할 만한 점 (1~2줄)", height=60)
+            con_valid = st.text_area("반대측 타당한 점", placeholder="반대측 주장에서 인정할 만한 점 (1~2줄)", height=60)
+            core_structure = st.text_area("문제의 핵심 구조", placeholder="찬성과 반대가 충돌하는 근본 원인은 무엇인가? (예: 속도 불균형, 비용 분배, 시간 지평 차이 등)", height=100)
+            optimal = st.text_area("최적해", placeholder="문제 재정의 → 작동 메커니즘(누가/무엇을/어떤 조건에서) → 비용 부담 구조 → 왜 이것이 문제를 해결하는지", height=180)
             submitted = st.form_submit_button("최적해 제출 → 토론 종료", type="primary", use_container_width=True)
 
         if submitted:
@@ -491,6 +492,8 @@ def main():
                 sections.append(f"### 찬성측 타당한 점\n{pro_valid.strip()}")
             if con_valid.strip():
                 sections.append(f"### 반대측 타당한 점\n{con_valid.strip()}")
+            if core_structure.strip():
+                sections.append(f"### 문제의 핵심 구조\n{core_structure.strip()}")
             if optimal.strip():
                 sections.append(f"### 최적해\n{optimal.strip()}")
 
