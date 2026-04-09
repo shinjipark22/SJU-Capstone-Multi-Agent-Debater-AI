@@ -15,6 +15,8 @@ CUDA_VISIBLE_DEVICES=0 vllm serve \
     --gpu-memory-utilization 0.85 \
     --max-model-len 4096 \
     --quantization awq \
+    --dtype float16 \
+    --enforce-eager \
     --download-dir "$HF_HOME" \
     &
 
@@ -24,6 +26,7 @@ CUDA_VISIBLE_DEVICES=1 vllm serve \
     --port 8001 \
     --gpu-memory-utilization 0.85 \
     --max-model-len 4096 \
+    --enforce-eager \
     --download-dir "$HF_HOME" \
     &
 
