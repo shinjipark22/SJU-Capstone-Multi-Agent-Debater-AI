@@ -144,11 +144,16 @@ def _generate_with_chain(
 def _build_attack_prompt(
     target_argument: str,
     search_results: str = "",
+    opp_opening: str = "",
 ) -> str:
-    """상대 입론의 특정 논거를 공격하는 프롬프트."""
+    """상대 발언을 공격하는 프롬프트. 상대 입론도 참고하여 모순을 찾는다."""
     ref_block = ""
     if search_results:
         ref_block = f"\n[참고 자료 — 반박 근거로 활용하라]\n{search_results}\n"
+
+    opp_block = ""
+    if opp_opening:
+        opp_block = f"\n[상대 입론 — 지금 발언과 모순되는 부분이 있으면 지적하라]\n{opp_opening[:300]}\n"
 
     global _attack_idx
     style = _ATTACK_STYLES[_attack_idx % len(_ATTACK_STYLES)]
@@ -156,7 +161,7 @@ def _build_attack_prompt(
 
     return f"""상대 발언:
 {target_argument}
-{ref_block}
+{ref_block}{opp_block}
 상대 발언에서 논리적 허점, 근거 부족, 과장된 주장을 찾아 공격하라. ({style})
 - 상대가 인용한 수치/출처의 신뢰성을 검증하라
 - 참고 자료에 반박 근거가 있으면 활용하라
@@ -300,7 +305,7 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         print(f"  [검색] '{query_atk}'\n")
 
     weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
-    attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint)
+    attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint, opp_opening)
     # 답변이 있으면 그 결과를 체인에 추가한 뒤 공격
     attack_chain = list(chain)
     if speeches:
