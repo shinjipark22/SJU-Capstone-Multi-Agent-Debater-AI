@@ -1,8 +1,7 @@
 """
-main.py — FastAPI 애플리케이션 진입점 (Phase 0)
+main.py — FastAPI 애플리케이션 진입점
 
-사용자 입력을 받아 LangGraph 초기 상태를 생성하고,
-세션 정보를 반환한다. 실제 토론 실행은 Phase 1에서 구현한다.
+전체 토론 워크플로우(1~5단계) API 엔드포인트를 제공한다.
 """
 
 import json
@@ -18,12 +17,20 @@ from src.models import (
     FreeRebuttalRunResponse,
     OpeningRunResponse,
     RebuttalRunResponse,
+    RoleReversalRunResponse,
+    SynthesisRunResponse,
+    SynthesisFinalizeRequest,
+    SynthesisFinalizeResponse,
     UserFreeRebuttalRequest,
     UserFreeRebuttalResponse,
     UserOpeningRequest,
     UserOpeningResponse,
     UserRebuttalRequest,
     UserRebuttalResponse,
+    UserRoleReversalRequest,
+    UserRoleReversalResponse,
+    UserSynthesisRequest,
+    UserSynthesisResponse,
 )
 from src.phase0.persona_factory import create_agents, AgentPersona
 from src.stage1_opening.nodes import opening_arguments_node
@@ -35,8 +42,14 @@ from src.stage2_rebuttal.nodes import (
 )
 from src.stage3_free_rebuttal.nodes import (
     free_rebuttal_node,
-    generate_ai_free_rebuttal,
-    _pick_target,
+    should_end_free_rebuttal,
+    is_final_agent_turn,
+)
+from src.stage4_role_reversal.nodes import role_reversal_node
+from src.stage5_synthesis.nodes import (
+    synthesis_node,
+    synthesis_discuss_node,
+    should_end_synthesis,
 )
 from src.state import (
     AgentSnapshot,
@@ -67,7 +80,7 @@ def initialize_debate(request: DebateInitRequest) -> DebateInitResponse:
     Phase 1에서는 이 엔드포인트 이후 /debate/run 등을 추가한다.
     """
     # ── 1. topics.json에서 topic ID로 dict 조회 ──────────────────────────────
-    topics_path = Path(__file__).parent.parent / "data" / "topics_20260323_processed.json"
+    topics_path = Path(__file__).resolve().parent.parent / "data" / "topics_20260323_processed.json"
     if not topics_path.exists():
         raise HTTPException(status_code=404, detail="topics_20260323_processed.json 파일을 찾을 수 없습니다.")
 
@@ -149,7 +162,7 @@ def get_topics():
     import json
     from pathlib import Path
 
-    topics_path = Path(__file__).parent.parent / "data" / "topics_20260323_processed.json"
+    topics_path = Path(__file__).resolve().parent.parent / "data" / "topics_20260323_processed.json"
     if not topics_path.exists():
         raise HTTPException(status_code=404, detail="topics_20260323_processed.json 파일을 찾을 수 없습니다.")
 
@@ -506,10 +519,11 @@ def submit_user_free_rebuttal(
     session_id: str,
     request: UserFreeRebuttalRequest,
 ) -> UserFreeRebuttalResponse:
-    """사용자의 자유 논박을 제출한다.
+    """사용자의 자유 논박(답변+공격)을 제출한다.
 
-    사용자 발언 후, 현재 사이클의 남은 AI 발언자가 있으면 자동 생성한다.
-    사이클 완료 후 current_cycle >= max_cycle이면 phase를 'role_reversal'로 전환한다.
+    턴 카운터(free_rebuttal_user_turns)를 증가시키고,
+    2턴 미만이면 에이전트 답변+공격을 생성한다.
+    2턴 도달 시 에이전트 최종 답변만 생성 후 phase를 'role_reversal'로 전환한다.
     """
     if session_id not in _sessions:
         raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
@@ -522,20 +536,13 @@ def submit_user_free_rebuttal(
             detail=f"현재 phase가 '{state['phase']}'입니다. 'free_rebuttal' 단계에서만 제출 가능합니다.",
         )
 
-    # target_id 유효성 검증
-    agent_map = {a["agent_id"]: a for a in state["agents"]}
-    if request.target_id not in agent_map:
-        raise HTTPException(
-            status_code=400,
-            detail=f"target_id '{request.target_id}'는 유효한 에이전트가 아닙니다.",
-        )
-
-    history = list(state["debate_history"])
-    current_turn = state["current_turn"]
-    speaking_order = state["speaking_order"]
-    stance_nums = build_agent_stance_nums(state["agents"], speaking_order)
+    if should_end_free_rebuttal(state):
+        raise HTTPException(status_code=400, detail="자유논박이 이미 종료되었습니다 (사용자 2턴 완료).")
 
     # 사용자 DebateEntry 생성
+    history = list(state["debate_history"])
+    current_turn = state["current_turn"]
+
     user_entry = DebateEntry(
         turn=current_turn,
         speaker_id="user",
@@ -547,64 +554,271 @@ def submit_user_free_rebuttal(
     history.append(user_entry)
     current_turn += 1
 
-    # 사용자 이후 남은 AI 발언자 자동 생성
-    user_idx = speaking_order.index("user")
-    remaining_speakers = speaking_order[user_idx + 1:]
+    # 턴 카운터 증가
+    new_user_turns = state.get("free_rebuttal_user_turns", 0) + 1
 
-    _opening_mod._used_doc_ids = set()
+    # state 임시 갱신 (에이전트 노드 호출용)
+    temp_state = DebateState(**{
+        **state,
+        "debate_history": history,
+        "current_turn": current_turn,
+        "free_rebuttal_user_turns": new_user_turns,
+    })
 
-    for speaker_id in remaining_speakers:
-        if speaker_id == "user":
-            continue
-        agent = agent_map[speaker_id]
-        target_id = _pick_target(history, speaker_id, agent["stance"], state["agents"])
-        if target_id is None:
-            continue
+    # 에이전트 응답 생성
+    updated_state = free_rebuttal_node(temp_state)
+    updated_state = dict(updated_state)
+    updated_state["free_rebuttal_user_turns"] = new_user_turns
 
-        stance_label = "찬성" if agent["stance"] == "PRO" else "반대"
-        display_name = f"{stance_label} 에이전트{stance_nums[speaker_id]}"
-        target_snum = stance_nums.get(target_id, 0)
-        print(f"  [{display_name}] 자유 논박 생성 중...")
+    # 2턴 도달 → role_reversal 전환
+    if new_user_turns >= 2:
+        updated_state["phase"] = "role_reversal"
 
-        entry = generate_ai_free_rebuttal(
-            topic=state["topic"],
-            history=history,
-            agent=agent,
-            target_id=target_id,
-            stance_num=stance_nums[speaker_id],
-            target_stance_num=target_snum,
-            current_turn=current_turn,
+    _sessions[session_id] = DebateState(**updated_state)
+
+    msg = f"사용자 자유 논박이 제출되었습니다 (턴 {new_user_turns}/2)."
+    if new_user_turns >= 2:
+        msg += " 자유논박 종료 → 4단계 역할 반전(role_reversal)으로 전환합니다."
+
+    return UserFreeRebuttalResponse(
+        session_id=session_id,
+        phase=updated_state["phase"],
+        current_cycle=updated_state.get("current_cycle", 0),
+        max_cycle=updated_state.get("max_cycle", 4),
+        debate_history=[dict(e) for e in updated_state["debate_history"]],
+        message=msg,
+    )
+
+
+# ── Stage 4: 역할 반전 엔드포인트 ───────────────────────────────────────────────
+
+@app.post("/debate/{session_id}/role-reversal/run", response_model=RoleReversalRunResponse)
+def run_role_reversal(session_id: str) -> RoleReversalRunResponse:
+    """상대팀 대표 AI의 역할반전 발언을 생성한다."""
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = _sessions[session_id]
+
+    if state["phase"] != "role_reversal":
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 phase가 '{state['phase']}'입니다. 'role_reversal' 단계에서만 실행 가능합니다.",
         )
-        history.append(entry)
-        current_turn += 1
 
-    # 사이클 완료 처리
-    current_cycle = state["current_cycle"] + 1
-    max_cycle = state["max_cycle"]
+    # 이미 AI 역할반전이 생성되었는지 확인
+    ai_rr = [e for e in state["debate_history"] if e["phase"] == "role_reversal" and e["speaker_id"] != "user"]
+    if ai_rr:
+        raise HTTPException(status_code=400, detail="AI 역할반전이 이미 생성되었습니다.")
 
-    if current_cycle >= max_cycle:
-        next_phase = "role_reversal"
-    else:
-        next_phase = "free_rebuttal"
+    updated_state = role_reversal_node(state)
+    _sessions[session_id] = updated_state
+
+    # 대표 에이전트 ID 찾기
+    rr_entries = [e for e in updated_state["debate_history"] if e["phase"] == "role_reversal" and e["speaker_id"] != "user"]
+    rep_id = rr_entries[0]["speaker_id"] if rr_entries else ""
+
+    return RoleReversalRunResponse(
+        session_id=session_id,
+        phase=updated_state["phase"],
+        representative_id=rep_id,
+        debate_history=[dict(e) for e in updated_state["debate_history"]],
+        message=f"AI 역할반전 완료 (대표: {rep_id}). 사용자 역할반전을 제출하세요.",
+    )
+
+
+@app.post("/debate/{session_id}/role-reversal/user", response_model=UserRoleReversalResponse)
+def submit_user_role_reversal(
+    session_id: str,
+    request: UserRoleReversalRequest,
+) -> UserRoleReversalResponse:
+    """사용자의 역할반전 발언을 제출한다. 완료 시 phase를 'synthesis'로 전환."""
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = _sessions[session_id]
+
+    if state["phase"] != "role_reversal":
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 phase가 '{state['phase']}'입니다. 'role_reversal' 단계에서만 제출 가능합니다.",
+        )
+
+    # 사용자 역할반전 중복 제출 방지
+    if any(e["speaker_id"] == "user" and e["phase"] == "role_reversal" for e in state["debate_history"]):
+        raise HTTPException(status_code=400, detail="사용자 역할반전이 이미 제출되었습니다.")
+
+    reversed_stance = "CON" if state["user_stance"] == "PRO" else "PRO"
+
+    history = list(state["debate_history"])
+    history.append(DebateEntry(
+        turn=state["current_turn"],
+        speaker_id="user",
+        stance=reversed_stance,
+        phase="role_reversal",
+        content=request.content,
+        target_id=None,
+    ))
 
     updated_state = DebateState(**{
         **state,
         "debate_history": history,
-        "current_turn": current_turn,
-        "current_cycle": current_cycle,
-        "phase": next_phase,
+        "current_turn": state["current_turn"] + 1,
+        "phase": "synthesis",
     })
     _sessions[session_id] = updated_state
 
-    msg = f"사용자 자유 논박이 제출되었습니다 (사이클 {current_cycle}/{max_cycle})."
-    if next_phase == "role_reversal":
-        msg += " 최대 사이클 도달 → 4단계 역할 반전(role_reversal)으로 전환합니다."
-
-    return UserFreeRebuttalResponse(
+    return UserRoleReversalResponse(
         session_id=session_id,
-        phase=next_phase,
-        current_cycle=current_cycle,
-        max_cycle=max_cycle,
+        phase="synthesis",
         debate_history=[dict(e) for e in history],
+        message="사용자 역할반전이 제출되었습니다. 5단계 종합 및 재개념화(synthesis)로 전환합니다.",
+    )
+
+
+# ── Stage 5: 종합 및 재개념화 엔드포인트 ────────────────────────────────────────
+
+@app.post("/debate/{session_id}/synthesis/run", response_model=SynthesisRunResponse)
+def run_synthesis(session_id: str) -> SynthesisRunResponse:
+    """AI 에이전트들의 최적해 초기 의견을 생성한다."""
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = _sessions[session_id]
+
+    if state["phase"] != "synthesis":
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 phase가 '{state['phase']}'입니다. 'synthesis' 단계에서만 실행 가능합니다.",
+        )
+
+    # 이미 AI 종합 의견이 생성되었는지 확인
+    ai_syn = [e for e in state["debate_history"] if e["phase"] == "synthesis" and e["speaker_id"] != "user"]
+    if ai_syn:
+        raise HTTPException(status_code=400, detail="AI 종합 의견이 이미 생성되었습니다.")
+
+    updated_state = synthesis_node(state)
+    _sessions[session_id] = updated_state
+
+    return SynthesisRunResponse(
+        session_id=session_id,
+        phase=updated_state["phase"],
+        debate_history=[dict(e) for e in updated_state["debate_history"]],
+        is_finished=False,
+        message="AI 종합 의견 생성 완료. 사용자 의견을 제출하세요.",
+    )
+
+
+@app.post("/debate/{session_id}/synthesis/user", response_model=UserSynthesisResponse)
+def submit_user_synthesis(
+    session_id: str,
+    request: UserSynthesisRequest,
+) -> UserSynthesisResponse:
+    """사용자의 종합 회의 의견을 제출한다.
+
+    턴 카운터(synthesis_user_turns)를 증가시키고 AI 응답을 생성한다.
+    2턴 도달 시 finalize 대기 상태가 된다.
+    """
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = _sessions[session_id]
+
+    if state["phase"] != "synthesis":
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 phase가 '{state['phase']}'입니다. 'synthesis' 단계에서만 제출 가능합니다.",
+        )
+
+    if should_end_synthesis(state):
+        raise HTTPException(status_code=400, detail="종합 회의가 이미 종료되었습니다 (사용자 2턴 완료). /synthesis/finalize를 호출하세요.")
+
+    # 사용자 DebateEntry 생성
+    history = list(state["debate_history"])
+    current_turn = state["current_turn"]
+
+    history.append(DebateEntry(
+        turn=current_turn,
+        speaker_id="user",
+        stance=state["user_stance"],
+        phase="synthesis",
+        content=request.content,
+        target_id=None,
+    ))
+    current_turn += 1
+
+    new_user_turns = state.get("synthesis_user_turns", 0) + 1
+
+    # state 임시 갱신 (AI 응답 노드 호출용)
+    temp_state = DebateState(**{
+        **state,
+        "debate_history": history,
+        "current_turn": current_turn,
+        "synthesis_user_turns": new_user_turns,
+    })
+
+    # AI 응답 생성
+    updated_state = synthesis_discuss_node(temp_state)
+    updated_state = dict(updated_state)
+    updated_state["synthesis_user_turns"] = new_user_turns
+    _sessions[session_id] = DebateState(**updated_state)
+
+    ready_to_finalize = new_user_turns >= 2
+    msg = f"사용자 종합 의견이 제출되었습니다 (턴 {new_user_turns}/2)."
+    if ready_to_finalize:
+        msg += " 회의 종료. /synthesis/finalize로 '우리의 최적해'를 확정하세요."
+
+    return UserSynthesisResponse(
+        session_id=session_id,
+        phase=updated_state["phase"],
+        synthesis_user_turns=new_user_turns,
+        debate_history=[dict(e) for e in updated_state["debate_history"]],
+        is_finished=False,
         message=msg,
+    )
+
+
+@app.post("/debate/{session_id}/synthesis/finalize", response_model=SynthesisFinalizeResponse)
+def finalize_synthesis(
+    session_id: str,
+    request: SynthesisFinalizeRequest,
+) -> SynthesisFinalizeResponse:
+    """'우리의 최적해'를 확정하고 토론을 종료한다."""
+    if session_id not in _sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = _sessions[session_id]
+
+    if state["phase"] != "synthesis":
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 phase가 '{state['phase']}'입니다. 'synthesis' 단계에서만 확정 가능합니다.",
+        )
+
+    history = list(state["debate_history"])
+    history.append(DebateEntry(
+        turn=state["current_turn"],
+        speaker_id="user",
+        stance=state["user_stance"],
+        phase="synthesis",
+        content=request.content,
+        target_id=None,
+    ))
+
+    updated_state = DebateState(**{
+        **state,
+        "debate_history": history,
+        "current_turn": state["current_turn"] + 1,
+        "synthesis_draft": request.content,
+        "is_finished": True,
+    })
+    _sessions[session_id] = updated_state
+
+    return SynthesisFinalizeResponse(
+        session_id=session_id,
+        phase="synthesis",
+        synthesis_draft=request.content,
+        debate_history=[dict(e) for e in history],
+        is_finished=True,
+        message="우리의 최적해가 확정되었습니다. 토론이 종료되었습니다.",
     )

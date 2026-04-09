@@ -166,12 +166,14 @@ class DebateState(TypedDict):
 
     # 자유 논박 (3단계) — 1:1 핑퐁
     selected_opponent_id: Optional[str]  # 사용자가 선택한 상대 에이전트 ID
+    free_rebuttal_user_turns: int  # 사용자 답변+공격 세트 수 (0→1→2, 2 도달 시 종료)
 
     # 역할 반전 (4단계)
     role_reversed: bool
 
     # 종합 (5단계)
     synthesis_draft: Optional[str]
+    synthesis_user_turns: int  # 사용자 의견 제출 수 (0→1→2, 2 도달 시 확정 화면)
 
     # 종료
     is_finished: bool
@@ -314,8 +316,10 @@ def build_initial_state(
         rebuttal_pairs=None,       # 2단계 진입 시 build_chained_rebuttal_pairs()로 생성
         current_rebuttal_round=0, # 라운드 시작 전, 기본은 0
         selected_opponent_id=None, # 3단계 진입 시 사용자가 선택
+        free_rebuttal_user_turns=0, # 자유논박 사용자 턴 수 (최대 2)
         role_reversed=False, # 역할 반전 아직 시작 안 함
         synthesis_draft=None,      # 5단계 진입 전까지 None
+        synthesis_user_turns=0, # 종합 회의 사용자 턴 수 (최대 2)
         is_finished=False, # 토론 시작 상태이므로 종료 아님 
     )
 

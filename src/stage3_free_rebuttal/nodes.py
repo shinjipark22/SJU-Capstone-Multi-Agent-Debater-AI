@@ -236,8 +236,8 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     stance_nums = build_agent_stance_nums(state["agents"], speaking_order)
 
     opponent_display = (
-        f"{'찬성' if opponent['stance'] == 'PRO' else '반대'} "
-        f"에이전트{stance_nums.get(selected_id, 0)}"
+        f"{'찬성' if opponent['stance'] == 'PRO' else '반대'}"
+        f"{stance_nums.get(selected_id, 0)}"
     )
     print(f"\n[3단계: 자유 논박] 사용자 ↔ {opponent_display}\n")
 
@@ -320,3 +320,15 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         "current_turn": current_turn,
         "phase": "free_rebuttal",
     })
+
+
+# ── 턴 라우터 ──────────────────────────────────────────────────────────────
+
+def should_end_free_rebuttal(state: DebateState) -> bool:
+    """자유논박 종료 조건: 사용자 2턴 완료."""
+    return state.get("free_rebuttal_user_turns", 0) >= 2
+
+
+def is_final_agent_turn(state: DebateState) -> bool:
+    """에이전트 최종 답변(공격 없음) 차례인지: 사용자 2턴 완료 상태."""
+    return state.get("free_rebuttal_user_turns", 0) >= 2

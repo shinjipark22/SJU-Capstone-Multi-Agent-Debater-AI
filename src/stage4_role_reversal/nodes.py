@@ -176,7 +176,7 @@ def role_reversal_node(state: DebateState) -> DebateState:
     reversed_stance = "PRO" if original_stance == "CON" else "CON"  # 반전된 입장 = 사용자 팀 입장
 
     rep_label = "찬성" if original_stance == "PRO" else "반대"
-    rep_display = f"{rep_label} 에이전트{stance_nums.get(rep_id, 1)}"
+    rep_display = f"{rep_label}{stance_nums.get(rep_id, 1)}"
     reversed_label = "찬성" if reversed_stance == "PRO" else "반대"
 
     print(f"\n[4단계: 역할 반전]")

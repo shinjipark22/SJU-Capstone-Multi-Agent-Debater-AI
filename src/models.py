@@ -237,3 +237,63 @@ class UserRoleReversalResponse(BaseModel):
     phase: str
     debate_history: List[Dict[str, Any]]
     message: str
+
+
+# ── Stage 5: 종합 및 재개념화 API 모델 ──────────────────────────────────────────
+
+class SynthesisRunResponse(BaseModel):
+    """AI 종합 발언 생성 응답."""
+
+    session_id: str
+    phase: str
+    debate_history: List[Dict[str, Any]]
+    is_finished: bool
+    message: str
+
+
+class UserSynthesisRequest(BaseModel):
+    """사용자 종합 발언 제출 요청."""
+
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("종합 발언 내용은 비어 있을 수 없습니다.")
+        return v.strip()
+
+
+class UserSynthesisResponse(BaseModel):
+    """사용자 종합 발언 제출 응답."""
+
+    session_id: str
+    phase: str
+    synthesis_user_turns: int
+    debate_history: List[Dict[str, Any]]
+    is_finished: bool
+    message: str
+
+
+class SynthesisFinalizeRequest(BaseModel):
+    """우리의 최적해 확정 요청."""
+
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("최적해 내용은 비어 있을 수 없습니다.")
+        return v.strip()
+
+
+class SynthesisFinalizeResponse(BaseModel):
+    """우리의 최적해 확정 응답."""
+
+    session_id: str
+    phase: str
+    synthesis_draft: str
+    debate_history: List[Dict[str, Any]]
+    is_finished: bool
+    message: str
