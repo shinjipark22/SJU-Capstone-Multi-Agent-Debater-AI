@@ -40,6 +40,7 @@ from src.stage2_rebuttal.nodes import (
     _decide_search,
     _is_valid_rebuttal,
     build_agent_stance_nums,
+    analyze_weakness,
 )
 from src.state import DebateEntry, DebateState
 
@@ -283,6 +284,11 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
 
     print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
 
+    # Qwen 7B 약점 분석
+    weakness = analyze_weakness(target_argument, state["topic"])
+    if weakness:
+        print(f"  [약점 분석] {weakness[:60]}\n")
+
     query_atk = _decide_search(target_argument, "")
     search_atk = ""
     if query_atk:
@@ -291,7 +297,8 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         search_atk = _truncate_tool_result(web_result)
         print(f"  [검색] '{query_atk}'\n")
 
-    attack_prompt = _build_attack_prompt(target_argument, search_atk)
+    weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
+    attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint)
     attack, raw_atk = _generate_single_shot(opponent, attack_prompt, opponent["stance"], state["topic"])
     speeches.append(("공격", attack, raw_atk))
 

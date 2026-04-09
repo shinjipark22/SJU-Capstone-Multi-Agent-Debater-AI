@@ -10,6 +10,7 @@ nodes.py — 2단계: 연쇄 논박(Chained Rebuttal) 노드
 from __future__ import annotations
 
 import logging
+import os
 import random
 import re
 from typing import Dict, List, Tuple
@@ -69,133 +70,113 @@ from src.state import (
 # ── 연쇄논박 전용 LLM (DeepSeek — 반박 생성용) ─────────────────────────────
 _rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
 
-# ── 소형 모델 (Qwen2.5-1.5B — 검색 판단 + 쿼리 생성, CPU) ──────────────────
-_tool_model = None
-_tool_tokenizer = None
-
-
-def _load_tool_model():
-    """Qwen2.5-1.5B-Instruct를 CPU에 지연 로드한다."""
-    global _tool_model, _tool_tokenizer
-    if _tool_model is not None:
-        return
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    logger.info("[tool_model] Qwen2.5-1.5B-Instruct 로드 중 (CPU)...")
-    import os
-    cache_dir = os.environ.get("HF_HOME", "/disk1/SJ/huggingface/hub")
-    model_id = "Qwen/Qwen2.5-1.5B-Instruct"
-    _tool_tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir)
-    _tool_model = AutoModelForCausalLM.from_pretrained(
-        model_id, dtype="auto", device_map="cpu", cache_dir=cache_dir,
-    )
-    logger.info("[tool_model] 로드 완료")
-
-
-_SEARCH_TOOL_DEF = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_web",
-            "description": "웹에서 반박 근거를 검색합니다. 논리만으로 반박 가능하면 호출하지 마세요.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "반박 근거를 찾기 위한 검색 키워드 (한국어, 30자 이내)"
-                    }
-                },
-                "required": ["query"]
-            }
-        }
-    }
-]
+# ── 분석 모델 (Qwen2.5-7B — 검색 판단 + 약점 분석 + 입장 검증, GPU 1) ────────
+_QWEN_BASE_URL = os.environ.get("QWEN_BASE_URL", "http://localhost:8001/v1")
+_qwen_llm = ChatOpenAI(
+    model="Qwen/Qwen2.5-7B-Instruct",
+    base_url=_QWEN_BASE_URL,
+    api_key="fake",
+    temperature=0.3,
+    max_tokens=200,
+    timeout=30,
+)
 
 
 def _decide_search(target_argument: str, attack_style: str) -> str:
-    """소형 모델이 tool calling으로 검색 필요 여부를 판단한다. 불필요 시 빈 문자열."""
-    _load_tool_model()
+    """Qwen 7B가 검색 필요 여부를 판단한다. 불필요 시 빈 문자열."""
+    try:
+        messages = [
+            HumanMessage(content=f"""다음 주장을 반박하려 한다. 반박에 통계나 사실 확인이 필요하면 검색 키워드를 한국어 30자 이내로 출력하라.
+논리만으로 반박 가능하면 "불필요"라고만 출력하라.
 
-    messages = [
-        {"role": "user", "content": f"다음 주장을 반박하라. 필요하면 검색하라.\n\n주장: {target_argument[:200]}"}
-    ]
+주장: {target_argument[:200]}""")
+        ]
+        response = _qwen_llm.invoke(messages)
+        result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
 
-    text = _tool_tokenizer.apply_chat_template(
-        messages, tools=_SEARCH_TOOL_DEF, tokenize=False, add_generation_prompt=True,
-    )
-    inputs = _tool_tokenizer(text, return_tensors="pt")
-    outputs = _tool_model.generate(**inputs, max_new_tokens=100, do_sample=False)
-    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=False).strip()
+        if "불필요" in result or len(result) < 3:
+            logger.info("[qwen7b] 검색 불필요")
+            return ""
 
-    # <tool_call> 파싱
-    m = re.search(r'<tool_call>\s*(\{.*?\})\s*</tool_call>', response, re.DOTALL)
-    if m:
-        try:
-            import json
-            call = json.loads(m.group(1))
-            query = call.get("arguments", {}).get("query", "")
-            if query:
-                logger.info("[tool_model] tool_call 감지: search_web('%s')", query)
-                return query[:40]
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-    logger.info("[tool_model] tool_call 없음 → 검색 불필요")
-    return ""
+        # 검색 키워드 추출 (첫 줄만)
+        query = result.split('\n')[0].strip().strip('"').strip("'")
+        logger.info("[qwen7b] 검색 키워드: '%s'", query[:40])
+        return query[:40]
+    except Exception as e:
+        logger.warning("[qwen7b] _decide_search 오류: %s", e)
+        return ""
 
 
 # ── 텍스트 추출 (delimiter 없이, <think> + 영어 제거 후 한국어만) ────────────
 
 def _check_stance(text: str, expected_stance: str, topic: str) -> bool:
-    """Qwen2.5-1.5B로 발언이 기대 입장과 일치하는지 판별한다. 일치하면 True."""
-    _load_tool_model()
+    """Qwen 7B로 발언이 기대 입장과 일치하는지 판별한다. 일치하면 True."""
     stance_kr = "찬성" if expected_stance == "PRO" else "반대"
-    messages = [
-        {"role": "user", "content": f"""주제: {topic[:100]}
+    try:
+        messages = [
+            HumanMessage(content=f"""주제: {topic[:100]}
 
 발언: {text[:200]}
 
-이 발언은 위 주제에 대해 "찬성"인가 "반대"인가? 한 단어로만 답하라."""}
-    ]
-    inp_text = _tool_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    inputs = _tool_tokenizer(inp_text, return_tensors="pt")
-    outputs = _tool_model.generate(**inputs, max_new_tokens=10, do_sample=False)
-    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True).strip()
-    # 첫 단어만
-    first_word = response.split()[0] if response.split() else ""
-    detected = "찬성" if "찬성" in first_word else ("반대" if "반대" in first_word else "")
-    if detected and detected != stance_kr:
-        logger.warning("[stance_check] 입장 혼동: 기대=%s, 감지=%s", stance_kr, detected)
-        return False
-    return True
+이 발언은 위 주제에 대해 "찬성"인가 "반대"인가? 한 단어로만 답하라.""")
+        ]
+        response = _qwen_llm.invoke(messages)
+        result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
+        first_word = result.split()[0] if result.split() else ""
+        detected = "찬성" if "찬성" in first_word else ("반대" if "반대" in first_word else "")
+        if detected and detected != stance_kr:
+            logger.warning("[stance_check] 입장 혼동: 기대=%s, 감지=%s", stance_kr, detected)
+            return False
+        return True
+    except Exception as e:
+        logger.warning("[stance_check] 오류: %s", e)
+        return True
 
 
 def _generate_attack_question(target_speech: str, stance: str, topic: str) -> str:
-    """Qwen2.5-1.5B로 상대 논거에 대한 공격 질문을 생성한다."""
-    _load_tool_model()
+    """Qwen 7B로 상대 논거에 대한 공격 질문을 생성한다."""
     stance_kr = "찬성" if stance == "PRO" else "반대"
-
-    messages = [
-        {"role": "user", "content": f"""너는 {stance_kr} 토론자다. 상대의 주장에 대해 답하기 곤란한 질문을 1개 만들어라.
+    try:
+        messages = [
+            HumanMessage(content=f"""너는 {stance_kr} 토론자다. 상대의 주장에 대해 답하기 곤란한 질문을 1개 만들어라.
 
 토론 주제: {topic[:80]}
 상대 주장: {target_speech[:200]}
 
-반드시 ?로 끝나는 한국어 한 문장만 출력하라."""}
-    ]
+반드시 ?로 끝나는 한국어 한 문장만 출력하라.""")
+        ]
+        response = _qwen_llm.invoke(messages)
+        result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
+        for line in result.split('\n'):
+            line = line.strip()
+            if line.endswith('?') and re.search(r'[가-힣]', line):
+                return line
+        return ""
+    except Exception as e:
+        logger.warning("[qwen7b] _generate_attack_question 오류: %s", e)
+        return ""
 
-    text = _tool_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    inputs = _tool_tokenizer(text, return_tensors="pt")
-    outputs = _tool_model.generate(**inputs, max_new_tokens=60, do_sample=False)
-    response = _tool_tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True).strip()
 
-    # 첫 줄에서 ?로 끝나는 문장 추출
-    for line in response.split('\n'):
-        line = line.strip()
-        if line.endswith('?') and re.search(r'[가-힣]', line):
-            return line
-    # 못 찾으면 빈 문자열
-    return ""
+def analyze_weakness(target_speech: str, topic: str) -> str:
+    """Qwen 7B로 상대 논거의 핵심 약점을 분석한다. DeepSeek 반박 생성 전에 호출."""
+    try:
+        messages = [
+            HumanMessage(content=f"""다음 주장의 가장 약한 부분을 1줄로 짚어라.
+
+토론 주제: {topic[:80]}
+상대 주장: {target_speech[:300]}
+
+형식: "약점: (내용)" 한 줄만 출력.""")
+        ]
+        response = _qwen_llm.invoke(messages)
+        result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
+        # "약점:" 이후 추출
+        if "약점:" in result:
+            return result.split("약점:")[-1].strip()
+        return result.split('\n')[0].strip()
+    except Exception as e:
+        logger.warning("[qwen7b] analyze_weakness 오류: %s", e)
+        return ""
 
 
 def _extract_rebuttal_text(content: str) -> str:
@@ -483,6 +464,12 @@ def generate_ai_rebuttal(
         search_results = _truncate_tool_result(web_result)
     else:
         logger.info("[rebuttal] 검색 불필요 판단")
+
+    # Qwen 7B로 약점 사전 분석
+    weakness = analyze_weakness(target_argument, topic)
+    if weakness:
+        logger.info("[rebuttal] 약점 분석: %s", weakness[:60])
+        attack_style = f"{attack_style} — 특히 이 약점을 공격하라: {weakness}"
 
     prompt = _build_rebuttal_prompt(
         target_speech=target_argument,
