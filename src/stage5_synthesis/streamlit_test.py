@@ -476,31 +476,23 @@ def main():
 
         # 사용자 종합 입력 폼
         st.subheader("✍️ 종합 및 재개념화: 최적해 도출")
-        st.info("양측 주장의 충돌 원인을 짚고, 그것을 해소하는 구체적 해결책을 제시하세요.")
+        st.info("토론 전체를 종합하여, 이 논제의 최적해를 자유롭게 작성하세요.")
 
         with st.form("synthesis_form"):
-            pro_valid = st.text_area("찬성측 타당한 점", placeholder="1줄로 간결하게", height=50)
-            con_valid = st.text_area("반대측 타당한 점", placeholder="1줄로 간결하게", height=50)
-            core_summary = st.text_area("문제 요약", placeholder="양측이 충돌하는 핵심 원인 (1~2줄)", height=70)
-            optimal = st.text_area("최적해", placeholder="누가 무엇을 하는지 + 왜 이것이 충돌을 해소하는지 (2~3줄)", height=100)
+            user_syn_input = st.text_area(
+                "최적해",
+                placeholder="예: AI는 빠르게 일자리를 바꾸지만 사람은 그 속도를 따라가지 못하는 문제가 있습니다. "
+                            "기업이 AI로 절감한 비용 일부를 전환 기금으로 활용해 직무 중심 재교육을 즉시 제공해야 합니다.",
+                height=200,
+            )
             submitted = st.form_submit_button("최적해 제출 → 토론 종료", type="primary", use_container_width=True)
 
         if submitted:
-            sections = []
-            if pro_valid.strip():
-                sections.append(f"### 찬성측 타당한 점\n{pro_valid.strip()}")
-            if con_valid.strip():
-                sections.append(f"### 반대측 타당한 점\n{con_valid.strip()}")
-            if core_summary.strip():
-                sections.append(f"### 문제 요약\n{core_summary.strip()}")
-            if optimal.strip():
-                sections.append(f"### 최적해\n{optimal.strip()}")
-
-            if not sections:
-                st.warning("최소 1개 섹션은 입력해주세요.")
+            if not user_syn_input.strip():
+                st.warning("최적해를 입력해주세요.")
                 return
 
-            user_syn = "\n\n".join(sections)
+            user_syn = user_syn_input.strip()
 
             state["debate_history"].append(DebateEntry(
                 turn=state["current_turn"], speaker_id="user",
