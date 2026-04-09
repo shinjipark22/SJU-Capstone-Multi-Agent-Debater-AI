@@ -562,7 +562,7 @@ def submit_user_free_rebuttal(
             continue
 
         stance_label = "찬성" if agent["stance"] == "PRO" else "반대"
-        display_name = f"{stance_label} 에이전트{stance_nums[speaker_id]}"
+        display_name = f"{stance_label}{stance_nums[speaker_id]}"
         target_snum = stance_nums.get(target_id, 0)
         print(f"  [{display_name}] 자유 논박 생성 중...")
 

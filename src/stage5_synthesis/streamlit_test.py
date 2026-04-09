@@ -396,7 +396,7 @@ def main():
                 orig_label = "찬성" if original_stance == "PRO" else "반대"
                 rev_label = "찬성" if entry["stance"] == "PRO" else "반대"
                 snum = stance_nums.get(entry["speaker_id"], 1)
-                display = f"{orig_label} 에이전트{snum}"
+                display = f"{orig_label}{snum}"
                 add_msg("assistant", f"**[{display} → {rev_label} 옹호 (역할반전)]**\n\n{entry['content']}")
 
             reversed_user_label = "반대" if USER_STANCE == "PRO" else "찬성"
@@ -467,7 +467,7 @@ def main():
                 if e["phase"] == "synthesis" and e["speaker_id"] != "user":
                     s_label = "찬성" if e["stance"] == "PRO" else "반대"
                     snum = stance_nums.get(e["speaker_id"], 1)
-                    display = f"{s_label} 에이전트{snum}"
+                    display = f"{s_label}{snum}"
                     add_msg("assistant", f"**[{display}]** {e['content']}")
 
             add_msg("assistant", "💬 토론자들의 의견을 들었습니다. 사용자의 생각을 말씀해주세요.\n\n"
@@ -508,7 +508,7 @@ def main():
             for e in new_entries:
                 s_label = "찬성" if e["stance"] == "PRO" else "반대"
                 snum = stance_nums.get(e["speaker_id"], 1)
-                display = f"{s_label} 에이전트{snum}"
+                display = f"{s_label}{snum}"
                 add_msg("assistant", f"**[{display}]** {e['content']}")
             st.rerun()
 

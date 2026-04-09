@@ -485,7 +485,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         _stance_counter[agent["stance"]] += 1
         snum = _stance_counter[agent["stance"]]
         slabel = "찬성" if agent["stance"] == "PRO" else "반대"
-        display = f"{slabel} 에이전트{snum}"
+        display = f"{slabel}{snum}"
 
         print(f"  [{display}] 입론 생성 중...")
 

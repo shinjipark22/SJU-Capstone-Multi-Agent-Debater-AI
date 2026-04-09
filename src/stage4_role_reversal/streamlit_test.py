@@ -405,7 +405,7 @@ def main():
                 orig_label = "찬성" if original_stance == "PRO" else "반대"
                 rev_label = "찬성" if entry["stance"] == "PRO" else "반대"
                 snum = stance_nums.get(entry["speaker_id"], 1)
-                display = f"{orig_label} 에이전트{snum}"
+                display = f"{orig_label}{snum}"
                 add_msg("assistant", f"**[{display} → {rev_label} 옹호 (역할반전)]**\n\n{entry['content']}")
 
             reversed_user_label = "반대" if USER_STANCE == "PRO" else "찬성"

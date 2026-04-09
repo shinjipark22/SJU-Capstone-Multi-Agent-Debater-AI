@@ -466,7 +466,7 @@ def generate_ai_rebuttal(
     _attack_counter[aid] = idx + 1
 
     t_label = "찬성" if target_stance == "PRO" else "반대"
-    target_display = f"{t_label} 에이전트{target_stance_num}" if target_id != "user" else "사용자"
+    target_display = f"{t_label}{target_stance_num}" if target_id != "user" else "사용자"
     stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
 
     # 상대 입론에서 논거 하나만 랜덤 추출
@@ -541,7 +541,7 @@ def chained_rebuttal_node(state: DebateState) -> DebateState:
 
         agent = agent_map[attacker_id]
         slabel = "찬성" if agent["stance"] == "PRO" else "반대"
-        display = f"{slabel} 에이전트{stance_nums[attacker_id]}"
+        display = f"{slabel}{stance_nums[attacker_id]}"
         print(f"  [라운드 {round_num}] {display} → {target_id}")
 
         entry = generate_ai_rebuttal(

@@ -59,7 +59,7 @@ def _summarize_debate(
         s = entry["stance"]
         label = "찬성" if s == "PRO" else "반대"
         num = stance_nums.get(entry["speaker_id"], 1)
-        return f"{label} 에이전트{num}"
+        return f"{label}{num}"
 
     sections = []
 
@@ -234,7 +234,7 @@ def synthesis_node(state: DebateState) -> DebateState:
         agent = agent_map[speaker_id]
         slabel = "찬성" if agent["stance"] == "PRO" else "반대"
         snum = stance_nums.get(speaker_id, 1)
-        display = f"{slabel} 에이전트{snum}"
+        display = f"{slabel}{snum}"
 
         print(f"  [{display}] 의견 제시 중...")
 
@@ -304,7 +304,7 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
         agent = agent_map[speaker_id]
         slabel = "찬성" if agent["stance"] == "PRO" else "반대"
         snum = stance_nums.get(speaker_id, 1)
-        display = f"{slabel} 에이전트{snum}"
+        display = f"{slabel}{snum}"
 
         print(f"  [{display}] 응답 중...")
 
