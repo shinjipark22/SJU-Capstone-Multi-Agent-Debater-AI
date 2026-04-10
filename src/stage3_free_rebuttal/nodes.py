@@ -41,6 +41,7 @@ from src.stage2_rebuttal.nodes import (
     _is_valid_rebuttal,
     build_agent_stance_nums,
     analyze_weakness,
+    _generate_attack_question,
 )
 from src.state import DebateEntry, DebateState
 
@@ -173,7 +174,7 @@ def _build_attack_prompt(
 - 한국어로 작성. 고유명사만 영어 허용
 - 참고 자료의 수치만 인용 가능. 자체적으로 수치를 지어내지 마라
 
-[필수] 출력의 마지막 문장은 반드시 "?"로 끝나야 한다. "?"가 없으면 실패다.
+[필수] "필수 질문"이 주어졌으면 반드시 그 질문을 마지막 문장으로 사용하라. 없으면 직접 "?"로 끝나는 질문을 만들어라.
 
 반드시 아래 형식으로만 출력:
 
@@ -300,6 +301,12 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
         print(f"  [약점 분석] {weakness[:60]}\n")
 
+    # Qwen 7B 공격 질문 생성
+    attack_question = _generate_attack_question(target_argument, opponent["stance"], state["topic"])
+    if attack_question:
+        tool_calls_log.append({"name": "attack_question", "result": attack_question})
+        print(f"  [공격 질문] {attack_question[:60]}\n")
+
     query_atk = _decide_search(target_argument, "")
     search_atk = ""
     if query_atk:
@@ -309,7 +316,8 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         print(f"  [검색] '{query_atk}'\n")
 
     weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
-    attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint, opp_opening)
+    question_hint = f"\n[필수 질문 — 반드시 이 질문으로 마무리하라]\n{attack_question}\n" if attack_question else ""
+    attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint + question_hint, opp_opening)
     # 답변이 있으면 그 결과를 체인에 추가한 뒤 공격
     attack_chain = list(chain)
     if speeches:
