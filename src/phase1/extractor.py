@@ -192,23 +192,29 @@ _JUDGE_SYSTEM = (
     "반드시 JSON 형식으로만 응답하고, 다른 텍스트는 절대 출력하지 마세요."
 )
 
-_JUDGE_TEMPLATE = """다음 토론 발언 쌍을 발언 내용과 수식 채점 결과를 모두 참고하여 판세를 판정하세요.
+_JUDGE_TEMPLATE = """다음 토론 발언 두 개를 읽고, 어느 쪽이 더 설득력 있는지 판정하세요.
 
-[발언 원문]
-{speeches_text}
+[찬성 발언]
+{pro_text}
 
-[수식 채점 결과]
-{score_summary}
+[반대 발언]
+{con_text}
 
-종합 대립 지수 v = {v:.4f}  (양수=찬성 우세, 음수=반대 우세)
+판정 기준 (발언 내용만 보세요. 숫자 점수는 무시하세요):
+- 논리 구조가 명확한가
+- 구체적 근거·사례·수치를 제시했는가
+- 상대 주장을 효과적으로 반박했는가
 
-판정 기준:
-- 발언의 논리 구조, 근거 제시, 반박의 날카로움을 직접 읽고 평가하세요.
-- 수식 점수(mag=입장강도, g=공격성, o=영향력)와 v(대립지수)도 함께 반영하세요.
-- 두 정보가 일치하면 확신 있게, 엇갈리면 발언 내용에 더 비중을 두세요.
+우세 점수 기준 (0~5):
+  0 = 완전 무승부
+  1 = 아주 근소하게 앞섬
+  2 = 약간 앞섬
+  3 = 뚜렷하게 앞섬
+  4 = 크게 앞섬
+  5 = 압도적 우위
 
 JSON 형식으로만 응답하세요:
-{{"winner": "찬성" 또는 "반대", "margin": "근소" 또는 "우세" 또는 "압도", "reason": "발언 내용과 점수를 근거로 한 한 줄 한글 설명"}}"""
+{{"winner": "찬성" 또는 "반대", "score": 0~5 정수, "reason": "발언 내용 근거로 한 한 줄 한글 설명"}}"""
 
 
 def judge_turn(
@@ -217,41 +223,61 @@ def judge_turn(
     dominance: str,
     speeches_text: str = "",
 ) -> str:
-    """Qwen 7B로 해당 턴의 판세를 판정하고 한 줄 설명을 반환한다.
-
-    발언 원문과 수식 점수를 모두 참고하여 판정한다.
+    """발언 원문만으로 판세를 판정하고 결과를 반환한다.
 
     Args:
-        score_summary : 각 에이전트 mag/ref/g/o 요약 문자열
-        v             : 종합 대립 지수
-        dominance     : "찬성" 또는 "반대"
-        speeches_text : 발언 원문 (찬성/반대 각각)
+        score_summary : (미사용 — 발언 원문만으로 판정)
+        v             : 폴백용 대립 지수
+        dominance     : 폴백용 우세 진영
+        speeches_text : "찬성:...\n반대:..." 형식 발언 원문
 
     Returns:
-        "[winner] [margin] — [reason]" 형식 문자열
+        "[찬성/반대]이 [score]/5로 우세 — [reason]" 형식 문자열
     """
     _load_model()
 
     if _model is not None and _tokenizer is not None:
-        return _judge_via_llm(score_summary, v, dominance, speeches_text)
+        return _judge_via_llm(speeches_text)
 
     return _judge_fallback(v, dominance)
 
 
-def _judge_via_llm(
-    score_summary: str,
-    v: float,
-    dominance: str,
-    speeches_text: str,
-) -> str:
-    """Qwen 7B로 판세 판정."""
+def _split_speeches(speeches_text: str):
+    """speeches_text에서 찬성/반대 발언을 분리한다.
+
+    "찬성:...\n반대:..." 또는 "PRO:...\nCON:..." 형식을 처리한다.
+    분리에 실패하면 ("", "") 을 반환한다.
+    """
+    pro_text, con_text = "", ""
+
+    # 한국어 레이블 우선
+    pro_match = re.search(r"찬성\s*:\s*(.+?)(?=반대\s*:|$)", speeches_text, re.DOTALL)
+    con_match = re.search(r"반대\s*:\s*(.+?)$", speeches_text, re.DOTALL)
+
+    if pro_match and con_match:
+        pro_text = pro_match.group(1).strip()
+        con_text = con_match.group(1).strip()
+    else:
+        # 영어 레이블 폴백
+        pro_match = re.search(r"PRO\s*:\s*(.+?)(?=CON\s*:|$)", speeches_text, re.DOTALL)
+        con_match = re.search(r"CON\s*:\s*(.+?)$", speeches_text, re.DOTALL)
+        if pro_match and con_match:
+            pro_text = pro_match.group(1).strip()
+            con_text = con_match.group(1).strip()
+
+    return pro_text, con_text
+
+
+def _judge_via_llm(speeches_text: str) -> str:
+    """Qwen 7B로 발언 원문만 보고 판세 판정."""
     import torch
 
+    # speeches_text에서 찬성/반대 분리
+    pro_text, con_text = _split_speeches(speeches_text)
+
     prompt = _JUDGE_TEMPLATE.format(
-        speeches_text=speeches_text[:1200],  # 토큰 절약
-        score_summary=score_summary,
-        v=v,
-        dominance=dominance,
+        pro_text=pro_text[:600],
+        con_text=con_text[:600],
     )
     messages = [
         {"role": "system", "content": _JUDGE_SYSTEM},
@@ -276,36 +302,42 @@ def _judge_via_llm(
             skip_special_tokens=True,
         ).strip()
 
-        import json, re
         clean = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
         data = json.loads(clean)
-        return f"[{data['winner']}] {data['margin']} — {data['reason']}"
+        winner = data["winner"]
+        score = int(data["score"])
+        reason = data["reason"]
+        return f"[{winner}]이 {score}/5로 우세 — {reason}"
 
     except Exception as exc:  # noqa: BLE001
-        logger.warning("판세 판정 LLM 오류 (%s). 폴백 사용.", exc)
-        return _judge_fallback(v, dominance)
+        logger.warning("판세 판정 LLM 오류 (%s). 발언 원문 판정 불가.", exc)
+        return "판세 판정 실패 — LLM 오류"
 
 
 def _judge_fallback(v: float, dominance: str) -> str:
-    """규칙 기반 폴백 판세 판정."""
+    """규칙 기반 폴백 판세 판정 (0~5 점수 척도)."""
     abs_v = abs(v)
     if abs_v < 0.5:
-        margin = "근소"
-    elif abs_v < 3.0:
-        margin = "우세"
+        score = 0
+        reason = "팽팽한 접전"
+    elif abs_v < 2.0:
+        score = 1
+        reason = f"{'찬성' if dominance == 'PRO' else '반대'}측이 논리성에서 근소하게 앞섬"
+    elif abs_v < 5.0:
+        score = 2
+        reason = f"{'찬성' if dominance == 'PRO' else '반대'}측 논거가 약간 우세"
+    elif abs_v < 10.0:
+        score = 3
+        reason = f"{'찬성' if dominance == 'PRO' else '반대'}측 입장 강도와 논거가 뚜렷이 앞섬"
+    elif abs_v < 20.0:
+        score = 4
+        reason = f"{'찬성' if dominance == 'PRO' else '반대'}측이 논리성·공격성에서 크게 앞섬"
     else:
-        margin = "압도"
+        score = 5
+        reason = f"{'찬성' if dominance == 'PRO' else '반대'}측이 논리성·공격성 모두에서 압도적 우위"
 
-    reason_map = {
-        ("찬성", "근소"): "찬성측이 논리성에서 소폭 앞섬",
-        ("찬성", "우세"): "찬성측 입장 강도와 논거가 반대측을 뚜렷이 앞섬",
-        ("찬성", "압도"): "찬성측이 논리성·공격성 모두에서 압도적 우위",
-        ("반대", "근소"): "반대측이 공격성에서 소폭 앞섬",
-        ("반대", "우세"): "반대측 반박 강도가 찬성측 논거를 뚜렷이 압도",
-        ("반대", "압도"): "반대측이 논리성·공격성 모두에서 압도적 우위",
-    }
-    reason = reason_map.get((dominance, margin), "팽팽한 접전")
-    return f"[{dominance}] {margin} — {reason}"
+    winner_kor = "찬성" if dominance == "PRO" else "반대"
+    return f"[{winner_kor}]이 {score}/5로 우세 — {reason}"
 
 
 def _extract_fallback(speech: str) -> Tuple[int, int]:
