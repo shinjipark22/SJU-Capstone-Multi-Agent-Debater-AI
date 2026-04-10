@@ -323,6 +323,11 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     if speeches:
         attack_chain.append(AIMessage(content=speeches[0][1]))  # 답변을 체인에 포함
     attack, raw_atk = _generate_with_chain(attack_chain, attack_prompt)
+
+    # 후처리: 질문으로 안 끝났으면 Qwen이 만든 질문을 강제 추가
+    if attack_question and "?" not in attack.split(".")[-1]:
+        attack = attack.rstrip() + " " + attack_question
+
     speeches.append(("공격", attack, raw_atk))
 
     # ── 발언 기록
