@@ -133,17 +133,17 @@ def _check_stance(text: str, expected_stance: str, topic: str) -> bool:
         return True
 
 
-def _generate_attack_question(target_speech: str, stance: str, topic: str) -> str:
-    """Qwen 7B로 상대 논거에 대한 공격 질문을 생성한다."""
-    stance_kr = "찬성" if stance == "PRO" else "반대"
+def _generate_attack_question(attack_text: str, stance: str, topic: str) -> str:
+    """Qwen 7B로 공격 발언의 흐름에 맞는 마무리 질문을 생성한다."""
     try:
         messages = [
-            HumanMessage(content=f"""상대의 주장을 읽고, 상대가 답하기 곤란한 질문을 1개 만들어라.
+            HumanMessage(content=f"""다음 공격 발언을 읽고, 이 흐름에 맞는 마무리 질문을 1개 만들어라.
 
-상대 주장: {target_speech[:200]}
+공격 발언: {attack_text[:300]}
 
 규칙:
-- "~할 수 있습니까?", "~라고 보십니까?", "~지 않습니까?" 형태의 질문
+- 공격 내용과 자연스럽게 이어지는 질문
+- "~할 수 있습니까?", "~라고 보십니까?", "~지 않습니까?" 형태
 - 한국어, 합니다체
 - 한 문장만 출력. ?로 끝나야 함
 - 설명하지 말고 질문만 출력
