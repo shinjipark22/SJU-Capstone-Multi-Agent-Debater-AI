@@ -138,12 +138,17 @@ def _generate_attack_question(target_speech: str, stance: str, topic: str) -> st
     stance_kr = "찬성" if stance == "PRO" else "반대"
     try:
         messages = [
-            HumanMessage(content=f"""너는 {stance_kr} 토론자다. 상대의 주장에 대해 답하기 곤란한 질문을 1개 만들어라.
+            HumanMessage(content=f"""상대의 주장을 읽고, 상대가 답하기 곤란한 질문을 1개 만들어라.
 
-토론 주제: {topic[:80]}
 상대 주장: {target_speech[:200]}
 
-반드시 ?로 끝나는 한국어 한 문장만 출력하라.""")
+규칙:
+- "~할 수 있습니까?", "~라고 보십니까?", "~지 않습니까?" 형태의 질문
+- 한국어, 합니다체
+- 한 문장만 출력. ?로 끝나야 함
+- 설명하지 말고 질문만 출력
+
+예시: 그렇다면 상대는 이 문제를 어떻게 해결할 수 있다고 보십니까?""")
         ]
         response = _qwen_llm.invoke(messages)
         result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
