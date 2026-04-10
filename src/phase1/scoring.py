@@ -1,31 +1,30 @@
 """
-scoring.py — McClelland (2014) 기반 실시간 토론 채점 엔진
+scoring.py — PCT(Perceptual Control Theory) 기반 실시간 토론 채점 엔진
 
-[핵심 원칙] 턴 완전 독립 측정
-    매 발언 쌍은 이전 턴의 p, v, o 상태를 전혀 이어받지 않는다.
-    각 턴마다 p=0, o_prev=0 에서 새로 시작하여
-    그 턴에서 추출한 r, g 만으로 수치를 산출한다.
+[수식] McClelland (2014), d=0
+    s        : 0.0025  (slowing factor)
+    steps    : 100     (수렴 시뮬레이션 반복 횟수)
 
-[수식] McClelland (2014)  d=0
-    s      : 0.0025  (slowing factor)
-    r      : 0~40    입장 강도/논리성  ← Qwen 7B 추출
-    g      : 5~50    공격성/타격력     ← Qwen 7B 추출
-    p_kt   : 0       (매 턴 리셋 — 이전 v 미사용)
-    o_kt   : 0 + s * { g * (r_kt - 0) - 0 } = s * g * r
-    v_t    : Σ o_it  (d=0)
+    reference: PRO → +magnitude, CON → -magnitude  (magnitude: 0~40)
+    gain     : 5~50  (공격성/타격력)  ← Qwen 7B 추출
 
-    → 각 에이전트 o = 0.0025 × g × r
+    매 스텝:
+        p[t]   = v[t-1]
+        o[t]   = o[t-1] + s*g*( (reference - p[t]) - o[t-1] )
+        v[t]   = o1[t] + o2[t]   (d=0)
 
-[범위]
-    o  : 0 ~ 5.0   (g_min×r_min=0, g_max×r_max=50×40×0.0025=5.0)
-    v  : 0 ~ N×5.0  (N = 발언 에이전트 수)
-    Dom: -(N/2×5.0) ~ +(N/2×5.0)
+    → 100스텝 수렴 후 최종 o, v 값을 실시간 출력
+
+[범위] (100스텝 수렴 근사)
+    o  : -40 ~ +40   (|reference| 최대 40에 수렴)
+    v  : -80 ~ +80   (양측 o 합산)
+    Dom: -80 ~ +80   (PRO_Σo − CON_Σo)
 
 [실시간 출력]
     매 발언 쌍 완료 시:
-        [에이전트명] r:XX, g:XX, o:X.XXXX
-        종합 대립 지수 (v): X.XXXX
-        Dominance: [찬성/반대] +X.XXXX
+        [에이전트명] ref:±XX, g:XX, o:±XX.XXXX
+        종합 대립 지수 (v): ±XX.XXXX
+        Dominance: [찬성/반대] ±XX.XXXX
 """
 
 from __future__ import annotations
@@ -40,17 +39,26 @@ logger = logging.getLogger(__name__)
 
 # ── 수식 상수 ─────────────────────────────────────────────────────────────────
 _SLOWING_FACTOR: float = 0.0025  # McClelland (2014)
+_SIM_STEPS: int = 100            # PCT 수렴 시뮬레이션 반복 횟수
 
 
 # ── 데이터 클래스 ─────────────────────────────────────────────────────────────
 
 @dataclass
 class SpeechScore:
-    """단일 발언의 추출·계산 결과."""
+    """단일 발언의 추출·계산 결과.
+
+    Attributes:
+        magnitude : Qwen 추출 입장 강도 (0~40, 절댓값)
+        reference : PCT reference = +magnitude(PRO) / -magnitude(CON)
+        gain      : Qwen 추출 공격성 (5~50)
+        o         : 100스텝 수렴 후 최종 영향력
+    """
     agent_id: str
     stance: Literal["PRO", "CON"]
-    r: int
-    g: int
+    magnitude: int
+    reference: int   # PRO: +magnitude, CON: -magnitude
+    gain: int
     o: float
 
 
@@ -148,11 +156,21 @@ class DebateScorer:
         Returns:
             TurnResult — 즉시 출력 가능한 채점 결과
         """
-        # p=0, o_prev=0 — 이전 턴 상태 완전 리셋
-        speech_scores: List[SpeechScore] = []
+        # 1) 각 발언에서 magnitude, gain 추출
+        scores_raw: List[SpeechScore] = []
         for agent_id, text in (first_speech, second_speech):
-            ss = self._compute_speech(agent_id, text)
-            speech_scores.append(ss)
+            scores_raw.append(self._extract_speech(agent_id, text))
+
+        # 2) 100스텝 PCT 시뮬레이션 (이전 턴 영향 없음 — o 초기값 0)
+        s0, s1 = scores_raw
+        final_o0, final_o1 = _simulate_pct(
+            ref1=s0.reference, g1=s0.gain,
+            ref2=s1.reference, g2=s1.gain,
+        )
+        speech_scores = [
+            SpeechScore(**{**s0.__dict__, "o": final_o0}),
+            SpeechScore(**{**s1.__dict__, "o": final_o1}),
+        ]
 
         result = self._build_result(phase, speech_scores)
         self._turn_index += 1
@@ -208,32 +226,33 @@ class DebateScorer:
 
     # ── 내부 메서드 ───────────────────────────────────────────────────────────
 
-    def _compute_speech(self, agent_id: str, speech_text: str) -> SpeechScore:
-        """단일 발언의 r, g를 추출하고 o를 계산한다.
+    def _extract_speech(self, agent_id: str, speech_text: str) -> SpeechScore:
+        """발언 텍스트에서 magnitude, gain을 추출하고 reference를 계산한다.
 
-        p=0, o_prev=0 고정 (매 턴 리셋):
-            o = 0 + s * { g * (r - 0) - 0 } = s * g * r
+        PRO  → reference = +magnitude
+        CON  → reference = -magnitude
 
-        Args:
-            agent_id    : 발언자 ID
-            speech_text : 발언 텍스트
-
-        Returns:
-            SpeechScore
+        o는 이 단계에서 0으로 초기화하며,
+        실제 o는 _simulate_pct() 100스텝 이후 채워진다.
         """
         if agent_id not in self._stances:
             logger.warning("미등록 에이전트 '%s' → 임시 PRO로 처리.", agent_id)
             self._stances[agent_id] = "PRO"
 
         stance = self._stances[agent_id]
-        r, g = extract_rg(speech_text)
+        magnitude, gain = extract_rg(speech_text)  # r=magnitude(0~40), g=gain(5~50)
+        reference = magnitude if stance == "PRO" else -magnitude
 
-        # p=0, o_prev=0 → o = s * g * r
-        o = _SLOWING_FACTOR * g * r
+        return SpeechScore(
+            agent_id=agent_id,
+            stance=stance,
+            magnitude=magnitude,
+            reference=reference,
+            gain=gain,
+            o=0.0,  # _simulate_pct()에서 채워짐
+        )
 
-        return SpeechScore(agent_id=agent_id, stance=stance, r=r, g=g, o=o)
-
-    def _build_result(
+    def _build_result(  # noqa: E303
         self,
         phase: str,
         speeches: List[SpeechScore],
@@ -269,6 +288,39 @@ class DebateScorer:
         )
 
 
+# ── PCT 시뮬레이션 ────────────────────────────────────────────────────────────
+
+def _simulate_pct(
+    ref1: float, g1: float,
+    ref2: float, g2: float,
+    steps: int = _SIM_STEPS,
+    s: float = _SLOWING_FACTOR,
+) -> tuple[float, float]:
+    """100스텝 PCT 시뮬레이션을 돌려 수렴된 (o1, o2)를 반환한다.
+
+    매 스텝:
+        p[t]  = v[t-1]
+        o[t]  = o[t-1] + s*g*( (ref - p[t]) - o[t-1] )
+        v[t]  = o1[t] + o2[t]
+
+    Args:
+        ref1, g1 : 첫 번째 발언자의 reference, gain
+        ref2, g2 : 두 번째 발언자의 reference, gain
+        steps    : 시뮬레이션 반복 횟수 (기본 100)
+        s        : slowing factor (기본 0.0025)
+
+    Returns:
+        (o1_final, o2_final)
+    """
+    o1, o2, v = 0.0, 0.0, 0.0
+    for _ in range(steps):
+        p = v
+        o1 = o1 + s * g1 * ((ref1 - p) - o1)
+        o2 = o2 + s * g2 * ((ref2 - p) - o2)
+        v = o1 + o2
+    return o1, o2
+
+
 # ── 출력 포맷터 ───────────────────────────────────────────────────────────────
 
 def _format_log(
@@ -295,7 +347,8 @@ def _format_log(
     for ss in speeches:
         stance_label = "찬성" if ss.stance == "PRO" else "반대"
         lines.append(
-            f"  [{ss.agent_id}({stance_label})]  r:{ss.r:2d}, g:{ss.g:2d}, o:{ss.o:+.4f}"
+            f"  [{ss.agent_id}({stance_label})]  "
+            f"mag:{ss.magnitude:2d}, ref:{ss.reference:+3d}, g:{ss.gain:2d}, o:{ss.o:+.4f}"
         )
     lines.append(f"  종합 대립 지수 (v): {v:+.4f}")
     dom_label = "찬성" if dominance == "PRO" else "반대"

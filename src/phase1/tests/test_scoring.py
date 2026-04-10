@@ -14,7 +14,7 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 from src.phase1.scoring import (
-    DebateScorer, TurnResult, SpeechScore, _SLOWING_FACTOR
+    DebateScorer, TurnResult, SpeechScore, _SLOWING_FACTOR, _SIM_STEPS, _simulate_pct
 )
 
 # ── 픽스처 ────────────────────────────────────────────────────────────────────
@@ -42,19 +42,32 @@ AGENTS_3v3 = [
 
 class TestFormula:
 
-    def test_o_equals_s_times_g_times_r(self):
-        """o = 0.0025 * g * r 검증 (폴백 추출기 기준)."""
+    def test_pro_reference_positive_con_negative(self):
+        """PRO reference = +magnitude, CON reference = -magnitude."""
         scorer = DebateScorer(AGENTS_1v1)
         result = scorer.process_pair(
             phase="opening",
             first_speech=("user",    "찬성 발언"),
             second_speech=("agent_1", "반대 발언"),
         )
-        for ss in result.speeches:
-            expected_o = _SLOWING_FACTOR * ss.g * ss.r
-            assert abs(ss.o - expected_o) < 1e-9, (
-                f"o 불일치: {ss.o} ≠ {expected_o} (r={ss.r}, g={ss.g})"
-            )
+        pro_ss = next(ss for ss in result.speeches if ss.stance == "PRO")
+        con_ss = next(ss for ss in result.speeches if ss.stance == "CON")
+        assert pro_ss.reference >= 0, "PRO reference가 음수"
+        assert con_ss.reference <= 0, "CON reference가 양수"
+        assert pro_ss.reference == pro_ss.magnitude
+        assert con_ss.reference == -con_ss.magnitude
+
+    def test_simulate_pct_100_steps(self):
+        """_simulate_pct 100스텝 수렴 값이 단순 s*g*r보다 훨씬 큰지 확인."""
+        o1, o2 = _simulate_pct(ref1=30, g1=30, ref2=-25, g2=25)
+        single_step = _SLOWING_FACTOR * 30 * 30  # 1스텝만 했을 때
+        assert abs(o1) > single_step * 5, "100스텝 o1이 1스텝 값과 비슷함 → 시뮬 미작동"
+
+    def test_o_converges_toward_reference(self):
+        """CON o는 음수, PRO o는 양수 방향으로 수렴해야 한다."""
+        o1, o2 = _simulate_pct(ref1=30, g1=30, ref2=-30, g2=30)
+        assert o1 > 0, f"PRO o1={o1} 양수여야 함"
+        assert o2 < 0, f"CON o2={o2} 음수여야 함"
 
     def test_v_equals_sum_of_turn_speeches_only(self):
         """v = 이 턴 발언자 o 합계 (비발언자 포함 안 함)."""
@@ -103,23 +116,17 @@ class TestFormula:
 
 class TestRange:
 
-    def test_o_max(self):
-        """o 최대값 = 0.0025 × 50 × 40 = 5.0"""
-        assert abs(_SLOWING_FACTOR * 50 * 40 - 5.0) < 1e-9
+    def test_o_range_after_simulation(self):
+        """100스텝 후 o는 reference(-40~+40) 근방에 수렴해야 한다."""
+        # PRO max, CON max 대칭 케이스
+        o1, o2 = _simulate_pct(ref1=40, g1=50, ref2=-40, g2=50, steps=100)
+        assert -45 <= o1 <= 45, f"o1={o1} 범위 초과"
+        assert -45 <= o2 <= 45, f"o2={o2} 범위 초과"
 
-    def test_o_min(self):
-        """o 최솟값 = 0.0025 × 5 × 0 = 0.0"""
-        assert _SLOWING_FACTOR * 5 * 0 == 0.0
-
-    def test_v_max_1v1(self):
-        """1:1 v 최대 = 5.0 + 5.0 = 10.0"""
-        assert _SLOWING_FACTOR * 50 * 40 * 2 == 10.0
-
-    def test_dominance_max_1v1(self):
-        """1:1 Dominance 최대 = 5.0 - 0.0 = 5.0"""
-        o_max = _SLOWING_FACTOR * 50 * 40
-        o_min = _SLOWING_FACTOR * 5 * 0
-        assert abs(o_max - o_min - 5.0) < 1e-9
+    def test_v_finite(self):
+        """v = o1+o2 가 항상 유한해야 한다."""
+        o1, o2 = _simulate_pct(ref1=40, g1=50, ref2=-40, g2=50)
+        assert math.isfinite(o1 + o2)
 
 
 # ── Dominance 검증 ────────────────────────────────────────────────────────────
@@ -188,7 +195,7 @@ class TestHundredIterations:
             results.append(result)
             # 매 턴: 유한, 범위 내, 인덱스 순서
             assert math.isfinite(result.v), f"Turn {i}: v가 유한하지 않음"
-            assert 0.0 <= result.v <= 10.0 + 1e-9, f"Turn {i}: v={result.v} 범위 초과"
+            assert -80.0 <= result.v <= 80.0, f"Turn {i}: v={result.v} 범위 초과"
             assert result.turn_index == i
 
         # 동일 입력 → 동일 출력: 턴 간 상태 누적 없음을 증명
