@@ -33,7 +33,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Literal, Optional
 
-from .extractor import extract_rg
+from .extractor import extract_rg, judge_turn
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,7 @@ class TurnResult:
     con_sum: float
     dominance: Literal["PRO", "CON"]
     dominance_gap: float
+    dominance_judgment: str = ""   # Qwen 판세 판정 한 줄 요약
     log_lines: List[str] = field(default_factory=list)
 
 
@@ -264,6 +265,15 @@ class DebateScorer:
 
         dominance: Literal["PRO", "CON"] = "PRO" if v >= 0 else "CON"
         dominance_gap = abs(v)
+        dom_label = "찬성" if dominance == "PRO" else "반대"
+
+        # Qwen 판세 판정
+        score_summary = "\n".join(
+            f"  {ss.agent_id}({'찬성' if ss.stance == 'PRO' else '반대'}): "
+            f"mag={ss.magnitude}, ref={ss.reference:+d}, g={ss.gain}, o={ss.o:+.4f}"
+            for ss in speeches
+        )
+        judgment = judge_turn(score_summary, v, dom_label)
 
         lines = _format_log(
             turn_index=self._turn_index,
@@ -272,6 +282,7 @@ class DebateScorer:
             v=v,
             dominance=dominance,
             dominance_gap=dominance_gap,
+            judgment=judgment,
         )
 
         return TurnResult(
@@ -283,6 +294,7 @@ class DebateScorer:
             con_sum=con_sum,
             dominance=dominance,
             dominance_gap=dominance_gap,
+            dominance_judgment=judgment,
             log_lines=lines,
         )
 
@@ -329,6 +341,7 @@ def _format_log(
     v: float,
     dominance: Literal["PRO", "CON"],
     dominance_gap: float,
+    judgment: str = "",
 ) -> List[str]:
     """실시간 출력용 문자열 리스트를 생성한다.
 
@@ -352,6 +365,8 @@ def _format_log(
     lines.append(f"  종합 대립 지수 (v): {v:+.4f}")
     dom_label = "찬성" if dominance == "PRO" else "반대"
     lines.append(f"  Dominance: {dom_label} +{dominance_gap:.4f}")
+    if judgment:
+        lines.append(f"  Qwen 판정: {judgment}")
     return lines
 
 

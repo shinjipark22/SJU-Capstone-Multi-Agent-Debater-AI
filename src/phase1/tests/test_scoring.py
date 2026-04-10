@@ -173,9 +173,14 @@ class TestLogLines:
     def test_dominance_label_korean(self):
         scorer = DebateScorer(AGENTS_1v1)
         result = scorer.process_pair("opening", ("user", "찬성"), ("agent_1", "반대"))
-        dom_line = result.log_lines[-1]
-        assert "Dominance:" in dom_line
-        assert ("찬성" in dom_line or "반대" in dom_line)
+        dom_line = next(l for l in result.log_lines if "Dominance:" in l)
+        assert "찬성" in dom_line or "반대" in dom_line
+
+    def test_judgment_line_exists(self):
+        scorer = DebateScorer(AGENTS_1v1)
+        result = scorer.process_pair("opening", ("user", "찬성"), ("agent_1", "반대"))
+        assert result.dominance_judgment != ""
+        assert any("Qwen 판정" in l for l in result.log_lines)
 
 
 # ── 100번 반복 ────────────────────────────────────────────────────────────────

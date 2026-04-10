@@ -185,6 +185,108 @@ def _extract_via_llm(speech: str) -> Tuple[int, int]:
         return _extract_fallback(speech)
 
 
+# ── 판세 판정 프롬프트 ────────────────────────────────────────────────────────
+
+_JUDGE_SYSTEM = (
+    "당신은 토론 판세를 분석하는 심판입니다. "
+    "반드시 JSON 형식으로만 응답하고, 다른 텍스트는 절대 출력하지 마세요."
+)
+
+_JUDGE_TEMPLATE = """다음 토론 발언 쌍의 채점 결과를 보고 판세를 판정하세요.
+
+채점 결과:
+{score_summary}
+
+종합 대립 지수 v = {v:.4f}  (양수=찬성 우세, 음수=반대 우세)
+현재 우세: {dominance}
+
+JSON 형식으로만 응답하세요:
+{{"winner": "찬성" 또는 "반대", "margin": "근소" 또는 "우세" 또는 "압도", "reason": "한 줄 한글 설명"}}"""
+
+
+def judge_turn(score_summary: str, v: float, dominance: str) -> str:
+    """Qwen 7B로 해당 턴의 판세를 판정하고 한 줄 설명을 반환한다.
+
+    Args:
+        score_summary : 각 에이전트 mag/ref/g/o 요약 문자열
+        v             : 종합 대립 지수
+        dominance     : "찬성" 또는 "반대"
+
+    Returns:
+        "[winner] [margin] — [reason]" 형식 문자열
+    """
+    _load_model()
+
+    if _model is not None and _tokenizer is not None:
+        return _judge_via_llm(score_summary, v, dominance)
+
+    return _judge_fallback(v, dominance)
+
+
+def _judge_via_llm(score_summary: str, v: float, dominance: str) -> str:
+    """Qwen 7B로 판세 판정."""
+    import torch
+
+    prompt = _JUDGE_TEMPLATE.format(
+        score_summary=score_summary,
+        v=v,
+        dominance=dominance,
+    )
+    messages = [
+        {"role": "system", "content": _JUDGE_SYSTEM},
+        {"role": "user",   "content": prompt},
+    ]
+    try:
+        text = _tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        inputs = _tokenizer(text, return_tensors="pt").to(_device)
+        with torch.no_grad():
+            outputs = _model.generate(
+                **inputs,
+                max_new_tokens=128,
+                do_sample=False,
+                temperature=None,
+                top_p=None,
+                pad_token_id=_tokenizer.eos_token_id,
+            )
+        raw = _tokenizer.decode(
+            outputs[0][inputs["input_ids"].shape[-1]:],
+            skip_special_tokens=True,
+        ).strip()
+
+        import json, re
+        clean = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
+        data = json.loads(clean)
+        return f"[{data['winner']}] {data['margin']} — {data['reason']}"
+
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("판세 판정 LLM 오류 (%s). 폴백 사용.", exc)
+        return _judge_fallback(v, dominance)
+
+
+def _judge_fallback(v: float, dominance: str) -> str:
+    """규칙 기반 폴백 판세 판정."""
+    abs_v = abs(v)
+    if abs_v < 0.5:
+        margin = "근소"
+    elif abs_v < 3.0:
+        margin = "우세"
+    else:
+        margin = "압도"
+
+    reason_map = {
+        ("찬성", "근소"): "찬성측이 논리성에서 소폭 앞섬",
+        ("찬성", "우세"): "찬성측 입장 강도와 논거가 반대측을 뚜렷이 앞섬",
+        ("찬성", "압도"): "찬성측이 논리성·공격성 모두에서 압도적 우위",
+        ("반대", "근소"): "반대측이 공격성에서 소폭 앞섬",
+        ("반대", "우세"): "반대측 반박 강도가 찬성측 논거를 뚜렷이 압도",
+        ("반대", "압도"): "반대측이 논리성·공격성 모두에서 압도적 우위",
+    }
+    reason = reason_map.get((dominance, margin), "팽팽한 접전")
+    return f"[{dominance}] {margin} — {reason}"
+
+
 def _extract_fallback(speech: str) -> Tuple[int, int]:
     """모델 없이 동작하는 규칙 기반 폴백 추출기.
 
