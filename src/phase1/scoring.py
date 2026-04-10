@@ -278,8 +278,8 @@ class DebateScorer:
             f"mag={ss.magnitude}, ref={ss.reference:+d}, g={ss.gain}, o={ss.o:+.4f}"
             for ss in speeches
         )
-        speeches_text = "\n\n".join(
-            f"[{'찬성' if ss.stance == 'PRO' else '반대'} / {ss.agent_id}]\n"
+        speeches_text = "\n".join(
+            f"{'찬성' if ss.stance == 'PRO' else '반대'}: "
             f"{speech_texts.get(ss.agent_id, '').strip()}"
             for ss in speeches
         )
