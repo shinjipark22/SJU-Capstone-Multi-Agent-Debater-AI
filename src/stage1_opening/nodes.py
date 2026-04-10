@@ -109,11 +109,11 @@ _TOOL_MAP: Dict[str, Any] = {t.name: t for t in _TOOLS}
 _VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
 
 _LLM_KWARGS = dict(
-    model="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+    model=os.environ.get("DEEPSEEK_MODEL", "Corianas/DeepSeek-R1-Distill-Qwen-14B-AWQ"),
     base_url=_VLLM_BASE_URL,
     api_key="fake",
     temperature=0.6,
-    max_tokens=4096,
+    max_tokens=2048,
     top_p=0.9,
     timeout=120,
 )

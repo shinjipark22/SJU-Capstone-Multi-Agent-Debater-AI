@@ -39,7 +39,7 @@ from src.stage2_rebuttal.nodes import build_agent_stance_nums
 from src.state import DebateEntry, DebateState
 
 # ── 역할반전 전용 LLM ──────────────────────────────────────────────────────
-_rr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 4096, "temperature": 0.6})
+_rr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 2048, "temperature": 0.6})
 
 
 # ── 상대팀 대표 랜덤 선정 ──────────────────────────────────────────────────

@@ -50,8 +50,20 @@ def _summarize_debate(
     agents: List[Dict],
     speaking_order: List[str],
 ) -> str:
-    """전체 토론 히스토리를 단계별로 요약한다."""
+    """전체 토론 히스토리를 단계별로 요약한다.
+
+    참여자 수에 따라 절단 길이를 자동 조절하여 컨텍스트 초과를 방지한다.
+    """
     stance_nums = build_agent_stance_nums(agents, speaking_order)
+    num_speakers = len(speaking_order)
+
+    # 참여자 수에 따라 절단 길이 조절 (3:3이면 짧게)
+    if num_speakers <= 4:  # 2:2
+        len_long, len_short = 200, 150
+    elif num_speakers <= 6:  # 3:3
+        len_long, len_short = 120, 80
+    else:
+        len_long, len_short = 80, 60
 
     def _speaker_display(entry: DebateEntry) -> str:
         if entry["speaker_id"] == "user":
@@ -72,7 +84,7 @@ def _summarize_debate(
         entries = [e for e in history if e["phase"] == phase_name]
         if not entries:
             continue
-        max_len = 200 if phase_name in ("opening", "role_reversal") else 150
+        max_len = len_long if phase_name in ("opening", "role_reversal") else len_short
         lines = [f"[{phase_label}]"]
         for e in entries:
             stance_kr = "찬성" if e["stance"] == "PRO" else "반대"
