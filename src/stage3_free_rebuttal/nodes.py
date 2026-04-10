@@ -324,12 +324,10 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         attack_chain.append(AIMessage(content=speeches[0][1]))  # 답변을 체인에 포함
     attack, raw_atk = _generate_with_chain(attack_chain, attack_prompt)
 
-    # 후처리: 마지막이 ?로 안 끝나면 질문 강제 추가
-    if not attack.rstrip().endswith("?"):
-        if attack_question:
-            attack = attack.rstrip() + " " + attack_question
-        else:
-            attack = attack.rstrip() + " 이에 대해 상대는 어떻게 설명하시겠습니까?"
+    # 후처리: 텍스트 어디에도 ?가 없으면 질문 강제 추가
+    if "?" not in attack:
+        q = attack_question if attack_question else "이에 대해 상대는 어떻게 설명하시겠습니까?"
+        attack = attack.rstrip() + " " + q
 
     speeches.append(("공격", attack, raw_atk))
 
