@@ -289,8 +289,10 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
         chain = _build_synthesis_chain(agent, history, speaker_id)
         prompt = (
             f"[사용자 발언]\n{user_latest}\n\n"
-            f"사용자 의견에 동조하면서 빠진 부분을 보완하거나 구체적 수치/사례를 덧붙여라. "
-            f"정면 반박 금지. 같은 방향에서 발전시켜라. 1~2문장.\n\n"
+            f"사용자 의견에 동조하면서 보완하되, 사용자가 말하지 않은 새로운 관점·수치·사례를 추가하라. "
+            f"사용자 문장을 그대로 반복하거나 복사하지 마라. 자기만의 표현으로 다시 써라. "
+            f"다른 에이전트와 같은 내용을 말하지 마라. "
+            f"1~2문장.\n\n"
             f"### 반박 시작\n(의견)\n### 반박 끝"
         )
         speech, raw = _generate_with_synthesis_chain(chain, prompt)

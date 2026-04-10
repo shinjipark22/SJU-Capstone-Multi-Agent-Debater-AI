@@ -144,7 +144,8 @@ def _generate_attack_question(attack_text: str, stance: str, topic: str) -> str:
 규칙:
 - 공격 내용과 자연스럽게 이어지는 질문
 - "~할 수 있습니까?", "~라고 보십니까?", "~지 않습니까?" 형태
-- 한국어, 합니다체
+- 반드시 한국어로만 출력. 영어/중국어 등 다른 언어 금지
+- 합니다체
 - 한 문장만 출력. ?로 끝나야 함
 - 설명하지 말고 질문만 출력
 
@@ -171,10 +172,15 @@ def analyze_weakness(target_speech: str, topic: str) -> str:
 토론 주제: {topic[:80]}
 상대 주장: {target_speech[:300]}
 
+[필수] 반드시 한국어로만 답변하라. 영어, 중국어 등 다른 언어 사용 금지.
 형식: "약점: (내용)" 한 줄만 출력.""")
         ]
         response = _qwen_llm.invoke(messages)
         result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
+        # 중국어/영어 유출 필터링
+        if re.search(r'[\u4e00-\u9fff]', result):
+            logger.warning("[qwen7b] 중국어 유출 감지, 결과 폐기")
+            return ""
         # "약점:" 이후 추출
         if "약점:" in result:
             return result.split("약점:")[-1].strip()

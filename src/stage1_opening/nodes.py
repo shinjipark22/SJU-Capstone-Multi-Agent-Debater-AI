@@ -273,6 +273,14 @@ def _postprocess_speech(text: str) -> str:
         after = re.sub(r'\n\s*\*?참고[\s:：].*', '', after, flags=re.DOTALL)
         after = re.sub(r'\n\s*\*?주[\s:：].*', '', after, flags=re.DOTALL)
         text = text[:cm.start()] + after
+    # 불완전 문장 정리: 마지막 문장이 끝맺음 없이 끊겼으면 제거
+    lines = text.rstrip().split('\n')
+    if lines:
+        last = lines[-1].rstrip()
+        # 소제목이 아닌 일반 문장이 마침표/물음표/느낌표/볼드 없이 끝나면 불완전
+        if last and not last.startswith('###') and not re.search(r'[.?!다까요\*]$', last):
+            lines = lines[:-1]
+            text = '\n'.join(lines)
     return text
 
 
