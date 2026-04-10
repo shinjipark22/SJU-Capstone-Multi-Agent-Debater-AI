@@ -160,8 +160,9 @@ def _build_synthesis_chain(
     system = (
         f"{agent['system_prompt']}\n\n"
         f"[최우선 규칙] 지금은 최적해 회의 중이다. "
-        f"입장을 버리고 최선의 해결책을 함께 찾아라. "
-        f"1~2문장으로만 답변하라."
+        f"찬성/반대 입장을 완전히 버려라. 이전 단계에서 주장한 내용을 반복하지 마라. "
+        f"중립적 관점에서 최선의 해결책을 함께 찾아라. "
+        f"1~2문장으로만 답변하라. 반드시 한국어로만 답변하라."
     )
     messages = [SystemMessage(content=system)]
 

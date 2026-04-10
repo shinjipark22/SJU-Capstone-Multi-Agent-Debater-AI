@@ -223,7 +223,9 @@ def _postprocess_speech(text: str) -> str:
     # 깨진 유니코드 문자 제거
     text = text.replace('\ufffd', '')
     # 외국 문자 제거 (한자, 일본어, 러시아어, 태국어, 아랍어, 베트남어 등)
-    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff]+', '', text)
+    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff\u00c0-\u00ff\u0150-\u017f]+', '', text)
+    # 한국어 문장 중간의 영어 단어 제거 (고유명사 2단어 이상 연속은 유지)
+    text = re.sub(r'(?<=[가-힣\s])[a-z]{5,}(?=[가-힣\s.,])', '', text, flags=re.IGNORECASE)
     # 영어 줄 제거 (한글 없이 영어로만 이루어진 줄)
     lines = text.split('\n')
     text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l) or l.strip().startswith('###'))
