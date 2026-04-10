@@ -143,7 +143,6 @@ def _build_proposal_prompt(
 반드시 아래 형식으로만 출력:
 
 ### 반박 시작
-(의견)
 ### 반박 끝"""
 
 
@@ -178,6 +177,14 @@ def _build_synthesis_chain(
 
 
 _FALLBACK_MARKER = "이 문제의 핵심을 다시 짚어볼 필요가 있습니다"
+_FALLBACK_RESPONSES = [
+    "이 해결책의 실현 가능성을 따져보면, 비용과 시간 측면에서 단계적 접근이 필요합니다.",
+    "이 문제로 가장 피해를 보는 계층을 우선 고려한 방안이 되어야 합니다.",
+    "장기적 관점에서 이 방안이 5년 후에도 유효한지 검토가 필요합니다.",
+    "유사한 문제를 해결한 다른 국가의 사례를 참고하면 도움이 될 것입니다.",
+    "표면적 증상이 아닌 구조적 원인에 집중한 해결책이 필요합니다.",
+]
+_fallback_idx = 0
 
 
 def _generate_with_synthesis_chain(
@@ -201,7 +208,9 @@ def _generate_with_synthesis_chain(
             messages.append(HumanMessage(content="이전 응답이 부적절합니다. 한국어로 1~2문장, 구체적인 의견을 말하세요."))
 
     if not _is_valid_rebuttal(speech):
-        speech = "사용자의 의견에 동의하며, 구체적인 실행 방안에 대해 추가 논의가 필요합니다."
+        global _fallback_idx
+        speech = _FALLBACK_RESPONSES[_fallback_idx % len(_FALLBACK_RESPONSES)]
+        _fallback_idx += 1
 
     return speech, raw
 
@@ -321,7 +330,7 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
             f"사용자 문장을 그대로 쓰지 마라. "
             f"다른 에이전트가 이미 말한 내용도 반복하지 마라. "
             f"1~2문장.\n\n"
-            f"### 반박 시작\n(의견)\n### 반박 끝"
+            f"### 반박 시작\n### 반박 끝"
         )
         speech, raw = _generate_with_synthesis_chain(chain, prompt)
 

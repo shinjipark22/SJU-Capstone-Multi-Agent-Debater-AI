@@ -267,18 +267,21 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
 
     speeches = []
     tool_calls_log: List[Dict] = []
-    user_latest = user_entries[-1]["content"] if user_entries else ""
     is_first_turn = len(agent_entries) == 0
+
+    # 사용자 최근 발언 분리 (답변 + 공격이 별개)
+    user_latest_defense = user_entries[-2]["content"] if len(user_entries) >= 2 else (user_entries[-1]["content"] if user_entries else "")
+    user_latest_attack = user_entries[-1]["content"] if user_entries else ""
 
     # 이전 공격 내용 수집 (중복 방지용)
     prev_attacks = [e["content"][:100] for e in agent_entries]
     prev_attacks_text = "\n".join(f"- {a}" for a in prev_attacks[-3:]) if prev_attacks else ""
 
-    # ── Step 1: 답변 (상대 직전 턴에 대한 반박)
-    if not is_first_turn and user_latest:
-        print(f"  [Step 1 - 답변] 상대 직전 턴에 반박\n")
+    # ── Step 1: 답변 (사용자의 공격에 대한 방어)
+    if not is_first_turn and user_latest_attack:
+        print(f"  [Step 1 - 답변] 사용자 공격에 방어\n")
 
-        query_def = _decide_search(user_latest, "")
+        query_def = _decide_search(user_latest_attack, "")
         search_def = ""
         if query_def:
             tool_calls_log.append({"name": "search_web", "args": {"query": query_def}})
@@ -286,15 +289,15 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
             search_def = _truncate_tool_result(web_result)
             print(f"  [검색] '{query_def}'\n")
 
-        defense_prompt = _build_defense_prompt(user_latest, my_opening, search_def)
+        defense_prompt = _build_defense_prompt(user_latest_attack, my_opening, search_def)
         defense, raw_def = _generate_with_chain(list(chain), defense_prompt)
         speeches.append(("답변", defense, raw_def))
 
-    # ── Step 2: 공격 (직전 발언의 허점 공격, 첫 턴만 입론 공격)
-    if user_latest and not is_first_turn:
-        target_argument = user_latest
+    # ── Step 2: 공격 (사용자의 방어에서 허점 찾기, 첫 턴만 입론 공격)
+    if not is_first_turn and user_latest_defense:
+        target_argument = user_latest_defense  # 사용자의 방어 발언에서 허점 공격
     else:
-        target_argument = _pick_one_argument(opp_opening)
+        target_argument = _pick_one_argument(opp_opening)  # 첫 턴만 입론 공격
 
     print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
 
