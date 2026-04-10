@@ -260,11 +260,10 @@ class DebateScorer:
         """TurnResult를 생성하고 출력용 log_lines를 구성한다."""
         pro_sum = sum(ss.o for ss in speeches if ss.stance == "PRO")
         con_sum = sum(ss.o for ss in speeches if ss.stance == "CON")
-        v = pro_sum + con_sum
-        gap = pro_sum - con_sum
+        v = pro_sum + con_sum  # 양수=PRO 우세, 음수=CON 우세
 
-        dominance: Literal["PRO", "CON"] = "PRO" if gap >= 0 else "CON"
-        dominance_gap = abs(gap)
+        dominance: Literal["PRO", "CON"] = "PRO" if v >= 0 else "CON"
+        dominance_gap = abs(v)
 
         lines = _format_log(
             turn_index=self._turn_index,

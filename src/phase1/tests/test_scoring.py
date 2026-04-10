@@ -143,11 +143,16 @@ class TestDominance:
         result = scorer.process_pair("opening", ("user", "찬성"), ("agent_1", "반대"))
         assert result.dominance_gap >= 0.0
 
-    def test_pro_sum_plus_con_sum_equals_v(self):
+    def test_dominance_equals_v(self):
+        """dominance_gap = |v|, dominance는 v 부호로 결정."""
         scorer = DebateScorer(AGENTS_3v3)
         result = scorer.process_pair("free_rebuttal",
             ("agent_1", "강한 논거 제시"), ("agent_4", "반박"))
-        assert abs(result.pro_sum + result.con_sum - result.v) < 1e-9
+        assert abs(result.dominance_gap - abs(result.v)) < 1e-9
+        if result.v >= 0:
+            assert result.dominance == "PRO"
+        else:
+            assert result.dominance == "CON"
 
 
 # ── 출력 포맷 ─────────────────────────────────────────────────────────────────
