@@ -270,6 +270,10 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     user_latest = user_entries[-1]["content"] if user_entries else ""
     is_first_turn = len(agent_entries) == 0
 
+    # 이전 공격 내용 수집 (중복 방지용)
+    prev_attacks = [e["content"][:100] for e in agent_entries]
+    prev_attacks_text = "\n".join(f"- {a}" for a in prev_attacks[-3:]) if prev_attacks else ""
+
     # ── Step 1: 답변 (상대 직전 턴에 대한 반박)
     if not is_first_turn and user_latest:
         print(f"  [Step 1 - 답변] 상대 직전 턴에 반박\n")
@@ -309,7 +313,8 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         print(f"  [검색] '{query_atk}'\n")
 
     weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
-    attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint, opp_opening)
+    prev_hint = f"\n[이전 공격 — 아래 내용은 이미 사용했으니 반복 금지. 완전히 다른 관점으로 공격하라]\n{prev_attacks_text}\n" if prev_attacks_text else ""
+    attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint + prev_hint, opp_opening)
     # 답변이 있으면 그 결과를 체인에 추가한 뒤 공격
     attack_chain = list(chain)
     if speeches:
