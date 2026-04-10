@@ -76,6 +76,17 @@ def _save_results(topic_id: str, topic_title: str, state: dict, user_inputs: dic
             lines.append(f"-" * 70)
             lines.append(f"[턴 {entry['turn']}] {speaker} ({s_label}){target_str}")
             lines.append(entry["content"])
+            # 메타정보: tool_calls_log (검색 판단, 쿼리, 약점 분석 등)
+            tool_log = entry.get("tool_calls_log", [])
+            if tool_log:
+                lines.append(f"  [메타] 도구 호출: {tool_log}")
+            json_raw = entry.get("json_raw", "")
+            if json_raw and speaker != "사용자":
+                # 약점 분석이 포함된 경우 표시
+                if "약점" in str(entry.get("tool_calls_log", "")):
+                    lines.append(f"  [메타] 약점 분석 포함")
+                # LLM 원본 응답 길이
+                lines.append(f"  [메타] LLM 원본: {len(json_raw)}자")
             lines.append("")
 
     lines.append(f"{'='*70}")

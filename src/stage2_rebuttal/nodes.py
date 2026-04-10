@@ -469,6 +469,7 @@ def generate_ai_rebuttal(
     # Qwen 7B로 약점 사전 분석
     weakness = analyze_weakness(target_argument, topic)
     if weakness:
+        tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
         logger.info("[rebuttal] 약점 분석: %s", weakness[:60])
         attack_style = f"{attack_style} — 특히 이 약점을 공격하라: {weakness}"
 

@@ -295,6 +295,7 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     # Qwen 7B 약점 분석
     weakness = analyze_weakness(target_argument, state["topic"])
     if weakness:
+        tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
         print(f"  [약점 분석] {weakness[:60]}\n")
 
     query_atk = _decide_search(target_argument, "")
