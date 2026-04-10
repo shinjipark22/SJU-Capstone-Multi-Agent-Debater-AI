@@ -192,25 +192,40 @@ _JUDGE_SYSTEM = (
     "반드시 JSON 형식으로만 응답하고, 다른 텍스트는 절대 출력하지 마세요."
 )
 
-_JUDGE_TEMPLATE = """다음 토론 발언 쌍의 채점 결과를 보고 판세를 판정하세요.
+_JUDGE_TEMPLATE = """다음 토론 발언 쌍을 발언 내용과 수식 채점 결과를 모두 참고하여 판세를 판정하세요.
 
-채점 결과:
+[발언 원문]
+{speeches_text}
+
+[수식 채점 결과]
 {score_summary}
 
 종합 대립 지수 v = {v:.4f}  (양수=찬성 우세, 음수=반대 우세)
-현재 우세: {dominance}
+
+판정 기준:
+- 발언의 논리 구조, 근거 제시, 반박의 날카로움을 직접 읽고 평가하세요.
+- 수식 점수(mag=입장강도, g=공격성, o=영향력)와 v(대립지수)도 함께 반영하세요.
+- 두 정보가 일치하면 확신 있게, 엇갈리면 발언 내용에 더 비중을 두세요.
 
 JSON 형식으로만 응답하세요:
-{{"winner": "찬성" 또는 "반대", "margin": "근소" 또는 "우세" 또는 "압도", "reason": "한 줄 한글 설명"}}"""
+{{"winner": "찬성" 또는 "반대", "margin": "근소" 또는 "우세" 또는 "압도", "reason": "발언 내용과 점수를 근거로 한 한 줄 한글 설명"}}"""
 
 
-def judge_turn(score_summary: str, v: float, dominance: str) -> str:
+def judge_turn(
+    score_summary: str,
+    v: float,
+    dominance: str,
+    speeches_text: str = "",
+) -> str:
     """Qwen 7B로 해당 턴의 판세를 판정하고 한 줄 설명을 반환한다.
+
+    발언 원문과 수식 점수를 모두 참고하여 판정한다.
 
     Args:
         score_summary : 각 에이전트 mag/ref/g/o 요약 문자열
         v             : 종합 대립 지수
         dominance     : "찬성" 또는 "반대"
+        speeches_text : 발언 원문 (찬성/반대 각각)
 
     Returns:
         "[winner] [margin] — [reason]" 형식 문자열
@@ -218,16 +233,22 @@ def judge_turn(score_summary: str, v: float, dominance: str) -> str:
     _load_model()
 
     if _model is not None and _tokenizer is not None:
-        return _judge_via_llm(score_summary, v, dominance)
+        return _judge_via_llm(score_summary, v, dominance, speeches_text)
 
     return _judge_fallback(v, dominance)
 
 
-def _judge_via_llm(score_summary: str, v: float, dominance: str) -> str:
+def _judge_via_llm(
+    score_summary: str,
+    v: float,
+    dominance: str,
+    speeches_text: str,
+) -> str:
     """Qwen 7B로 판세 판정."""
     import torch
 
     prompt = _JUDGE_TEMPLATE.format(
+        speeches_text=speeches_text[:1200],  # 토큰 절약
         score_summary=score_summary,
         v=v,
         dominance=dominance,

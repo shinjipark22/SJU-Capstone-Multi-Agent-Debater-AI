@@ -157,7 +157,11 @@ class DebateScorer:
         Returns:
             TurnResult — 즉시 출력 가능한 채점 결과
         """
-        # 1) 각 발언에서 magnitude, gain 추출
+        # 1) 각 발언에서 magnitude, gain 추출 (원문도 보존)
+        speech_texts: Dict[str, str] = {
+            first_speech[0]: first_speech[1],
+            second_speech[0]: second_speech[1],
+        }
         scores_raw: List[SpeechScore] = []
         for agent_id, text in (first_speech, second_speech):
             scores_raw.append(self._extract_speech(agent_id, text))
@@ -173,7 +177,7 @@ class DebateScorer:
             SpeechScore(**{**s1.__dict__, "o": final_o1}),
         ]
 
-        result = self._build_result(phase, speech_scores)
+        result = self._build_result(phase, speech_scores, speech_texts)
         self._turn_index += 1
         return result
 
@@ -257,6 +261,7 @@ class DebateScorer:
         self,
         phase: str,
         speeches: List[SpeechScore],
+        speech_texts: Dict[str, str] = {},
     ) -> TurnResult:
         """TurnResult를 생성하고 출력용 log_lines를 구성한다."""
         pro_sum = sum(ss.o for ss in speeches if ss.stance == "PRO")
@@ -267,13 +272,18 @@ class DebateScorer:
         dominance_gap = abs(v)
         dom_label = "찬성" if dominance == "PRO" else "반대"
 
-        # Qwen 판세 판정
+        # Qwen 판세 판정 — 발언 원문 + 수식 점수 모두 전달
         score_summary = "\n".join(
             f"  {ss.agent_id}({'찬성' if ss.stance == 'PRO' else '반대'}): "
             f"mag={ss.magnitude}, ref={ss.reference:+d}, g={ss.gain}, o={ss.o:+.4f}"
             for ss in speeches
         )
-        judgment = judge_turn(score_summary, v, dom_label)
+        speeches_text = "\n\n".join(
+            f"[{'찬성' if ss.stance == 'PRO' else '반대'} / {ss.agent_id}]\n"
+            f"{speech_texts.get(ss.agent_id, '').strip()}"
+            for ss in speeches
+        )
+        judgment = judge_turn(score_summary, v, dom_label, speeches_text)
 
         lines = _format_log(
             turn_index=self._turn_index,
