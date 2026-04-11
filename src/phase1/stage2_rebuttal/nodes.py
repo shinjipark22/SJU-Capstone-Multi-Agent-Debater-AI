@@ -96,34 +96,6 @@ def _decide_search(target_argument: str, attack_style: str) -> str:
         return ""
 
 
-def _generate_attack_question(attack_text: str, stance: str, topic: str) -> str:
-    """공격 발언의 흐름에 맞는 마무리 질문을 생성한다."""
-    try:
-        messages = [
-            HumanMessage(content=f"""다음 공격 발언을 읽고, 이 흐름에 맞는 마무리 질문을 1개 만들어라.
-
-공격 발언: {attack_text[:300]}
-
-규칙:
-- 공격 내용과 자연스럽게 이어지는 질문
-- "~할 수 있습니까?", "~라고 보십니까?" 형태
-- 한국어, 합니다체, 한 문장만, ?로 끝나야 함
-- 설명 없이 질문만 출력
-
-예시: 그렇다면 상대는 이 문제를 어떻게 해결할 수 있다고 보십니까?""")
-        ]
-        response = _analysis_llm.invoke(messages)
-        result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
-        for line in result.split('\n'):
-            line = line.strip()
-            if line.endswith('?') and re.search(r'[가-힣]', line):
-                return line
-        return ""
-    except Exception as e:
-        logger.warning("[32B] _generate_attack_question 오류: %s", e)
-        return ""
-
-
 def analyze_weakness(target_speech: str, topic: str, prev_weaknesses: str = "") -> str:
     """상대 논거의 핵심 약점을 분석한다."""
     prev_block = ""
