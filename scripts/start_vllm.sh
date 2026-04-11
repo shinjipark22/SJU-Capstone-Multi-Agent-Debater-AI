@@ -13,7 +13,7 @@ CUDA_VISIBLE_DEVICES=0 vllm serve \
     Corianas/DeepSeek-R1-Distill-Qwen-14B-AWQ \
     --port 8000 \
     --gpu-memory-utilization 0.85 \
-    --max-model-len 4096 \
+    --max-model-len 8192 \
     --quantization awq \
     --dtype float16 \
     --enforce-eager \
@@ -25,7 +25,7 @@ CUDA_VISIBLE_DEVICES=1 vllm serve \
     Qwen/Qwen2.5-7B-Instruct \
     --port 8001 \
     --gpu-memory-utilization 0.85 \
-    --max-model-len 4096 \
+    --max-model-len 8192 \
     --enforce-eager \
     --download-dir "$HF_HOME" \
     &
