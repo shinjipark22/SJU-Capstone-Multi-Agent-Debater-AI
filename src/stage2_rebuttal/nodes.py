@@ -27,7 +27,6 @@ from src.stage1_opening.nodes import (
     _truncate_tool_result,
     _remove_english_blocks,
     search_web,
-    search_vector_db,
     _LLM_KWARGS,
 )
 
