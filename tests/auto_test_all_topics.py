@@ -44,7 +44,8 @@ def _load_topic(topic_id: str) -> dict:
 def _save_results(topic_id: str, topic_title: str, state: dict, user_inputs: dict, config: dict):
     _OUTPUT_DIR.mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = _OUTPUT_DIR / f"auto_test_{topic_id}_{timestamp}.txt"
+    fmt = config["debate_format"].replace(":", "v")
+    output_path = _OUTPUT_DIR / f"auto_test_{fmt}_{topic_id}_{timestamp}.txt"
 
     lines = [
         f"{'='*70}",
@@ -257,19 +258,28 @@ def run_single_topic(topic_id: str, user_inputs: dict, config: dict):
     return output_path
 
 
+_FORMAT_CONFIGS = {
+    "1:1": {"agent_intensities": [3]},
+    "2:2": {"agent_intensities": [3, 2, 4]},
+    "3:3": {"agent_intensities": [3, 2, 4, 3, 2]},
+}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--topic", type=str, default=None, help="특정 토픽만 테스트 (예: tech_001)")
+    parser.add_argument("--format", type=str, default="2:2", choices=["1:1", "2:2", "3:3"], help="토론 포맷")
     args = parser.parse_args()
 
     with _USER_INPUTS_PATH.open(encoding="utf-8") as f:
         user_inputs = json.load(f)
 
+    fmt_config = _FORMAT_CONFIGS[args.format]
     config = {
-        "debate_format": user_inputs["debate_format"],
+        "debate_format": args.format,
         "user_stance": user_inputs["user_stance"],
         "user_intensity": user_inputs["user_intensity"],
-        "agent_intensities": user_inputs["agent_intensities"],
+        "agent_intensities": fmt_config["agent_intensities"],
     }
 
     if args.topic:
