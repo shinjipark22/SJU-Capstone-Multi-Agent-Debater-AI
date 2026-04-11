@@ -290,7 +290,7 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     if not is_first_turn and user_latest_attack:
         print(f"  [Step 1 - 답변] 사용자 공격에 방어\n")
 
-        query_def = _decide_search(user_latest_attack, "")
+        query_def = _decide_search(user_latest_attack)
         search_def = ""
         if query_def:
             tool_calls_log.append({"name": "search_web", "args": {"query": query_def}})
@@ -316,7 +316,7 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
         print(f"  [약점 분석] {weakness[:60]}\n")
 
-    query_atk = _decide_search(target_argument, "")
+    query_atk = _decide_search(target_argument)
     search_atk = ""
     if query_atk:
         tool_calls_log.append({"name": "search_web", "args": {"query": query_atk}})
