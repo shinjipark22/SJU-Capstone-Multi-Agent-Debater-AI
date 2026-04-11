@@ -37,12 +37,15 @@ from src.stage1_opening.nodes import (
 )
 from src.stage2_rebuttal.nodes import (
     _extract_rebuttal_text,
-    _decide_search,
     _is_valid_rebuttal,
     build_agent_stance_nums,
-    analyze_weakness,
-    _generate_attack_question,
 )
+from src.graph.searcher import (
+    analyze_weakness,
+    decide_search as _decide_search,
+    generate_attack_question as _generate_attack_question,
+)
+from src.graph.reviewer import review_speech
 from src.state import DebateEntry, DebateState
 
 # ── 자유논박 전용 LLM ───────────────────────────────────────────────────────
