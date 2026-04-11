@@ -2,29 +2,31 @@
 main.py — FastAPI 애플리케이션 진입점
 
 LangGraph 메인 토론 그래프 기반.
-- POST /debate/init    → 세션 생성 + 그래프 시작 (AI 입론 후 사용자 대기)
-- POST /debate/{id}/submit → interrupt에서 멈춘 그래프 재개 (사용자 입력)
-- GET  /debate/{id}/state  → 현재 상태 조회
-- GET  /topics             → 토픽 목록
-- GET  /health             → 서버 상태
+- POST /debate/init         → 세션 생성 + SSE 스트리밍 (AI 입론 실시간 전송)
+- POST /debate/{id}/submit  → SSE 스트리밍으로 그래프 재개 (다음 interrupt까지)
+- GET  /debate/{id}/state   → 현재 상태 조회
+- GET  /topics              → 토픽 목록
+- GET  /health              → 서버 상태
 """
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 from pydantic import BaseModel, field_validator
 
 from src.graph.main_graph import build_debate_graph
-from src.models import AgentInfo, DebateInitRequest, DebateInitResponse
+from src.models import DebateInitRequest
 from src.phase0.persona_factory import create_agents, AgentPersona
 from src.state import AgentSnapshot, DebateState, build_initial_state, generate_session_id
 
 app = FastAPI(
     title="Multi-Agent Debater AI",
-    description="LangGraph 기반 멀티 에이전트 토론 시스템 API",
+    description="LangGraph 기반 멀티 에이전트 토론 시스템 API (SSE 스트리밍)",
     version="2.0.0",
 )
 
@@ -32,7 +34,7 @@ app = FastAPI(
 debate_graph = build_debate_graph()
 
 
-# ── 요청/응답 모델 ────────────────────────────────────────────────────────
+# ── 요청 모델 ─────────────────────────────────────────────────────────────
 
 class UserSubmitRequest(BaseModel):
     """사용자 입력 제출 (모든 단계 공용)."""
@@ -46,46 +48,45 @@ class UserSubmitRequest(BaseModel):
         return v.strip()
 
 
-class DebateStateResponse(BaseModel):
-    """토론 상태 응답."""
-    session_id: str
-    phase: str
-    current_turn: int
-    is_finished: bool
-    waiting_for: str  # 현재 interrupt에서 대기 중인 내용
-    debate_history: list
-    message: str
+# ── SSE 이벤트 헬퍼 ───────────────────────────────────────────────────────
+
+def _sse_event(event_type: str, data: dict) -> str:
+    """SSE 포맷 이벤트 문자열을 생성한다."""
+    return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-# ── 엔드포인트 ─────────────────────────────────────────────────────────────
+def _extract_new_entries(prev_history: list, cur_history: list) -> list:
+    """이전 대비 새로 추가된 debate_history 엔트리를 추출한다."""
+    prev_len = len(prev_history)
+    return cur_history[prev_len:]
 
-@app.post("/debate/init", response_model=DebateStateResponse)
-def initialize_debate(request: DebateInitRequest) -> DebateStateResponse:
-    """토론 세션을 초기화하고 AI 입론을 생성한다.
 
-    그래프가 ai_opening을 실행한 뒤 user_opening의 interrupt에서 멈춘다.
-    """
-    # 1. topics.json에서 토픽 조회
+def _get_waiting_info(config: dict) -> tuple:
+    """현재 그래프 상태에서 waiting_for, is_finished를 추출한다."""
+    graph_state = debate_graph.get_state(config)
+    if graph_state and graph_state.next:
+        return graph_state.next[0], False
+    return "", True
+
+
+# ── 초기화 + 토픽 조회 헬퍼 ───────────────────────────────────────────────
+
+def _load_topic(topic_id: str) -> dict:
+    """topics.json에서 토픽을 조회한다."""
     topics_path = Path(__file__).resolve().parent.parent / "data" / "topics_20260323_processed.json"
     if not topics_path.exists():
         raise HTTPException(status_code=404, detail="topics 파일을 찾을 수 없습니다.")
-
     with topics_path.open(encoding="utf-8") as f:
         topics_data = json.load(f)
-
-    topic_dict = None
     for category_topics in topics_data.get("categories", {}).values():
         for t in category_topics:
-            if t["id"] == request.topic:
-                topic_dict = t
-                break
-        if topic_dict:
-            break
+            if t["id"] == topic_id:
+                return t
+    raise HTTPException(status_code=404, detail=f"topic ID '{topic_id}'를 찾을 수 없습니다.")
 
-    if topic_dict is None:
-        raise HTTPException(status_code=404, detail=f"topic ID '{request.topic}'를 찾을 수 없습니다.")
 
-    # 2. AI 에이전트 생성
+def _create_initial_state(request: DebateInitRequest, topic_dict: dict) -> DebateState:
+    """AI 에이전트 생성 + 초기 State 빌드."""
     try:
         personas = create_agents(
             topic=topic_dict,
@@ -96,19 +97,15 @@ def initialize_debate(request: DebateInitRequest) -> DebateStateResponse:
     except (KeyError, ValueError) as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    # 3. 초기 State 생성
     snapshots = [
         AgentSnapshot(
-            agent_id=p.agent_id,
-            stance=p.stance,
-            intensity=p.intensity,
-            role_description=p.role_description,
-            system_prompt=p.system_prompt,
+            agent_id=p.agent_id, stance=p.stance, intensity=p.intensity,
+            role_description=p.role_description, system_prompt=p.system_prompt,
             focus_area=p.focus_area,
         )
         for p in personas
     ]
-    initial_state = build_initial_state(
+    return build_initial_state(
         topic=topic_dict["title"],
         user_stance=request.user_stance,
         user_intensity=request.user_intensity,
@@ -116,44 +113,65 @@ def initialize_debate(request: DebateInitRequest) -> DebateStateResponse:
         topic_id=request.topic,
     )
 
-    # 4. 세션 ID 생성 + 그래프 실행 (ai_opening → user_opening interrupt에서 멈춤)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SSE 스트리밍 엔드포인트
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/debate/init")
+async def initialize_debate(request: DebateInitRequest):
+    """토론 세션 초기화 + AI 입론을 SSE로 실시간 스트리밍.
+
+    각 AI 에이전트의 입론이 생성될 때마다 'entry' 이벤트로 전송.
+    마지막에 'waiting' 이벤트로 사용자 입력 대기 알림.
+    """
+    topic_dict = _load_topic(request.topic)
+    initial_state = _create_initial_state(request, topic_dict)
     session_id = generate_session_id()
     config = {"configurable": {"thread_id": session_id}}
 
-    try:
-        result = debate_graph.invoke(dict(initial_state), config=config)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"그래프 실행 오류: {e}")
+    async def event_stream():
+        # 세션 시작 이벤트
+        yield _sse_event("session", {"session_id": session_id, "topic": topic_dict["title"]})
 
-    # 5. 현재 상태에서 interrupt 정보 추출
-    graph_state = debate_graph.get_state(config)
-    waiting_for = ""
-    if graph_state.next:
-        waiting_for = graph_state.next[0]  # 다음에 실행될 노드 = interrupt 대기 중인 노드
+        prev_history = []
 
-    phase = result.get("phase", "opening") if isinstance(result, dict) else "opening"
-    history = result.get("debate_history", []) if isinstance(result, dict) else []
+        # 그래프 스트리밍 실행
+        for chunk in debate_graph.stream(dict(initial_state), config=config, stream_mode="values"):
+            if not isinstance(chunk, dict):
+                continue
 
-    return DebateStateResponse(
-        session_id=session_id,
-        phase=phase,
-        current_turn=len(history),
-        is_finished=False,
-        waiting_for=waiting_for,
-        debate_history=[dict(e) if isinstance(e, dict) else e for e in history],
-        message=f"AI 입론 완료. '{waiting_for}' 단계에서 사용자 입력 대기 중.",
-    )
+            cur_history = chunk.get("debate_history", [])
+            new_entries = _extract_new_entries(prev_history, cur_history)
+
+            for entry in new_entries:
+                entry_dict = dict(entry) if isinstance(entry, dict) else entry
+                yield _sse_event("entry", entry_dict)
+
+            prev_history = list(cur_history)
+
+        # interrupt 대기 정보
+        waiting_for, is_finished = _get_waiting_info(config)
+        yield _sse_event("waiting", {
+            "session_id": session_id,
+            "waiting_for": waiting_for,
+            "is_finished": is_finished,
+            "phase": prev_history[-1].get("phase", "opening") if prev_history else "opening",
+            "total_entries": len(prev_history),
+        })
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-@app.post("/debate/{session_id}/submit", response_model=DebateStateResponse)
-def submit_user_input(session_id: str, request: UserSubmitRequest) -> DebateStateResponse:
-    """interrupt에서 멈춘 그래프를 사용자 입력으로 재개한다.
+@app.post("/debate/{session_id}/submit")
+async def submit_user_input(session_id: str, request: UserSubmitRequest):
+    """사용자 입력으로 그래프 재개 + 다음 interrupt까지 SSE 스트리밍.
 
-    그래프가 다음 interrupt까지 자동으로 진행된 뒤 다시 멈춘다.
+    AI 에이전트의 발언이 생성될 때마다 'entry' 이벤트로 전송.
     """
     config = {"configurable": {"thread_id": session_id}}
 
-    # 세션 존재 확인
+    # 세션 확인
     graph_state = debate_graph.get_state(config)
     if not graph_state or not graph_state.next:
         raise HTTPException(
@@ -161,39 +179,53 @@ def submit_user_input(session_id: str, request: UserSubmitRequest) -> DebateStat
             detail="세션을 찾을 수 없거나 이미 완료된 토론입니다.",
         )
 
-    # resume
-    try:
-        result = debate_graph.invoke(
+    async def event_stream():
+        # 현재 히스토리 길이 기록
+        current_values = graph_state.values or {}
+        prev_history = list(current_values.get("debate_history", []))
+
+        # 그래프 resume 스트리밍
+        for chunk in debate_graph.stream(
             Command(resume=request.content),
             config=config,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"그래프 재개 오류: {e}")
+            stream_mode="values",
+        ):
+            if not isinstance(chunk, dict):
+                continue
 
-    # 다음 interrupt 확인
-    graph_state = debate_graph.get_state(config)
-    waiting_for = ""
-    is_finished = True
-    if graph_state.next:
-        waiting_for = graph_state.next[0]
-        is_finished = False
+            cur_history = chunk.get("debate_history", [])
+            new_entries = _extract_new_entries(prev_history, cur_history)
 
-    phase = result.get("phase", "") if isinstance(result, dict) else ""
-    history = result.get("debate_history", []) if isinstance(result, dict) else []
-    synthesis_draft = result.get("synthesis_draft", "") if isinstance(result, dict) else ""
+            for entry in new_entries:
+                entry_dict = dict(entry) if isinstance(entry, dict) else entry
+                yield _sse_event("entry", entry_dict)
 
-    msg = "토론이 완료되었습니다." if is_finished else f"'{waiting_for}' 단계에서 사용자 입력 대기 중."
+            prev_history = list(cur_history)
 
-    return DebateStateResponse(
-        session_id=session_id,
-        phase=phase,
-        current_turn=len(history),
-        is_finished=is_finished,
-        waiting_for=waiting_for,
-        debate_history=[dict(e) if isinstance(e, dict) else e for e in history],
-        message=msg,
-    )
+        # interrupt 대기 정보
+        waiting_for, is_finished = _get_waiting_info(config)
 
+        synthesis_draft = ""
+        if is_finished:
+            final_state = debate_graph.get_state(config)
+            if final_state and final_state.values:
+                synthesis_draft = final_state.values.get("synthesis_draft", "")
+
+        yield _sse_event("waiting", {
+            "session_id": session_id,
+            "waiting_for": waiting_for,
+            "is_finished": is_finished,
+            "phase": prev_history[-1].get("phase", "") if prev_history else "",
+            "total_entries": len(prev_history),
+            "synthesis_draft": synthesis_draft,
+        })
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# REST 엔드포인트 (상태 조회, 토픽, 헬스체크)
+# ═══════════════════════════════════════════════════════════════════════════
 
 @app.get("/debate/{session_id}/state")
 def get_debate_state(session_id: str):
@@ -229,4 +261,4 @@ def get_topics():
 @app.get("/health")
 def health_check():
     """서버 상태 확인."""
-    return {"status": "ok", "version": "2.0.0", "graph": "langgraph"}
+    return {"status": "ok", "version": "2.0.0", "graph": "langgraph", "streaming": "SSE"}
