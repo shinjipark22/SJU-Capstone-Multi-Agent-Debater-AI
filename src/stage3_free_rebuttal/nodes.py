@@ -156,11 +156,11 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     speeches = []
     all_tool_calls = []
 
-    # ── Step 1: 방어 (write_review 서브그래프)
+    # ── Step 1: 방어 (search_write_review 서브그래프 — 팩트체크 검색 포함)
     if not is_first_turn and user_latest_attack:
-        print(f"  [Step 1 - 방어] write_review 서브그래프 실행\n")
+        print(f"  [Step 1 - 방어] search_write_review 서브그래프 실행\n")
 
-        defense_result = write_review.invoke(_make_turn_state(
+        defense_result = search_write_review.invoke(_make_turn_state(
             topic=state["topic"], agent=opponent,
             expected_stance=opponent["stance"],
             target_argument=user_latest_attack,
