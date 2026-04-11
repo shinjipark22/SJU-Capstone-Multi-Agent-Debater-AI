@@ -370,6 +370,20 @@ def _get_focus_area(stance: str, topic_id: str = "") -> str:
     return ""
 
 
+def _pre_search(topic: str, stance: str, topic_id: str = "") -> Tuple[str, List[Dict]]:
+    """역할반전 등 다른 모듈 호환용 사전 검색. focus area 기반 단일 검색."""
+    tool_calls_log: List[Dict] = []
+    query = _get_focus_area(stance, topic_id)
+    if not query:
+        topic_short = topic.split("아닌")[0].strip() if "아닌" in topic else topic[:20]
+        stance_kr = "찬성 근거 통계" if stance == "PRO" else "반대 근거 문제점 통계"
+        query = f"{topic_short} {stance_kr}"
+
+    tool_calls_log.append({"name": "search_web", "args": {"query": query}})
+    web_result = search_web.invoke({"query": query})
+    return _truncate_tool_result(web_result), tool_calls_log
+
+
 def _build_opening_prompt(
     topic: str, stance: str, agent_name: str,
     focus_area: str = "",
