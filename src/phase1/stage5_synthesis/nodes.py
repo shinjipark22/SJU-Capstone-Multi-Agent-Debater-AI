@@ -103,6 +103,15 @@ _AGENT_PERSPECTIVES = [
     "구조적 원인 관점: 표면적 증상이 아닌 근본 원인이 무엇인지 짚어라",
 ]
 
+# ── 강경도별 타협 태도 (합의 속도 조절) ──────────────────────────────────────
+_INTENSITY_NEGOTIATION = {
+    1: "상대 입장의 합리적 부분을 적극 수용하되, 자기 핵심 주장 1개는 반드시 지키라",
+    2: "상대 의견에 열린 태도를 보이되, 자기 입장의 전제 조건을 명확히 밝혀라",
+    3: "양쪽 장단점을 균형 있게 비교하되, 어느 쪽이든 구체적 조건을 제시하라",
+    4: "자기 원래 입장의 핵심 조건이 최적해에 반드시 포함되어야 한다고 주장하라. 쉽게 양보하지 마라",
+    5: "자기 원래 입장이 더 우월하다는 근거를 들며, 상대 양보를 요구하라. 타협안에도 자기 조건을 최우선으로 넣어라",
+}
+
 
 # ── 초기 의견 제시 프롬프트 (회의 오프너) ──────────────────────────────────
 
@@ -110,23 +119,29 @@ def _build_proposal_prompt(
     topic: str,
     original_stance: str,
     perspective: str = "",
+    intensity: int = 3,
 ) -> str:
-    """회의 첫 발언: 최적해에 대한 의견 제시. 에이전트별 고유 관점 할당.
+    """회의 첫 발언: 최적해에 대한 의견 제시. 에이전트별 고유 관점 + 강경도 반영.
     토론 히스토리는 메시지 체인으로 이미 포함되어 있으므로 요약 불필요.
     """
     stance_kr = "찬성" if original_stance == "PRO" else "반대"
 
     perspective_block = f"\n[너의 고유 관점 — 반드시 이 관점에서만 발언하라]\n{perspective}\n" if perspective else ""
+    negotiation = _INTENSITY_NEGOTIATION.get(intensity, _INTENSITY_NEGOTIATION[3])
 
     return f"""[5단계: 최적해 회의 — 단톡방]
 '{topic}'에 대한 토론이 끝났다. 이제 단톡방에서 최적해를 함께 찾는 대화를 하고 있다.
 
-너는 원래 {stance_kr} 입장이었지만, 지금은 입장을 버려라.
+너는 원래 {stance_kr} 입장이었다.
 {perspective_block}
+[너의 협상 태도]
+{negotiation}
+
 [지시]
 - 위 대화 내용에 이어서 자연스럽게 대화하라
 - 앞 사람의 발언에 직접 반응하되, 단순 동의만 하지 마라
-- 동의하더라도 반드시 "다만~", "단, ~은 여전히 쟁점입니다" 식으로 남은 쟁점을 1개 지적하라
+- 이전 발언자와 같은 결론을 반복하지 마라. 반드시 다른 각도의 의견을 제시하라
+- 동의하더라도 "다만~", "단, ~은 여전히 쟁점입니다" 식으로 남은 쟁점을 1개 지적하라
 - 너의 고유 관점에서 새로운 내용을 추가하라
 - 1~2문장으로 짧게. 대화체로
 - 소제목/번호/목록 금지
@@ -155,7 +170,8 @@ def _build_synthesis_chain(
     system = (
         f"{agent['system_prompt']}\n\n"
         f"[최우선 규칙] 최적해를 찾는 단톡방 대화 중이다. "
-        f"입장을 버리고 앞 사람 발언에 자연스럽게 반응하라. "
+        f"자기 관점을 유지하면서 앞 사람 발언에 자연스럽게 반응하라. "
+        f"이전 발언자와 같은 결론을 반복하지 마라. "
         f"1~2문장. 한국어. 합니다체."
     )
     messages = [SystemMessage(content=system)]
@@ -244,13 +260,15 @@ def synthesis_node(state: DebateState) -> DebateState:
 
         perspective = _AGENT_PERSPECTIVES[agent_idx % len(_AGENT_PERSPECTIVES)]
         agent_idx += 1
+        intensity = agent.get("intensity", 3)
 
-        print(f"  [{display}] 의견 제시 중... (관점: {perspective[:20]})")
+        print(f"  [{display}] 의견 제시 중... (관점: {perspective[:20]}, 강경도: {intensity})")
 
         prompt = _build_proposal_prompt(
             topic=topic,
             original_stance=agent["stance"],
             perspective=perspective,
+            intensity=intensity,
         )
         # 전체 토론 히스토리를 메시지 체인으로 전달 (_summarize_debate 대체)
         from src.graph.llm import build_debate_chain
@@ -317,16 +335,20 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
 
         perspective = _AGENT_PERSPECTIVES[agent_idx % len(_AGENT_PERSPECTIVES)]
         agent_idx += 1
+        intensity = agent.get("intensity", 3)
+        negotiation = _INTENSITY_NEGOTIATION.get(intensity, _INTENSITY_NEGOTIATION[3])
 
-        print(f"  [{display}] 응답 중...")
+        print(f"  [{display}] 응답 중... (강경도: {intensity})")
 
         # 전체 토론 히스토리 + 종합 회의 체인
         from src.graph.llm import build_debate_chain
         debate_chain = build_debate_chain(history, speaker_id)
         prompt = (
             f"[너의 고유 관점] {perspective}\n\n"
+            f"[너의 협상 태도] {negotiation}\n\n"
             f"사용자가 방금 '{user_latest[:50]}...'라고 말했다.\n\n"
             f"사용자 발언에 직접 반응하면서 너의 관점에서 보완하거나 구체화하라. "
+            f"이전 발언자와 같은 결론을 반복하지 마라. 반드시 다른 각도의 의견을 제시하라. "
             f"대화하듯이 자연스럽게. 1~2문장.\n\n"
             f"### 반박 시작\n### 반박 끝"
         )

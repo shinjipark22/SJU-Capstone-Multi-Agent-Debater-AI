@@ -289,6 +289,7 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     speeches = []
     tool_calls_log: List[Dict] = []
     is_first_turn = len(agent_entries) == 0
+    final_turn = is_final_agent_turn(state)  # 마지막 턴이면 방어만, 공격 없음
 
     # 사용자 최근 발언 분리 (답변 + 공격이 별개)
     user_latest_defense = user_entries[-2]["content"] if len(user_entries) >= 2 else (user_entries[-1]["content"] if user_entries else "")
@@ -306,7 +307,7 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
 
     # ── Step 1: 답변 (사용자의 공격에 대한 방어)
     if not is_first_turn and user_latest_attack:
-        print(f"  [Step 1 - 답변] 사용자 공격에 방어\n")
+        print(f"  [Step 1 - 답변] 사용자 공격에 방어{' (최종 답변)' if final_turn else ''}\n")
 
         query_def = _decide_search(user_latest_attack, "")
         search_def = ""
@@ -320,49 +321,52 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         defense, raw_def = _generate_with_chain(list(chain), defense_prompt)
         speeches.append(("답변", defense, raw_def))
 
-    # ── Step 2: 공격 (사용자의 방어에서 허점 찾기, 첫 턴만 입론 공격)
-    if not is_first_turn and user_latest_defense:
-        target_argument = user_latest_defense
+    # ── Step 2: 공격 (마지막 턴이면 스킵 — 사용자 응답 기회 없으므로)
+    if not final_turn:
+        if not is_first_turn and user_latest_defense:
+            target_argument = user_latest_defense
+        else:
+            target_argument = _pick_one_argument(opp_opening)
+
+        print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
+
+        # 약점 분석 (이전 분석과 다른 약점 요청)
+        weakness = analyze_weakness(target_argument, state["topic"], prev_weaknesses=prev_weaknesses)
+        if weakness:
+            tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
+            print(f"  [약점 분석] {weakness[:60]}\n")
+
+        query_atk = _decide_search(target_argument, "")
+        search_atk = ""
+        if query_atk:
+            tool_calls_log.append({"name": "search_web", "args": {"query": query_atk}})
+            web_result = search_web.invoke({"query": query_atk})
+            search_atk = _truncate_tool_result(web_result)
+            print(f"  [검색] '{query_atk}'\n")
+
+        weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
+        prev_hint = f"\n[이전 공격 — 아래 내용은 이미 사용했으니 반복 금지. 완전히 다른 관점으로 공격하라]\n{prev_attacks_text}\n" if prev_attacks_text else ""
+        attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint + prev_hint, opp_opening)
+        # 답변이 있으면 그 결과를 체인에 추가한 뒤 공격
+        attack_chain = list(chain)
+        if speeches:
+            attack_chain.append(AIMessage(content=speeches[0][1]))  # 답변을 체인에 포함
+        attack, raw_atk = _generate_with_chain(attack_chain, attack_prompt)
+
+        # 공격 결과를 읽고 맥락에 맞는 질문 생성
+        attack_question = _generate_attack_question(attack, opponent["stance"], state["topic"])
+        if attack_question:
+            tool_calls_log.append({"name": "attack_question", "result": attack_question})
+            print(f"  [공격 질문] {attack_question[:60]}\n")
+
+        # 후처리: 공격 끝에 질문 추가
+        if "?" not in attack:
+            q = attack_question if attack_question else "이에 대해 상대는 어떻게 설명하시겠습니까?"
+            attack = attack.rstrip() + " " + q
+
+        speeches.append(("공격", attack, raw_atk))
     else:
-        target_argument = _pick_one_argument(opp_opening)
-
-    print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
-
-    # Qwen 7B 약점 분석 (이전 분석과 다른 약점 요청)
-    weakness = analyze_weakness(target_argument, state["topic"], prev_weaknesses=prev_weaknesses)
-    if weakness:
-        tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
-        print(f"  [약점 분석] {weakness[:60]}\n")
-
-    query_atk = _decide_search(target_argument, "")
-    search_atk = ""
-    if query_atk:
-        tool_calls_log.append({"name": "search_web", "args": {"query": query_atk}})
-        web_result = search_web.invoke({"query": query_atk})
-        search_atk = _truncate_tool_result(web_result)
-        print(f"  [검색] '{query_atk}'\n")
-
-    weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
-    prev_hint = f"\n[이전 공격 — 아래 내용은 이미 사용했으니 반복 금지. 완전히 다른 관점으로 공격하라]\n{prev_attacks_text}\n" if prev_attacks_text else ""
-    attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint + prev_hint, opp_opening)
-    # 답변이 있으면 그 결과를 체인에 추가한 뒤 공격
-    attack_chain = list(chain)
-    if speeches:
-        attack_chain.append(AIMessage(content=speeches[0][1]))  # 답변을 체인에 포함
-    attack, raw_atk = _generate_with_chain(attack_chain, attack_prompt)
-
-    # Qwen 7B가 DeepSeek 공격 결과를 읽고 맥락에 맞는 질문 생성
-    attack_question = _generate_attack_question(attack, opponent["stance"], state["topic"])
-    if attack_question:
-        tool_calls_log.append({"name": "attack_question", "result": attack_question})
-        print(f"  [공격 질문] {attack_question[:60]}\n")
-
-    # 후처리: 공격 끝에 질문 추가
-    if "?" not in attack:
-        q = attack_question if attack_question else "이에 대해 상대는 어떻게 설명하시겠습니까?"
-        attack = attack.rstrip() + " " + q
-
-    speeches.append(("공격", attack, raw_atk))
+        print(f"  [마지막 턴] 공격 생략 — 방어만 수행\n")
 
     # ── 발언 기록
     for label, speech, raw in speeches:
