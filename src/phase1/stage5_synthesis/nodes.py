@@ -182,10 +182,13 @@ _fallback_idx = 0
 
 
 def _generate_with_synthesis_chain(
-    messages: List,
+    agent: Dict,
     prompt: str,
-) -> Tuple[str, str]:
+    chain: List = None,
+    topic: str = "",
+) -> Tuple[str, str, List]:
     """멀티턴 체인에 새 프롬프트를 추가하고 생성한다. 빈 응답 시 최대 2회 재시도."""
+    messages = list(chain) if chain else []
     messages.append(HumanMessage(content=prompt))
 
     for attempt in range(3):
@@ -195,7 +198,7 @@ def _generate_with_synthesis_chain(
 
         # 유효하고 fallback 문장이 아니면 사용
         if _is_valid_rebuttal(speech) and _FALLBACK_MARKER not in speech:
-            return speech, raw
+            return speech, raw, []
 
         logger.warning("[synthesis] speech 무효 또는 fallback, 재시도 %d/3", attempt + 1)
         if attempt < 2:
@@ -206,7 +209,7 @@ def _generate_with_synthesis_chain(
         speech = _FALLBACK_RESPONSES[_fallback_idx % len(_FALLBACK_RESPONSES)]
         _fallback_idx += 1
 
-    return speech, raw
+    return speech, raw, []
 
 
 # ── 메인 노드: 초기 의견 제시 ──────────────────────────────────────────────
