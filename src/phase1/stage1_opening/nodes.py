@@ -445,19 +445,6 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str]:
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
 
-    # 영어 잔재 감지 → 수정 요청
-    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
-    if eng_words:
-        logger.warning("[opening] 영어 감지: %s → 수정 요청", eng_words[:3])
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
-        fix: AIMessage = _invoke_with_retry(_llm, messages, label="opening_fix_eng")
-        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
-        fixed = _postprocess_speech(_extract_delimited_text(raw_fix))
-        if _is_valid_speech(fixed):
-            speech = fixed
-            raw = raw_fix
-
     return speech, raw
 
 
