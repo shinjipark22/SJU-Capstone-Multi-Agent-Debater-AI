@@ -109,10 +109,12 @@ def _build_message_chain(
     selected_id: str,
     stance: str,
 ) -> List:
-    """자유논박 히스토리에서 멀티턴 메시지 체인을 구축한다.
+    """전체 토론 히스토리를 멀티턴 메시지 체인으로 구축한다.
 
-    에이전트 발언 → AIMessage, 사용자 발언 → HumanMessage로 매핑.
+    1~3단계 전체 발언을 포함하여 이전 맥락을 참조 가능.
     """
+    from src.graph.llm import build_debate_chain
+
     stance_kr = "찬성" if stance == "PRO" else "반대"
 
     system = (
@@ -122,13 +124,9 @@ def _build_message_chain(
     )
     messages = [SystemMessage(content=system)]
 
-    # 자유논박 히스토리를 순서대로 메시지 체인에 추가
-    fr_entries = [e for e in history if e["phase"] == "free_rebuttal"]
-    for entry in fr_entries:
-        if entry["speaker_id"] == selected_id:
-            messages.append(AIMessage(content=entry["content"]))
-        elif entry["speaker_id"] == "user":
-            messages.append(HumanMessage(content=entry["content"]))
+    # 전체 토론 히스토리를 메시지 체인으로 (입론~자유논박 모두 포함)
+    debate_chain = build_debate_chain(history, selected_id)
+    messages.extend(debate_chain)
 
     return messages
 
