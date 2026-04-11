@@ -256,8 +256,12 @@ def main():
 
         agent_fr = [e for e in state["debate_history"] if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
 
-        # 에이전트 첫 공격 or 응답
-        if not agent_fr or (user_turn_count > 0 and len(agent_fr) <= user_turn_count):
+        # 에이전트 응답이 필요한지 판단:
+        # - 첫 공격 (agent_fr 없음)
+        # - 사용자가 제출했는데 에이전트 응답이 아직 없음 (답변+공격 수 < 사용자 턴 수 + 1)
+        user_fr_count = len([e for e in state["debate_history"] if e["speaker_id"] == "user" and e["phase"] == "free_rebuttal"])
+        agent_should_respond = not agent_fr or (user_fr_count > 0 and len(agent_fr) < (user_fr_count // 2) + 1)
+        if agent_should_respond:
             if should_end_free_rebuttal(state):
                 # 마지막 답변 후 역할반전
                 with st.spinner("🤖 최종 답변 생성 중..."):
