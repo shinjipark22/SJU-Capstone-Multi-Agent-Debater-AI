@@ -357,49 +357,31 @@ if os.path.exists(_SEARCH_QUERIES_PATH):
 _query_idx: Dict[str, int] = {}
 
 
-def _pre_search(topic: str, stance: str, topic_id: str = "") -> Tuple[str, List[Dict]]:
-    """입론 전 사전 검색. search_queries.json 쿼리만 사용.
-
-    Returns:
-        (검색 결과 텍스트, tool_calls_log)
-    """
-    tool_calls_log: List[Dict] = []
-    results = []
-
-    # search_queries.json에서 쿼리 가져오기 (에이전트마다 다른 쿼리 순환)
-    query = ""
+def _get_focus_area(stance: str, topic_id: str = "") -> str:
+    """에이전트별 논증 초점 영역을 반환한다. search_queries.json에서 순환 할당."""
     if topic_id and topic_id in _SEARCH_QUERIES:
         keywords = _SEARCH_QUERIES[topic_id].get(stance, [])
         if keywords:
             key = f"{topic_id}_{stance}"
             idx = _query_idx.get(key, 0)
-            query = keywords[idx % len(keywords)]
+            focus = keywords[idx % len(keywords)]
             _query_idx[key] = idx + 1
-
-    if not query:
-        # fallback: 토픽 핵심어 + stance
-        topic_short = topic.split("아닌")[0].strip() if "아닌" in topic else topic[:20]
-        stance_kr = "찬성 근거 통계" if stance == "PRO" else "반대 근거 문제점 통계"
-        query = f"{topic_short} {stance_kr}"
-
-    tool_calls_log.append({"name": "search_web", "args": {"query": query}})
-    web_result = search_web.invoke({"query": query})
-    results.append(_truncate_tool_result(web_result))
-
-    return "\n\n".join(results), tool_calls_log
+            return focus
+    return ""
 
 
 def _build_opening_prompt(
     topic: str, stance: str, agent_name: str,
-    search_results: str,
+    focus_area: str = "",
 ) -> str:
     stance_kr = "찬성" if stance == "PRO" else "반대"
 
-    return f"""아래 참고 자료를 바탕으로 '{topic}'에 대한 {stance_kr} 입론을 작성하라.
+    focus_block = ""
+    if focus_area:
+        focus_block = f"\n[너의 논증 초점]\n이 방향으로 논거를 구성하라: {focus_area}\n"
 
-[참고 자료]
-{search_results}
-
+    return f"""'{topic}'에 대한 {stance_kr} 입론을 작성하라.
+{focus_block}
 [구조]
 - "{agent_name}"이라고 자기소개
 - 논거 2개, 각 3~5줄. 구체적 사례·데이터·국가 비교를 반드시 포함하라
@@ -407,9 +389,8 @@ def _build_opening_prompt(
 - 일반론 금지. "~은 문제입니다" 수준의 막연한 주장 대신, 구체적 사례와 수치를 들어 설득하라
 
 [인용 규칙 — 가장 중요]
-- 반드시 위 [참고 자료]에서 기관명·수치·사례를 직접 인용하라
-- 참고 자료에 없는 수치나 연구를 절대 지어내지 마라
-- "~에 따르면"으로 인용할 때 반드시 참고 자료에 나온 출처명을 그대로 사용하라
+- 주장은 자유롭게 하되, 수치·통계·출처를 근거로 들 때는 반드시 search_web 도구로 검색한 결과만 인용하라
+- search_web으로 검색하지 않은 수치나 연구를 지어내지 마라
 - 확실하지 않으면 수치 없이 논리로 주장하라
 
 [형식]
@@ -432,14 +413,33 @@ def _build_opening_prompt(
 
 # ── 입론 생성 (사전 검색 + 단일 LLM 호출) ───────────────────────────────────
 
-def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str]:
-    """단일 LLM 호출로 입론 생성. 1회 재시도 + fallback."""
+def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
+    """tool calling으로 입론 생성. 모델이 수치 필요 시 search_web 호출."""
     messages = [
         SystemMessage(content=agent["system_prompt"]),
         HumanMessage(content=prompt),
     ]
+    tool_calls_log: List[Dict] = []
 
-    response: AIMessage = _invoke_with_retry(_llm, messages, label="opening")
+    # 1차 호출 (도구 바인딩)
+    response: AIMessage = _invoke_with_retry(_llm_with_tools, messages, label="opening")
+
+    # tool call이 있으면 실행 후 재호출
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        messages.append(response)
+        for tc in response.tool_calls:
+            tool_name = tc.get("name", "")
+            tool_args = tc.get("args", {})
+            tool_id = tc.get("id", "")
+            if tool_name in _TOOL_MAP:
+                tool_calls_log.append({"name": tool_name, "args": tool_args})
+                result = _TOOL_MAP[tool_name].invoke(tool_args)
+                result = _truncate_tool_result(str(result))
+                messages.append(ToolMessage(content=result, tool_call_id=tool_id))
+                logger.info("[opening] tool call: %s(%s)", tool_name, tool_args)
+        # 검색 결과 포함하여 재호출 (도구 없이)
+        response = _invoke_with_retry(_llm, messages, label="opening_with_search")
+
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_delimited_text(raw))
 
@@ -451,7 +451,7 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str]:
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
 
-    return speech, raw
+    return speech, raw, tool_calls_log
 
 
 # ── 메인 노드 ─────────────────────────────────────────────────────────────────
@@ -482,17 +482,19 @@ def opening_arguments_node(state: DebateState) -> DebateState:
 
         print(f"  [{display}] 입론 생성 중...")
 
-        # 1. 사전 검색
-        search_results, tool_calls_log = _pre_search(
-            topic, agent["stance"],
+        # 1. focus area 할당 (검색 쿼리를 논증 방향으로 활용)
+        focus_area = _get_focus_area(
+            agent["stance"],
             topic_id=state.get("topic_id", ""),
         )
+        if focus_area:
+            print(f"    [focus] {focus_area}")
 
-        # 2. 프롬프트 구성 + LLM 호출
+        # 2. 프롬프트 구성 + LLM 호출 (tool calling으로 필요시 검색)
         prompt = _build_opening_prompt(
-            topic, agent["stance"], display, search_results,
+            topic, agent["stance"], display, focus_area,
         )
-        final_text, raw = _generate_opening(agent, prompt)
+        final_text, raw, tool_calls_log = _generate_opening(agent, prompt)
 
         # 3. 자기소개 소제목 보장 (입론 전용)
         if '### 자기소개' not in final_text and '### 입장 표명' not in final_text:
