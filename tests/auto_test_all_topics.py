@@ -20,11 +20,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.phase0.persona_factory import create_agents
 from src.state import AgentSnapshot, DebateEntry, build_initial_state
-from src.stage1_opening.nodes import opening_arguments_node
-from src.stage2_rebuttal.nodes import chained_rebuttal_node
-from src.stage3_free_rebuttal.nodes import free_rebuttal_node
-from src.stage4_role_reversal.nodes import role_reversal_node
-from src.stage5_synthesis.nodes import synthesis_node, synthesis_discuss_node
+from src.phase1.stage1_opening.nodes import opening_arguments_node
+from src.phase1.stage2_rebuttal.nodes import chained_rebuttal_node
+from src.phase1.stage3_free_rebuttal.nodes import free_rebuttal_node
+from src.phase1.stage4_role_reversal.nodes import role_reversal_node
+from src.phase1.stage5_synthesis.nodes import synthesis_node, synthesis_discuss_node
 
 _DATA_PATH = Path(__file__).parent.parent / "data" / "topics_20260323_processed.json"
 _USER_INPUTS_PATH = Path(__file__).parent / "user_inputs_all_topics.json"

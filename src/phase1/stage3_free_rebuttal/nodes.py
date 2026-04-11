@@ -21,7 +21,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.graph.subgraphs import search_write_review, write_review
 from src.graph.searcher import generate_attack_question
-from src.stage2_rebuttal.nodes import build_agent_stance_nums
+from src.phase1.stage2_rebuttal.nodes import build_agent_stance_nums
 from src.state import DebateEntry, DebateState
 
 

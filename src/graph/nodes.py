@@ -35,12 +35,12 @@ logger = logging.getLogger(__name__)
 
 
 # ── 텍스트 추출/후처리 (기존 stage1/nodes.py에서 임포트) ────────────────────
-from src.stage1_opening.nodes import (
+from src.phase1.stage1_opening.nodes import (
     _postprocess_speech,
     _extract_delimited_text,
     _is_valid_speech,
 )
-from src.stage2_rebuttal.nodes import (
+from src.phase1.stage2_rebuttal.nodes import (
     _extract_rebuttal_text,
     _is_valid_rebuttal,
 )

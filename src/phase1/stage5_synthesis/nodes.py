@@ -24,15 +24,15 @@ logger = logging.getLogger(__name__)
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-import src.stage1_opening.nodes as _opening_mod
-from src.stage1_opening.nodes import (
+import src.phase1.stage1_opening.nodes as _opening_mod
+from src.phase1.stage1_opening.nodes import (
     _invoke_with_retry,
     _postprocess_speech,
     _extract_delimited_text,
     _is_valid_speech,
     _LLM_KWARGS,
 )
-from src.stage2_rebuttal.nodes import (
+from src.phase1.stage2_rebuttal.nodes import (
     _extract_rebuttal_text,
     _is_valid_rebuttal,
     build_agent_stance_nums,

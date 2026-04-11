@@ -23,11 +23,11 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import interrupt
 
 from src.state import DebateEntry, DebateState
-from src.stage1_opening.nodes import opening_arguments_node
-from src.stage2_rebuttal.nodes import chained_rebuttal_node, build_agent_stance_nums
-from src.stage3_free_rebuttal.nodes import free_rebuttal_node
-from src.stage4_role_reversal.nodes import role_reversal_node
-from src.stage5_synthesis.nodes import synthesis_node, synthesis_discuss_node
+from src.phase1.stage1_opening.nodes import opening_arguments_node
+from src.phase1.stage2_rebuttal.nodes import chained_rebuttal_node, build_agent_stance_nums
+from src.phase1.stage3_free_rebuttal.nodes import free_rebuttal_node
+from src.phase1.stage4_role_reversal.nodes import role_reversal_node
+from src.phase1.stage5_synthesis.nodes import synthesis_node, synthesis_discuss_node
 
 logger = logging.getLogger(__name__)
 

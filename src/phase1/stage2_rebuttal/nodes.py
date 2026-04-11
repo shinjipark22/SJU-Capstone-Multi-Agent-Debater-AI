@@ -17,8 +17,8 @@ from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-import src.stage1_opening.nodes as _opening_mod
-from src.stage1_opening.nodes import _remove_english_blocks
+import src.phase1.stage1_opening.nodes as _opening_mod
+from src.phase1.stage1_opening.nodes import _remove_english_blocks
 
 
 def _is_valid_rebuttal(speech: str) -> bool:

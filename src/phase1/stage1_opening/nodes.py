@@ -37,7 +37,7 @@ _used_doc_ids: set = set()
 # ── 도구 정의 ─────────────────────────────────────────────────────────────────
 
 # .env 파일에서 TAVILY_API_KEY 로드
-_env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+_env_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")
 if os.path.exists(_env_path):
     with open(_env_path) as _f:
         for _line in _f:
@@ -319,7 +319,7 @@ def _truncate_tool_result(result: str, max_chars: int = _MAX_TOOL_RESULT_CHARS) 
 
 
 # 사전 생성된 검색 쿼리 로드
-_SEARCH_QUERIES_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "search_queries.json")
+_SEARCH_QUERIES_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "search_queries.json")
 _SEARCH_QUERIES: Dict = {}
 if os.path.exists(_SEARCH_QUERIES_PATH):
     with open(_SEARCH_QUERIES_PATH, encoding="utf-8") as _f:

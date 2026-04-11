@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-import src.stage1_opening.nodes as _opening_mod
-from src.stage1_opening.nodes import (
+import src.phase1.stage1_opening.nodes as _opening_mod
+from src.phase1.stage1_opening.nodes import (
     _invoke_with_retry,
     _postprocess_speech,
     _extract_delimited_text,
@@ -35,7 +35,7 @@ from src.stage1_opening.nodes import (
     search_web,
     _LLM_KWARGS,
 )
-from src.stage2_rebuttal.nodes import build_agent_stance_nums
+from src.phase1.stage2_rebuttal.nodes import build_agent_stance_nums
 from src.state import DebateEntry, DebateState
 
 # ── 역할반전 전용 LLM ──────────────────────────────────────────────────────

@@ -19,7 +19,7 @@ from langgraph.types import Command
 from src.graph.main_graph import build_debate_graph
 from src.phase0.persona_factory import create_agents
 from src.state import AgentSnapshot, build_initial_state
-from src.stage2_rebuttal.nodes import build_agent_stance_nums
+from src.phase1.stage2_rebuttal.nodes import build_agent_stance_nums
 
 _DATA_PATH = Path(__file__).parent.parent / "data" / "topics_20260323_processed.json"
 _OUTPUT_DIR = Path(__file__).parent.parent / "test_results"
