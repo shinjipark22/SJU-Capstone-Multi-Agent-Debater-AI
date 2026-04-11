@@ -298,8 +298,15 @@ def _has_cot_leakage(text: str) -> bool:
 
 
 def _is_valid_speech(speech: str) -> bool:
-    """최소 검증: 20자 이상, CoT 유출 없음."""
+    """최소 검증: 20자 이상, CoT 유출 없음, 외국어 깨짐 없음."""
     if not speech or len(speech.strip()) < 20:
+        return False
+    # 중국어/일본어 깨진 문자 감지
+    if re.search(r'[\u4e00-\u9fff。，]', speech):
+        return False
+    # 한국어 비율이 너무 낮으면 무효
+    korean_chars = len(re.findall(r'[가-힣]', speech))
+    if korean_chars < 10:
         return False
     if _has_cot_leakage(speech):
         return False
