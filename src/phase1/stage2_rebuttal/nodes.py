@@ -231,7 +231,7 @@ def _build_rebuttal_prompt(
 
 [규칙]
 - 공격 대상은 반드시 1개 논거만. 질문도 1개만
-- 3~4문장. 한국어. 합니다체
+- 3~4문장. 한국어. 반드시 합니다체. 모든 문장을 "~합니다", "~입니다"로 끝내라
 - 참고 자료의 수치만 인용. 없는 수치를 지어내지 마라
 - 확실하지 않으면 수치 없이 논리로 공격하라
 
@@ -258,8 +258,7 @@ def _generate_rebuttal_speech(
     system = (
         f"{agent['system_prompt']}\n\n"
         f"[최우선 규칙] 너는 {stance_kr} 입장이다. "
-        f"반드시 3~4문장으로만 답변하라. "
-        f"상대 주장의 오류만 공격하라."
+        f"3~4문장. 반드시 합니다체(격식체). 모든 문장을 '~합니다', '~입니다'로 끝내라."
     )
     messages = [SystemMessage(content=system)]
     if debate_chain:

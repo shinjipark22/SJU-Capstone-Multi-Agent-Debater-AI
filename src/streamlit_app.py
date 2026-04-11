@@ -293,9 +293,9 @@ def main():
         # 사용자 답변+공격
         turn_label = f"({user_turn_count + 1}/2)"
         st.markdown(f"##### 💬 답변 {turn_label}")
-        defense = st.text_area("상대 공격에 반박하세요", key="defense", height=100)
+        defense = st.text_area("상대 공격에 반박하세요", key=f"defense_{user_turn_count}", height=100)
         st.markdown(f"##### ⚔️ 공격 {turn_label}")
-        attack = st.text_area("상대 논거를 공격하세요", key="attack", height=100)
+        attack = st.text_area("상대 논거를 공격하세요", key=f"attack_{user_turn_count}", height=100)
 
         if st.button("답변+공격 제출", type="primary"):
             if not defense.strip() or not attack.strip():
