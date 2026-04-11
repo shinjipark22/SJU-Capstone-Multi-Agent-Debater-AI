@@ -50,8 +50,20 @@ def _summarize_debate(
     agents: List[Dict],
     speaking_order: List[str],
 ) -> str:
-    """전체 토론 히스토리를 단계별로 요약한다."""
+    """전체 토론 히스토리를 단계별로 요약한다.
+
+    참여자 수에 따라 절단 길이를 자동 조절하여 컨텍스트 초과를 방지한다.
+    """
     stance_nums = build_agent_stance_nums(agents, speaking_order)
+    num_speakers = len(speaking_order)
+
+    # 참여자 수에 따라 절단 길이 조절 (3:3이면 짧게)
+    if num_speakers <= 4:  # 2:2
+        len_long, len_short = 200, 150
+    elif num_speakers <= 6:  # 3:3
+        len_long, len_short = 120, 80
+    else:
+        len_long, len_short = 80, 60
 
     def _speaker_display(entry: DebateEntry) -> str:
         if entry["speaker_id"] == "user":
@@ -72,7 +84,7 @@ def _summarize_debate(
         entries = [e for e in history if e["phase"] == phase_name]
         if not entries:
             continue
-        max_len = 200 if phase_name in ("opening", "role_reversal") else 150
+        max_len = len_long if phase_name in ("opening", "role_reversal") else len_short
         lines = [f"[{phase_label}]"]
         for e in entries:
             stance_kr = "찬성" if e["stance"] == "PRO" else "반대"
@@ -82,35 +94,47 @@ def _summarize_debate(
     return "\n\n".join(sections)
 
 
+# ── 에이전트별 고유 관점 (에코 방지) ───────────────────────────────────────
+_AGENT_PERSPECTIVES = [
+    "실현 가능성 관점: 이 해결책이 현실에서 실행 가능한지, 비용과 시간은 어떤지 따져라",
+    "피해자/수혜자 관점: 이 문제로 누가 가장 피해를 보고, 해결책은 누구에게 이득인지 따져라",
+    "장기적 영향 관점: 이 해결책이 5~10년 후에도 유효한지, 부작용은 없는지 따져라",
+    "국제 비교 관점: 다른 나라에서 비슷한 문제를 어떻게 해결했는지 사례를 들어라",
+    "구조적 원인 관점: 표면적 증상이 아닌 근본 원인이 무엇인지 짚어라",
+]
+
+
 # ── 초기 의견 제시 프롬프트 (회의 오프너) ──────────────────────────────────
 
 def _build_proposal_prompt(
     topic: str,
     original_stance: str,
     debate_summary: str,
+    perspective: str = "",
 ) -> str:
-    """회의 첫 발언: 최적해에 대한 의견 제시."""
+    """회의 첫 발언: 최적해에 대한 의견 제시. 에이전트별 고유 관점 할당."""
     stance_kr = "찬성" if original_stance == "PRO" else "반대"
+
+    perspective_block = f"\n[너의 고유 관점 — 반드시 이 관점에서만 발언하라]\n{perspective}\n" if perspective else ""
 
     return f"""[5단계: 최적해 회의]
 '{topic}'에 대한 토론이 끝났다. 이제 모두가 입장을 내려놓고 최적해를 함께 찾아야 한다.
 
 너는 원래 {stance_kr} 입장이었지만, 지금은 입장을 버려라.
-토론 전체를 돌아보고, 이 문제의 핵심이 무엇이며 어떻게 해결할 수 있는지 의견을 제시하라.
-
+{perspective_block}
 [토론 요약]
 {debate_summary}
 
 [지시]
-- 회의에서 의견을 말하듯이 자연스럽게 말하라
-- 이 문제의 핵심이 뭔지 한마디로 짚고, 자기 생각하는 해결 방향을 제시하라
+- 너의 고유 관점에서만 의견을 말하라. 다른 관점은 다른 사람이 말한다
 - 1~2문장으로 짧게. 길게 쓰지 마라
-- 다른 사람이 이어서 말할 수 있도록 열린 표현으로 마무리하라
+- 다른 사람과 같은 말을 하지 마라
 
 [절대 금지]
 - 추상적 표현 ("균형 필요", "조화를 이루어야")
 - 정책 나열 ("첫째, 둘째, 셋째")
 - 소제목/번호/목록 사용
+- 다른 에이전트의 발언을 복사하거나 비슷하게 반복
 
 [형식]
 - 한국어. 합니다체(격식체)
@@ -119,89 +143,75 @@ def _build_proposal_prompt(
 반드시 아래 형식으로만 출력:
 
 ### 반박 시작
-(의견)
 ### 반박 끝"""
 
 
-# ── 회의 응답 프롬프트 (사용자 발언에 대한 반응) ─────────────────────────
+# ── 멀티턴 메시지 체인 구축 (종합 회의) ───────────────────────────────────
 
-def _build_discuss_prompt(
-    topic: str,
-    original_stance: str,
-    user_message: str,
-    previous_discussion: str,
-) -> str:
-    """회의 중 사용자 발언에 대한 응답."""
-    stance_kr = "찬성" if original_stance == "PRO" else "반대"
+def _build_synthesis_chain(
+    agent: Dict,
+    history: List,
+    speaker_id: str,
+) -> List:
+    """종합 회의 히스토리에서 멀티턴 메시지 체인을 구축한다.
 
-    return f"""[5단계: 최적해 회의 — 계속]
-'{topic}'에 대한 최적해를 함께 찾고 있다.
-
-[이전 회의 내용]
-{previous_discussion}
-
-[사용자 발언]
-{user_message}
-
-[지시]
-- 사용자의 의견에 기본적으로 동조하라. 사용자가 제시한 방향을 기반으로 발전시켜라
-- 동의하면서 빠진 부분을 보완하거나, 구체적인 수치/조건/사례를 덧붙여라
-- 사용자 의견을 정면 반박하지 마라. 같은 방향에서 더 나은 안을 제안하라
-- 1~2문장으로 짧게
-- 소제목/번호/목록 금지
-
-[형식]
-- 한국어. 합니다체(격식체)
-- 1~2문장
-
-반드시 아래 형식으로만 출력:
-
-### 반박 시작
-(의견)
-### 반박 끝"""
-
-
-# ── 단발 생성 (자유논박과 동일 패턴) ──────────────────────────────────────
-
-def _generate_single(agent: Dict, prompt: str) -> Tuple[str, str]:
-    """회의 발언 단발 생성."""
+    해당 에이전트 발언 → AIMessage, 그 외(사용자+다른 에이전트) → HumanMessage.
+    """
     system = (
         f"{agent['system_prompt']}\n\n"
         f"[최우선 규칙] 지금은 최적해 회의 중이다. "
-        f"입장을 버리고 최선의 해결책을 함께 찾아라. "
-        f"1~2문장으로만 답변하라."
+        f"찬성/반대 입장을 완전히 버려라. 이전 단계에서 주장한 내용을 반복하지 마라. "
+        f"중립적 관점에서 최선의 해결책을 함께 찾아라. "
+        f"1~2문장으로만 답변하라. 반드시 한국어로만 답변하라."
     )
-    messages = [
-        SystemMessage(content=system),
-        HumanMessage(content=prompt),
-    ]
+    messages = [SystemMessage(content=system)]
 
-    response: AIMessage = _invoke_with_retry(_syn_llm, messages, label="synthesis")
-    raw = response.content if isinstance(response.content, str) else str(response.content)
-    speech = _postprocess_speech(_extract_rebuttal_text(raw))
+    syn_entries = [e for e in history if e["phase"] == "synthesis"]
+    for entry in syn_entries:
+        if entry["speaker_id"] == speaker_id:
+            messages.append(AIMessage(content=entry["content"]))
+        else:
+            label = "사용자" if entry["speaker_id"] == "user" else entry["speaker_id"]
+            messages.append(HumanMessage(content=f"[{label}] {entry['content']}"))
 
-    if not _is_valid_rebuttal(speech):
-        logger.warning("[synthesis] speech 무효, 재시도")
-        messages.append(HumanMessage(content="한국어로만 2~3문장으로 의견을 말하세요."))
-        retry: AIMessage = _invoke_with_retry(_syn_llm, messages, label="synthesis_retry")
-        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
+    return messages
+
+
+_FALLBACK_MARKER = "이 문제의 핵심을 다시 짚어볼 필요가 있습니다"
+_FALLBACK_RESPONSES = [
+    "이 해결책의 실현 가능성을 따져보면, 비용과 시간 측면에서 단계적 접근이 필요합니다.",
+    "이 문제로 가장 피해를 보는 계층을 우선 고려한 방안이 되어야 합니다.",
+    "장기적 관점에서 이 방안이 5년 후에도 유효한지 검토가 필요합니다.",
+    "유사한 문제를 해결한 다른 국가의 사례를 참고하면 도움이 될 것입니다.",
+    "표면적 증상이 아닌 구조적 원인에 집중한 해결책이 필요합니다.",
+]
+_fallback_idx = 0
+
+
+def _generate_with_synthesis_chain(
+    messages: List,
+    prompt: str,
+) -> Tuple[str, str]:
+    """멀티턴 체인에 새 프롬프트를 추가하고 생성한다. 빈 응답 시 최대 2회 재시도."""
+    messages.append(HumanMessage(content=prompt))
+
+    for attempt in range(3):
+        response: AIMessage = _invoke_with_retry(_syn_llm, messages, label=f"synthesis_attempt{attempt}")
+        raw = response.content if isinstance(response.content, str) else str(response.content)
         speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
-    # 영어 잔재 감지
-    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
-    if eng_words:
-        logger.warning("[synthesis] 영어 감지: %s → 수정 요청", eng_words[:3])
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
-        fix: AIMessage = _invoke_with_retry(_syn_llm, messages, label="synthesis_fix_eng")
-        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
-        fixed = _postprocess_speech(_extract_rebuttal_text(raw_fix))
-        if _is_valid_rebuttal(fixed):
-            speech = fixed
-            raw = raw_fix
+        # 유효하고 fallback 문장이 아니면 사용
+        if _is_valid_rebuttal(speech) and _FALLBACK_MARKER not in speech:
+            return speech, raw
+
+        logger.warning("[synthesis] speech 무효 또는 fallback, 재시도 %d/3", attempt + 1)
+        if attempt < 2:
+            messages.append(HumanMessage(content="이전 응답이 부적절합니다. 한국어로 1~2문장, 구체적인 의견을 말하세요."))
 
     if not _is_valid_rebuttal(speech):
-        speech = "이 문제의 핵심을 다시 짚어볼 필요가 있습니다. 구체적인 해결 방안을 함께 논의해야 합니다."
+        global _fallback_idx
+        speech = _FALLBACK_RESPONSES[_fallback_idx % len(_FALLBACK_RESPONSES)]
+        _fallback_idx += 1
 
     return speech, raw
 
@@ -227,6 +237,7 @@ def synthesis_node(state: DebateState) -> DebateState:
 
     print(f"\n[5단계: 최적해 회의] 초기 의견 제시\n")
 
+    agent_idx = 0
     for speaker_id in speaking_order:
         if speaker_id == "user":
             continue
@@ -236,14 +247,20 @@ def synthesis_node(state: DebateState) -> DebateState:
         snum = stance_nums.get(speaker_id, 1)
         display = f"{slabel}{snum}"
 
-        print(f"  [{display}] 의견 제시 중...")
+        # 에이전트별 고유 관점 할당
+        perspective = _AGENT_PERSPECTIVES[agent_idx % len(_AGENT_PERSPECTIVES)]
+        agent_idx += 1
+
+        print(f"  [{display}] 의견 제시 중... (관점: {perspective[:20]})")
 
         prompt = _build_proposal_prompt(
             topic=topic,
             original_stance=agent["stance"],
             debate_summary=debate_summary,
+            perspective=perspective,
         )
-        speech, raw = _generate_single(agent, prompt)
+        chain = _build_synthesis_chain(agent, history, speaker_id)
+        speech, raw = _generate_with_synthesis_chain(chain, prompt)
 
         entry = DebateEntry(
             turn=current_turn,
@@ -288,15 +305,9 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
     user_messages = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "synthesis"]
     user_latest = user_messages[-1]["content"] if user_messages else ""
 
-    # 이전 회의 내용 요약
-    syn_entries = [e for e in history if e["phase"] == "synthesis"]
-    previous = "\n".join(
-        f"- {'사용자' if e['speaker_id'] == 'user' else e['speaker_id']}: {e['content'][:150]}"
-        for e in syn_entries
-    )
-
     print(f"\n[5단계: 최적해 회의] AI 응답 생성 중...\n")
 
+    agent_idx = 0
     for speaker_id in speaking_order:
         if speaker_id == "user":
             continue
@@ -306,15 +317,23 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
         snum = stance_nums.get(speaker_id, 1)
         display = f"{slabel}{snum}"
 
+        perspective = _AGENT_PERSPECTIVES[agent_idx % len(_AGENT_PERSPECTIVES)]
+        agent_idx += 1
+
         print(f"  [{display}] 응답 중...")
 
-        prompt = _build_discuss_prompt(
-            topic=topic,
-            original_stance=agent["stance"],
-            user_message=user_latest,
-            previous_discussion=previous,
+        # 멀티턴 체인으로 이전 회의 맥락 유지
+        chain = _build_synthesis_chain(agent, history, speaker_id)
+        prompt = (
+            f"[너의 고유 관점] {perspective}\n\n"
+            f"[사용자 발언]\n{user_latest}\n\n"
+            f"반드시 너의 고유 관점에서만 응답하라. "
+            f"사용자 문장을 그대로 쓰지 마라. "
+            f"다른 에이전트가 이미 말한 내용도 반복하지 마라. "
+            f"1~2문장.\n\n"
+            f"### 반박 시작\n### 반박 끝"
         )
-        speech, raw = _generate_single(agent, prompt)
+        speech, raw = _generate_with_synthesis_chain(chain, prompt)
 
         entry = DebateEntry(
             turn=current_turn,

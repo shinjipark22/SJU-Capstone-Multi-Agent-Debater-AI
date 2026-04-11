@@ -39,7 +39,7 @@ from src.stage2_rebuttal.nodes import build_agent_stance_nums
 from src.state import DebateEntry, DebateState
 
 # ── 역할반전 전용 LLM ──────────────────────────────────────────────────────
-_rr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 4096, "temperature": 0.6})
+_rr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 2048, "temperature": 0.6})
 
 
 # ── 상대팀 대표 랜덤 선정 ──────────────────────────────────────────────────
@@ -76,9 +76,12 @@ def _build_role_reversal_prompt(
     """
     stance_kr = "찬성" if reversed_stance == "PRO" else "반대"
 
+    opposite_kr = "반대" if reversed_stance == "PRO" else "찬성"
+
     return f"""[역할 반전 단계]
-너는 원래 {stance_kr}의 반대 입장이었지만, 지금은 역할을 반전하여 **{stance_kr} 입장을 옹호**해야 한다.
-상대방의 관점에서 진심으로 설득력 있는 주장을 펼쳐라.
+[최우선 규칙] 너는 지금부터 **{stance_kr}** 입장이다. 원래 {opposite_kr} 입장이었지만 완전히 버려라.
+{stance_kr} 입장에서만 주장하라. {opposite_kr} 입장의 논거를 절대 사용하지 마라.
+상대방({opposite_kr})의 관점에서 진심으로 설득력 있는 주장을 펼쳐라.
 
 아래 참고 자료와 기존 {stance_kr}측 입론을 바탕으로 '{topic}'에 대한 {stance_kr} 입론을 작성하라.
 

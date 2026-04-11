@@ -109,11 +109,11 @@ _TOOL_MAP: Dict[str, Any] = {t.name: t for t in _TOOLS}
 _VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
 
 _LLM_KWARGS = dict(
-    model="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+    model=os.environ.get("DEEPSEEK_MODEL", "Corianas/DeepSeek-R1-Distill-Qwen-14B-AWQ"),
     base_url=_VLLM_BASE_URL,
     api_key="fake",
     temperature=0.6,
-    max_tokens=4096,
+    max_tokens=2048,
     top_p=0.9,
     timeout=120,
 )
@@ -223,7 +223,9 @@ def _postprocess_speech(text: str) -> str:
     # 깨진 유니코드 문자 제거
     text = text.replace('\ufffd', '')
     # 외국 문자 제거 (한자, 일본어, 러시아어, 태국어, 아랍어, 베트남어 등)
-    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff]+', '', text)
+    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff\u00c0-\u00ff\u0150-\u017f]+', '', text)
+    # 한국어 문장 중간의 영어 단어 제거 (고유명사 2단어 이상 연속은 유지)
+    text = re.sub(r'(?<=[가-힣\s])[a-z]{5,}(?=[가-힣\s.,])', '', text, flags=re.IGNORECASE)
     # 영어 줄 제거 (한글 없이 영어로만 이루어진 줄)
     lines = text.split('\n')
     text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l) or l.strip().startswith('###'))
@@ -273,6 +275,20 @@ def _postprocess_speech(text: str) -> str:
         after = re.sub(r'\n\s*\*?참고[\s:：].*', '', after, flags=re.DOTALL)
         after = re.sub(r'\n\s*\*?주[\s:：].*', '', after, flags=re.DOTALL)
         text = text[:cm.start()] + after
+    # 끊김 패턴 수리: "을합니다" → "을 합니다", 조사+동사 바로 붙은 경우
+    text = re.sub(r'([을를이가은는에])합니다', r'\1 합니다', text)
+    text = re.sub(r'([을를이가은는에])하[게면고]', lambda m: m.group(1) + ' 하' + m.group(0)[-1], text)
+    # 깨진 혼합어 제거 ("카티rophic", "머천cies" 등)
+    text = re.sub(r'[가-힣]+[a-zA-Z]{3,}[가-힣]*', '', text)
+    text = re.sub(r'[a-zA-Z]{3,}[가-힣]+[a-zA-Z]*', '', text)
+    # 불완전 문장 정리: 마지막 문장이 끝맺음 없이 끊겼으면 제거
+    lines = text.rstrip().split('\n')
+    if lines:
+        last = lines[-1].rstrip()
+        # 소제목이 아닌 일반 문장이 마침표/물음표/느낌표/볼드 없이 끝나면 불완전
+        if last and not last.startswith('###') and not re.search(r'[.?!다까요\*]$', last):
+            lines = lines[:-1]
+            text = '\n'.join(lines)
     return text
 
 
@@ -399,12 +415,13 @@ def _build_opening_prompt(
 - 논거 2개, 각 3줄 이내
 - 핵심 문장에 **강조** 사용
 
-[인용 규칙]
-- 참고 자료의 수치/기관명을 반드시 인용할 것
-- 참고 자료에 없는 수치를 지어내지 마라
-- 과장 금지. 데이터 범위 내에서만 주장
+[인용 규칙 — 이것을 어기면 실패다]
+- 참고 자료에 나온 수치/기관명만 인용할 것
+- 참고 자료에 없는 수치를 절대 지어내지 마라. 기억에 의존한 통계 사용 금지
+- 존재하지 않는 기관명을 만들지 마라
+- 과장 금지. "10억", "80%" 등 극단적 수치는 참고 자료에 명시되어 있을 때만 사용
 - 원문 그대로 인용. 자체 계산·환율 변환 금지
-- 출처는 국제기구, 연구기관, 대학, 기업만 밝힐 것 (블로그·커뮤니티·개인 사이트 제외)
+- 확실하지 않은 수치는 생략하고 논리로 주장하라
 
 [형식]
 - 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용. 그 외 모든 서술은 한국어로
