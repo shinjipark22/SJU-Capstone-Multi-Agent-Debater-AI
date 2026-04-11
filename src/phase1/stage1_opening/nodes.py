@@ -203,8 +203,8 @@ def _postprocess_speech(text: str) -> str:
     text = text.replace('\ufffd', '')
     # 외국 문자 제거 (한자, 일본어, 러시아어, 태국어, 아랍어, 베트남어 등)
     text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff\u00c0-\u00ff\u0150-\u017f]+', '', text)
-    # 한국어 문장 중간의 영어 단어 제거 (고유명사 2단어 이상 연속은 유지)
-    text = re.sub(r'(?<=[가-힣\s])[a-z]{5,}(?=[가-힣\s.,])', '', text, flags=re.IGNORECASE)
+    # 한국어 문장 중간의 영어 소문자 단어 제거 (대문자 시작 고유명사 McKinsey, OECD 등은 유지)
+    text = re.sub(r'(?<=[가-힣\s])[a-z]{5,}(?=[가-힣\s.,])', '', text)
     # 영어 줄 제거 (한글 없이 영어로만 이루어진 줄)
     lines = text.split('\n')
     text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l) or l.strip().startswith('###'))
@@ -402,8 +402,10 @@ def _build_opening_prompt(
 - 핵심 문장에 **강조** 사용
 - 일반론 금지. "~은 문제입니다" 수준의 막연한 주장 대신, 구체적 사례와 수치를 들어 설득하라
 
-[인용 규칙]
-- 참고 자료의 수치/기관명만 인용. 없는 수치를 지어내지 마라
+[인용 규칙 — 가장 중요]
+- 반드시 위 [참고 자료]에서 기관명·수치·사례를 직접 인용하라
+- 참고 자료에 없는 수치나 연구를 절대 지어내지 마라
+- "~에 따르면"으로 인용할 때 반드시 참고 자료에 나온 출처명을 그대로 사용하라
 - 확실하지 않으면 수치 없이 논리로 주장하라
 
 [형식]

@@ -105,11 +105,11 @@ _AGENT_PERSPECTIVES = [
 
 # ── 강경도별 타협 태도 (합의 속도 조절) ──────────────────────────────────────
 _INTENSITY_NEGOTIATION = {
-    1: "상대 입장의 합리적 부분을 적극 수용하되, 자기 핵심 주장 1개는 반드시 지키라",
-    2: "상대 의견에 열린 태도를 보이되, 자기 입장의 전제 조건을 명확히 밝혀라",
-    3: "양쪽 장단점을 균형 있게 비교하되, 어느 쪽이든 구체적 조건을 제시하라",
-    4: "자기 원래 입장의 핵심 조건이 최적해에 반드시 포함되어야 한다고 주장하라. 쉽게 양보하지 마라",
-    5: "자기 원래 입장이 더 우월하다는 근거를 들며, 상대 양보를 요구하라. 타협안에도 자기 조건을 최우선으로 넣어라",
+    1: "상대 의견에 열린 태도를 보이되, 자기 핵심 조건 1개는 반드시 지키면서 구체적 절충안을 제시하라",
+    2: "양쪽 의견을 수용하되, 빠진 조건이나 실행 가능성에 대해 구체적으로 질문하라",
+    3: "양쪽 장단점을 비교하며, 아직 논의되지 않은 새로운 쟁점을 제기하라",
+    4: "자기 원래 입장의 핵심 조건이 빠지면 최적해가 실패한다고 경고하라. 절대 쉽게 동의하지 마라",
+    5: "자기 원래 입장을 강하게 고수하며, 상대 제안의 약점을 구체적으로 지적하라. 동의하지 마라",
 }
 
 
@@ -139,10 +139,9 @@ def _build_proposal_prompt(
 
 [지시]
 - 위 대화 내용에 이어서 자연스럽게 대화하라
-- 앞 사람의 발언에 직접 반응하되, 단순 동의만 하지 마라
-- 이전 발언자와 같은 결론을 반복하지 마라. 반드시 다른 각도의 의견을 제시하라
-- 동의하더라도 "다만~", "단, ~은 여전히 쟁점입니다" 식으로 남은 쟁점을 1개 지적하라
-- 너의 고유 관점에서 새로운 내용을 추가하라
+- "동의합니다", "좋은 의견입니다", "맞습니다"로 시작하지 마라
+- 앞 사람이 말한 내용을 그대로 반복하지 마라. 반드시 다른 각도의 의견을 제시하라
+- 너의 고유 관점에서 아직 언급되지 않은 쟁점이나 조건을 제기하라
 - 1~2문장으로 짧게. 대화체로
 - 소제목/번호/목록 금지
 
@@ -249,6 +248,7 @@ def synthesis_node(state: DebateState) -> DebateState:
     print(f"\n[5단계: 최적해 회의] 초기 의견 제시\n")
 
     agent_idx = 0
+    this_round_speeches: List[str] = []  # 이번 라운드에서 다른 에이전트가 한 말 수집
     for speaker_id in speaking_order:
         if speaker_id == "user":
             continue
@@ -270,6 +270,15 @@ def synthesis_node(state: DebateState) -> DebateState:
             perspective=perspective,
             intensity=intensity,
         )
+        # 이전 에이전트가 이미 한 말 추가
+        if this_round_speeches:
+            already_said = (
+                "\n[다른 참여자가 이미 한 말 — 같은 내용 반복 금지]\n"
+                + "\n".join(f"- {s}" for s in this_round_speeches)
+                + "\n위와 완전히 다른 관점에서 발언하라.\n"
+            )
+            prompt += f"\n{already_said}"
+
         # 전체 토론 히스토리를 메시지 체인으로 전달 (_summarize_debate 대체)
         from src.graph.llm import build_debate_chain
         debate_chain = build_debate_chain(history, speaker_id)
@@ -277,6 +286,7 @@ def synthesis_node(state: DebateState) -> DebateState:
         # debate_chain(1~4단계) + synthesis_chain(5단계) 합치기
         full_chain = debate_chain + [m for m in chain if m not in debate_chain]
         speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, full_chain, topic)
+        this_round_speeches.append(speech[:80])  # 다음 에이전트가 참고
 
         entry = DebateEntry(
             turn=current_turn,
@@ -324,6 +334,7 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
     print(f"\n[5단계: 최적해 회의] AI 응답 생성 중...\n")
 
     agent_idx = 0
+    this_round_speeches: List[str] = []  # 이번 라운드에서 다른 에이전트가 한 말 수집
     for speaker_id in speaking_order:
         if speaker_id == "user":
             continue
@@ -340,19 +351,30 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
 
         print(f"  [{display}] 응답 중... (강경도: {intensity})")
 
+        # 이번 라운드에서 다른 에이전트가 이미 말한 내용을 프롬프트에 포함
+        already_said = ""
+        if this_round_speeches:
+            already_said = (
+                "\n[이번 라운드에서 다른 참여자가 이미 한 말 — 같은 내용 반복 금지]\n"
+                + "\n".join(f"- {s}" for s in this_round_speeches)
+                + "\n"
+            )
+
         # 전체 토론 히스토리 + 종합 회의 체인
         from src.graph.llm import build_debate_chain
         debate_chain = build_debate_chain(history, speaker_id)
         prompt = (
-            f"[너의 고유 관점] {perspective}\n\n"
-            f"[너의 협상 태도] {negotiation}\n\n"
-            f"사용자가 방금 '{user_latest[:50]}...'라고 말했다.\n\n"
-            f"사용자 발언에 직접 반응하면서 너의 관점에서 보완하거나 구체화하라. "
-            f"이전 발언자와 같은 결론을 반복하지 마라. 반드시 다른 각도의 의견을 제시하라. "
+            f"[너의 고유 관점 — 반드시 이 관점에서만 발언하라] {perspective}\n\n"
+            f"[너의 협상 태도] {negotiation}\n"
+            f"{already_said}\n"
+            f"사용자가 방금 '{user_latest[:100]}...'라고 말했다.\n\n"
+            f"위에서 이미 언급된 내용과 완전히 다른 관점에서 구체적 조건이나 미해결 쟁점을 제기하라. "
+            f"'동의합니다'/'좋은 의견입니다'/'좋은 출발점'으로 시작하지 마라. "
             f"대화하듯이 자연스럽게. 1~2문장.\n\n"
             f"### 반박 시작\n### 반박 끝"
         )
         speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, debate_chain, topic)
+        this_round_speeches.append(speech[:80])  # 다음 에이전트가 참고할 수 있도록 수집
 
         entry = DebateEntry(
             turn=current_turn,
