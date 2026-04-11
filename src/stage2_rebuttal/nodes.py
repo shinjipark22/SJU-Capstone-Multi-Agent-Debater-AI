@@ -163,16 +163,21 @@ def _generate_attack_question(attack_text: str, stance: str, topic: str) -> str:
         return ""
 
 
-def analyze_weakness(target_speech: str, topic: str) -> str:
-    """Qwen 7B로 상대 논거의 핵심 약점을 분석한다. DeepSeek 반박 생성 전에 호출."""
+def analyze_weakness(target_speech: str, topic: str, prev_weaknesses: str = "") -> str:
+    """Qwen 7B로 상대 논거의 핵심 약점을 분석한다. 이전 분석과 다른 약점을 찾는다."""
+    prev_block = ""
+    if prev_weaknesses:
+        prev_block = f"\n[이미 분석한 약점 — 이것과 다른 새로운 약점을 찾아라]\n{prev_weaknesses}\n"
+
     try:
         messages = [
             HumanMessage(content=f"""다음 주장의 가장 약한 부분을 1줄로 짚어라.
 
 토론 주제: {topic[:80]}
 상대 주장: {target_speech[:300]}
-
+{prev_block}
 [필수] 반드시 한국어로만 답변하라. 영어, 중국어 등 다른 언어 사용 금지.
+{f"이전에 분석한 약점과 완전히 다른 관점의 약점을 찾아라." if prev_weaknesses else ""}
 형식: "약점: (내용)" 한 줄만 출력.""")
         ]
         response = _qwen_llm.invoke(messages)
