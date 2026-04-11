@@ -227,6 +227,9 @@ def main():
         with st.chat_message("assistant"):
             st.markdown(f"💬 **{phase_label}** — {guide}")
 
+        # 디버그: 현재 waiting_for 표시
+        st.caption(f"[debug] waiting_for = '{waiting}'")
+
         # ── 입론: 구조화 폼
         if waiting == "user_opening":
             with st.form("opening_form"):
@@ -291,8 +294,8 @@ def main():
                 stream_graph(Command(resume=attack), config)
                 st.rerun()
 
-        # ── 그 외: 단일 입력
-        else:
+        # ── 그 외: 단일 입력 (chat_input은 입론/자유논박 외에서만)
+        elif waiting not in ("user_opening", "user_free_rebuttal", "_attack_pending"):
             user_input = st.chat_input(guide)
             if user_input:
                 with st.chat_message("user"):
