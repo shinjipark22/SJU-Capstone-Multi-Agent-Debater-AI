@@ -122,13 +122,17 @@ def _build_message_chain(
     1~3단계 전체 발언을 포함하여 이전 맥락을 참조 가능.
     """
     from src.graph.llm import build_debate_chain
+    from src.phase0.persona_factory import INTENSITY_PROFILES
 
     stance_kr = "찬성" if stance == "PRO" else "반대"
+    intensity = agent.get("intensity", 3)
+    intensity_style = INTENSITY_PROFILES.get(intensity, INTENSITY_PROFILES[3])["style"]
 
     system = (
         f"{agent['system_prompt']}\n\n"
         f"[최우선 규칙] 너는 {stance_kr} 입장이다. "
-        f"3~4문장. 한국어. 합니다체."
+        f"3~4문장. 한국어. 합니다체.\n"
+        f"[논증 스타일] {intensity_style}"
     )
     messages = [SystemMessage(content=system)]
 

@@ -258,12 +258,16 @@ def _generate_rebuttal_speech(
 ) -> Tuple[str, str, List[Dict]]:
     """반박 생성. 전체 토론 히스토리를 메시지 체인으로 참조."""
     from src.graph.llm import build_debate_chain
+    from src.phase0.persona_factory import INTENSITY_PROFILES
 
     stance_kr = "찬성" if stance == "PRO" else "반대"
+    intensity = agent.get("intensity", 3)
+    intensity_style = INTENSITY_PROFILES.get(intensity, INTENSITY_PROFILES[3])["style"]
     system = (
         f"{agent['system_prompt']}\n\n"
         f"[최우선 규칙] 너는 {stance_kr} 입장이다. "
-        f"3~4문장. 반드시 합니다체(격식체). 모든 문장을 '~합니다', '~입니다'로 끝내라."
+        f"3~4문장. 반드시 합니다체(격식체).\n"
+        f"[논증 스타일] {intensity_style}"
     )
     messages = [SystemMessage(content=system)]
     if debate_chain:
