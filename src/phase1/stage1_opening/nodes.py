@@ -380,18 +380,17 @@ def _pre_search(topic: str, stance: str, topic_id: str = "") -> Tuple[str, List[
 
 def _build_opening_prompt(
     topic: str, stance: str, agent_name: str,
-    search_results: str, focus_area: str = "",
+    search_results: str,
 ) -> str:
     stance_kr = "찬성" if stance == "PRO" else "반대"
-    focus_block = f"\n너의 전문 분야는 '{focus_area}'이다. 이 관점에서 논거를 전개하라.\n" if focus_area else ""
 
     return f"""아래 참고 자료를 바탕으로 '{topic}'에 대한 {stance_kr} 입론을 작성하라.
-{focus_block}
+
 [참고 자료]
 {search_results}
 
 [구조]
-- "{agent_name}"이라고 자기소개하고, 너의 전문 분야를 밝혀라
+- "{agent_name}"이라고 자기소개
 - 논거 2개, 각 3~5줄. 구체적 사례·데이터·국가 비교를 반드시 포함하라
 - 핵심 문장에 **강조** 사용
 - 일반론 금지. "~은 문제입니다" 수준의 막연한 주장 대신, 구체적 사례와 수치를 들어 설득하라
@@ -492,7 +491,6 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         # 2. 프롬프트 구성 + LLM 호출
         prompt = _build_opening_prompt(
             topic, agent["stance"], display, search_results,
-            focus_area=agent.get("focus_area", ""),
         )
         final_text, raw = _generate_opening(agent, prompt)
 
