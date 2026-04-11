@@ -129,3 +129,44 @@ def invoke_with_tools(messages: list, *, label: str = "llm") -> tuple:
         raw = final.content if isinstance(final.content, str) else str(final.content)
 
     return raw, tool_calls_log
+
+
+# ── 공통 히스토리 체인 빌더 ────────────────────────────────────────────────
+
+def build_debate_chain(
+    history: list,
+    current_agent_id: str,
+    phase_filter: str = "",
+) -> list:
+    """debate_history를 LLM 메시지 체인으로 변환한다.
+
+    - 현재 에이전트 발언 → AIMessage
+    - 다른 발언자 → HumanMessage (speaker 라벨 포함)
+
+    Args:
+        history: debate_history 리스트
+        current_agent_id: 현재 발언하는 에이전트 ID
+        phase_filter: 특정 phase만 포함 ("" = 전체)
+
+    Returns:
+        LangChain 메시지 리스트 (SystemMessage 미포함)
+    """
+    from langchain_core.messages import AIMessage as AI, HumanMessage as HM
+
+    messages = []
+    for entry in history:
+        if phase_filter and entry.get("phase") != phase_filter:
+            continue
+
+        content = entry["content"]
+        speaker_id = entry["speaker_id"]
+        stance = "찬성" if entry.get("stance") == "PRO" else "반대"
+
+        if speaker_id == current_agent_id:
+            messages.append(AI(content=content))
+        elif speaker_id == "user":
+            messages.append(HM(content=f"[사용자 ({stance})] {content}"))
+        else:
+            messages.append(HM(content=f"[{speaker_id} ({stance})] {content}"))
+
+    return messages

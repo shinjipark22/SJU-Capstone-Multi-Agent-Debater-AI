@@ -251,19 +251,22 @@ def _generate_rebuttal_speech(
     prompt: str,
     target_display: str,
     stance: str,
+    debate_chain: List = None,
 ) -> Tuple[str, str, List[Dict]]:
-    """소형 모델 판단 + DeepSeek 생성. 필요할 때만 검색."""
+    """반박 생성. 전체 토론 히스토리를 메시지 체인으로 참조."""
+    from src.graph.llm import build_debate_chain
+
     stance_kr = "찬성" if stance == "PRO" else "반대"
     system = (
         f"{agent['system_prompt']}\n\n"
         f"[최우선 규칙] 너는 {stance_kr} 입장이다. "
         f"반드시 3~4문장으로만 답변하라. "
-        f"상대 주장의 오류만 공격하라. 자기 의견 피력은 마지막 1문장으로만."
+        f"상대 주장의 오류만 공격하라."
     )
-    messages = [
-        SystemMessage(content=system),
-        HumanMessage(content=prompt),
-    ]
+    messages = [SystemMessage(content=system)]
+    if debate_chain:
+        messages.extend(debate_chain)
+    messages.append(HumanMessage(content=prompt))
 
     tool_calls_log: List[Dict] = []
 
@@ -400,9 +403,14 @@ def generate_ai_rebuttal(
         my_previous=my_previous,
     )
 
+    # 전체 토론 히스토리를 메시지 체인으로 전달
+    from src.graph.llm import build_debate_chain
+    debate_chain = build_debate_chain(history, agent["agent_id"])
+
     speech, raw, _tool_log = _generate_rebuttal_speech(
         agent=agent, prompt=prompt,
         target_display=target_display, stance=agent["stance"],
+        debate_chain=debate_chain,
     )
 
     return DebateEntry(

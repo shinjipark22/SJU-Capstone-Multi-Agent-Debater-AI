@@ -109,22 +109,20 @@ _AGENT_PERSPECTIVES = [
 def _build_proposal_prompt(
     topic: str,
     original_stance: str,
-    debate_summary: str,
     perspective: str = "",
 ) -> str:
-    """회의 첫 발언: 최적해에 대한 의견 제시. 에이전트별 고유 관점 할당."""
+    """회의 첫 발언: 최적해에 대한 의견 제시. 에이전트별 고유 관점 할당.
+    토론 히스토리는 메시지 체인으로 이미 포함되어 있으므로 요약 불필요.
+    """
     stance_kr = "찬성" if original_stance == "PRO" else "반대"
 
     perspective_block = f"\n[너의 고유 관점 — 반드시 이 관점에서만 발언하라]\n{perspective}\n" if perspective else ""
 
     return f"""[5단계: 최적해 회의]
-'{topic}'에 대한 토론이 끝났다. 이제 모두가 입장을 내려놓고 최적해를 함께 찾아야 한다.
+'{topic}'에 대한 토론이 끝났다. 위 토론 내용을 모두 참고하여 최적해를 함께 찾아야 한다.
 
 너는 원래 {stance_kr} 입장이었지만, 지금은 입장을 버려라.
 {perspective_block}
-[토론 요약]
-{debate_summary}
-
 [지시]
 - 너의 고유 관점에서만 의견을 말하라. 다른 관점은 다른 사람이 말한다
 - 1~2문장으로 짧게. 길게 쓰지 마라
@@ -233,8 +231,6 @@ def synthesis_node(state: DebateState) -> DebateState:
     speaking_order = state["speaking_order"]
     stance_nums = build_agent_stance_nums(state["agents"], speaking_order)
 
-    debate_summary = _summarize_debate(history, state["agents"], speaking_order)
-
     print(f"\n[5단계: 최적해 회의] 초기 의견 제시\n")
 
     agent_idx = 0
@@ -247,7 +243,6 @@ def synthesis_node(state: DebateState) -> DebateState:
         snum = stance_nums.get(speaker_id, 1)
         display = f"{slabel}{snum}"
 
-        # 에이전트별 고유 관점 할당
         perspective = _AGENT_PERSPECTIVES[agent_idx % len(_AGENT_PERSPECTIVES)]
         agent_idx += 1
 
@@ -256,11 +251,15 @@ def synthesis_node(state: DebateState) -> DebateState:
         prompt = _build_proposal_prompt(
             topic=topic,
             original_stance=agent["stance"],
-            debate_summary=debate_summary,
             perspective=perspective,
         )
+        # 전체 토론 히스토리를 메시지 체인으로 전달 (_summarize_debate 대체)
+        from src.graph.llm import build_debate_chain
+        debate_chain = build_debate_chain(history, speaker_id)
         chain = _build_synthesis_chain(agent, history, speaker_id)
-        speech, raw = _generate_with_synthesis_chain(chain, prompt)
+        # debate_chain(1~4단계) + synthesis_chain(5단계) 합치기
+        full_chain = debate_chain + [m for m in chain if m not in debate_chain]
+        speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, full_chain, topic)
 
         entry = DebateEntry(
             turn=current_turn,
@@ -322,8 +321,9 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
 
         print(f"  [{display}] 응답 중...")
 
-        # 멀티턴 체인으로 이전 회의 맥락 유지
-        chain = _build_synthesis_chain(agent, history, speaker_id)
+        # 전체 토론 히스토리 + 종합 회의 체인
+        from src.graph.llm import build_debate_chain
+        debate_chain = build_debate_chain(history, speaker_id)
         prompt = (
             f"[너의 고유 관점] {perspective}\n\n"
             f"[사용자 발언]\n{user_latest}\n\n"
@@ -333,7 +333,7 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
             f"1~2문장.\n\n"
             f"### 반박 시작\n### 반박 끝"
         )
-        speech, raw = _generate_with_synthesis_chain(chain, prompt)
+        speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, debate_chain, topic)
 
         entry = DebateEntry(
             turn=current_turn,
