@@ -17,18 +17,8 @@ from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-
 import src.stage1_opening.nodes as _opening_mod
-from src.stage1_opening.nodes import (
-    _invoke_with_retry,
-    _postprocess_speech,
-    _truncate_tool_result,
-    _remove_english_blocks,
-    search_web,
-    _LLM_KWARGS,
-)
+from src.stage1_opening.nodes import _remove_english_blocks
 
 
 def _is_valid_rebuttal(speech: str) -> bool:
@@ -66,23 +56,8 @@ from src.state import (
     build_chained_rebuttal_pairs,
 )
 
-# ── 연쇄논박 전용 LLM (DeepSeek — 반박 생성용) ─────────────────────────────
-_rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
-
 # ── graph/ 모듈에서 Searcher 함수 임포트 ──────────────────────────────────
-from src.graph.searcher import (
-    analyze_weakness,
-    decide_search as _decide_search_impl,
-    generate_attack_question as _generate_attack_question,
-    check_stance as _check_stance,
-    search_web,
-)
-from src.graph.reviewer import review_speech
-
-
-def _decide_search(target_argument: str, attack_style: str = "") -> str:
-    """graph/searcher로 위임."""
-    return _decide_search_impl(target_argument)
+from src.graph.searcher import search_web
 
 
 def _extract_rebuttal_text(content: str) -> str:

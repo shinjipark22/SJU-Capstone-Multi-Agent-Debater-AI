@@ -327,21 +327,6 @@ def _is_valid_speech(speech: str) -> bool:
     return True
 
 
-# ── XML 도구 호출 폴백 파서 ──────────────────────────────────────────────────
-
-def _parse_xml_tool_calls(content: str) -> List[Dict]:
-    """<tool_call> XML 블록을 파싱."""
-    tool_calls = []
-    for block in re.findall(r'<tool_call>(.*?)</tool_call>', content, re.DOTALL):
-        func_match = re.search(r'<function=(\w+)>(.*?)</function>', block, re.DOTALL)
-        if not func_match:
-            continue
-        func_name = func_match.group(1)
-        args: Dict[str, str] = {}
-        for param in re.finditer(r'<parameter=(\w+)>\s*(.*?)\s*</parameter>', func_match.group(2), re.DOTALL):
-            args[param.group(1)] = param.group(2).strip()
-        tool_calls.append({"name": func_name, "args": args, "id": f"call_{func_name}_{uuid.uuid4().hex[:6]}"})
-    return tool_calls
 
 
 # ── 입론 프롬프트 ────────────────────────────────────────────────────────────
