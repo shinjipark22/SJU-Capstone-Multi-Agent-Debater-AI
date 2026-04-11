@@ -66,23 +66,15 @@ from src.state import (
     build_chained_rebuttal_pairs,
 )
 
-# ── 연쇄논박 전용 LLM (DeepSeek — 반박 생성용) ─────────────────────────────
+# ── 반박용 LLM (32B, 짧은 응답) ────────────────────────────────────────────
 _rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
 
-# ── 분석 모델 (Qwen2.5-7B — 검색 판단 + 약점 분석 + 입장 검증, GPU 1) ────────
-_QWEN_BASE_URL = os.environ.get("QWEN_BASE_URL", "http://localhost:8001/v1")
-_qwen_llm = ChatOpenAI(
-    model="Qwen/Qwen2.5-7B-Instruct",
-    base_url=_QWEN_BASE_URL,
-    api_key="fake",
-    temperature=0.3,
-    max_tokens=200,
-    timeout=30,
-)
+# ── 분석용 LLM (32B 동일, 짧은 응답) ──────────────────────────────────────
+_analysis_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 200, "temperature": 0.3})
 
 
 def _decide_search(target_argument: str, attack_style: str) -> str:
-    """Qwen 7B가 검색 필요 여부를 판단한다. 불필요 시 빈 문자열."""
+    """검색 필요 여부를 판단한다. 불필요 시 빈 문자열."""
     try:
         messages = [
             HumanMessage(content=f"""다음 주장을 반박하려 한다. 반박에 통계나 사실 확인이 필요하면 검색 키워드를 한국어 30자 이내로 출력하라.
@@ -90,50 +82,22 @@ def _decide_search(target_argument: str, attack_style: str) -> str:
 
 주장: {target_argument[:200]}""")
         ]
-        response = _qwen_llm.invoke(messages)
+        response = _analysis_llm.invoke(messages)
         result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
 
         if "불필요" in result or len(result) < 3:
-            logger.info("[qwen7b] 검색 불필요")
             return ""
 
-        # 검색 키워드 추출 (첫 줄만)
         query = result.split('\n')[0].strip().strip('"').strip("'")
-        logger.info("[qwen7b] 검색 키워드: '%s'", query[:40])
+        logger.info("[32B] 검색 키워드: '%s'", query[:40])
         return query[:40]
     except Exception as e:
-        logger.warning("[qwen7b] _decide_search 오류: %s", e)
+        logger.warning("[32B] _decide_search 오류: %s", e)
         return ""
 
 
-# ── 텍스트 추출 (delimiter 없이, <think> + 영어 제거 후 한국어만) ────────────
-
-def _check_stance(text: str, expected_stance: str, topic: str) -> bool:
-    """Qwen 7B로 발언이 기대 입장과 일치하는지 판별한다. 일치하면 True."""
-    stance_kr = "찬성" if expected_stance == "PRO" else "반대"
-    try:
-        messages = [
-            HumanMessage(content=f"""주제: {topic[:100]}
-
-발언: {text[:200]}
-
-이 발언은 위 주제에 대해 "찬성"인가 "반대"인가? 한 단어로만 답하라.""")
-        ]
-        response = _qwen_llm.invoke(messages)
-        result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
-        first_word = result.split()[0] if result.split() else ""
-        detected = "찬성" if "찬성" in first_word else ("반대" if "반대" in first_word else "")
-        if detected and detected != stance_kr:
-            logger.warning("[stance_check] 입장 혼동: 기대=%s, 감지=%s", stance_kr, detected)
-            return False
-        return True
-    except Exception as e:
-        logger.warning("[stance_check] 오류: %s", e)
-        return True
-
-
 def _generate_attack_question(attack_text: str, stance: str, topic: str) -> str:
-    """Qwen 7B로 공격 발언의 흐름에 맞는 마무리 질문을 생성한다."""
+    """공격 발언의 흐름에 맞는 마무리 질문을 생성한다."""
     try:
         messages = [
             HumanMessage(content=f"""다음 공격 발언을 읽고, 이 흐름에 맞는 마무리 질문을 1개 만들어라.
@@ -142,15 +106,13 @@ def _generate_attack_question(attack_text: str, stance: str, topic: str) -> str:
 
 규칙:
 - 공격 내용과 자연스럽게 이어지는 질문
-- "~할 수 있습니까?", "~라고 보십니까?", "~지 않습니까?" 형태
-- 반드시 한국어로만 출력. 영어/중국어 등 다른 언어 금지
-- 합니다체
-- 한 문장만 출력. ?로 끝나야 함
-- 설명하지 말고 질문만 출력
+- "~할 수 있습니까?", "~라고 보십니까?" 형태
+- 한국어, 합니다체, 한 문장만, ?로 끝나야 함
+- 설명 없이 질문만 출력
 
 예시: 그렇다면 상대는 이 문제를 어떻게 해결할 수 있다고 보십니까?""")
         ]
-        response = _qwen_llm.invoke(messages)
+        response = _analysis_llm.invoke(messages)
         result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
         for line in result.split('\n'):
             line = line.strip()
@@ -158,15 +120,15 @@ def _generate_attack_question(attack_text: str, stance: str, topic: str) -> str:
                 return line
         return ""
     except Exception as e:
-        logger.warning("[qwen7b] _generate_attack_question 오류: %s", e)
+        logger.warning("[32B] _generate_attack_question 오류: %s", e)
         return ""
 
 
 def analyze_weakness(target_speech: str, topic: str, prev_weaknesses: str = "") -> str:
-    """Qwen 7B로 상대 논거의 핵심 약점을 분석한다. 이전 분석과 다른 약점을 찾는다."""
+    """상대 논거의 핵심 약점을 분석한다."""
     prev_block = ""
     if prev_weaknesses:
-        prev_block = f"\n[이미 분석한 약점 — 이것과 다른 새로운 약점을 찾아라]\n{prev_weaknesses}\n"
+        prev_block = f"\n[이미 분석한 약점 — 다른 약점을 찾아라]\n{prev_weaknesses}\n"
 
     try:
         messages = [
@@ -175,22 +137,15 @@ def analyze_weakness(target_speech: str, topic: str, prev_weaknesses: str = "") 
 토론 주제: {topic[:80]}
 상대 주장: {target_speech[:300]}
 {prev_block}
-[필수] 반드시 한국어로만 답변하라. 영어, 중국어 등 다른 언어 사용 금지.
-{f"이전에 분석한 약점과 완전히 다른 관점의 약점을 찾아라." if prev_weaknesses else ""}
-형식: "약점: (내용)" 한 줄만 출력.""")
+한국어로만. "약점: (내용)" 한 줄만 출력.""")
         ]
-        response = _qwen_llm.invoke(messages)
+        response = _analysis_llm.invoke(messages)
         result = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
-        # 중국어/영어 유출 필터링
-        if re.search(r'[\u4e00-\u9fff]', result):
-            logger.warning("[qwen7b] 중국어 유출 감지, 결과 폐기")
-            return ""
-        # "약점:" 이후 추출
         if "약점:" in result:
             return result.split("약점:")[-1].strip()
         return result.split('\n')[0].strip()
     except Exception as e:
-        logger.warning("[qwen7b] analyze_weakness 오류: %s", e)
+        logger.warning("[32B] analyze_weakness 오류: %s", e)
         return ""
 
 
