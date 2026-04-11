@@ -380,28 +380,29 @@ def _pre_search(topic: str, stance: str, topic_id: str = "") -> Tuple[str, List[
 
 def _build_opening_prompt(
     topic: str, stance: str, agent_name: str,
-    search_results: str,
+    search_results: str, focus_area: str = "",
 ) -> str:
     stance_kr = "찬성" if stance == "PRO" else "반대"
+    focus_block = f"\n너의 전문 분야는 '{focus_area}'이다. 이 관점에서 논거를 전개하라.\n" if focus_area else ""
 
     return f"""아래 참고 자료를 바탕으로 '{topic}'에 대한 {stance_kr} 입론을 작성하라.
-
+{focus_block}
 [참고 자료]
 {search_results}
 
 [구조]
-- "{agent_name}"이라고 자기소개
-- 논거 2개, 각 3줄 이내
+- "{agent_name}"이라고 자기소개하고, 너의 전문 분야를 밝혀라
+- 논거 2개, 각 3~5줄. 구체적 사례·데이터·국가 비교를 반드시 포함하라
 - 핵심 문장에 **강조** 사용
+- 일반론 금지. "~은 문제입니다" 수준의 막연한 주장 대신, 구체적 사례와 수치를 들어 설득하라
 
 [인용 규칙]
 - 참고 자료의 수치/기관명만 인용. 없는 수치를 지어내지 마라
 - 확실하지 않으면 수치 없이 논리로 주장하라
-- 확실하지 않은 수치는 생략하고 논리로 주장하라
 
 [형식]
-- 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용. 그 외 모든 서술은 한국어로
-- 합니다체(격식체)
+- 반드시 합니다체(격식체). 모든 문장을 "~합니다", "~입니다", "~됩니다"로 끝내라
+- 한국어로 작성. 고유명사만 영어 허용
 
 반드시 아래 형식으로만 출력:
 
@@ -491,6 +492,7 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         # 2. 프롬프트 구성 + LLM 호출
         prompt = _build_opening_prompt(
             topic, agent["stance"], display, search_results,
+            focus_area=agent.get("focus_area", ""),
         )
         final_text, raw = _generate_opening(agent, prompt)
 
