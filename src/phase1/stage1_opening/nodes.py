@@ -203,8 +203,7 @@ def _postprocess_speech(text: str) -> str:
     text = text.replace('\ufffd', '')
     # 외국 문자 + 중국어 문장부호 제거
     text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff\u00c0-\u00ff\u0150-\u017f\u3000-\u303f\uff00-\uff60]+', '', text)
-    # 한국어 문장 중간의 영어 소문자 단어 제거 (대문자 시작 고유명사 McKinsey, OECD 등은 유지)
-    text = re.sub(r'(?<=[가-힣\s])[a-z]{5,}(?=[가-힣\s.,])', '', text)
+    # 영어 단어 제거 제거함 — 고유명사/전문용어 오탐 방지 (프롬프트로 제어)
     # 영어 줄 제거 (한글 없이 영어로만 이루어진 줄)
     lines = text.split('\n')
     text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l) or l.strip().startswith('###'))
