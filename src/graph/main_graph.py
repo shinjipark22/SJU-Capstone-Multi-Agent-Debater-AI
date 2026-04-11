@@ -38,25 +38,108 @@ logger = logging.getLogger(__name__)
 
 # ── 1단계: 입론 ────────────────────────────────────────────────────────────
 
+def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
+    """지정된 speaker_ids에 대해서만 입론을 생성한다."""
+    from src.graph.subgraphs import write_review
+    from src.phase1.stage1_opening.nodes import _pre_search, _build_opening_prompt, _is_valid_speech
+
+    import src.phase1.stage1_opening.nodes as _opening_mod
+    _opening_mod._used_doc_ids = set()
+
+    topic = state["topic"]
+    history = list(state["debate_history"])
+    agent_map = {a["agent_id"]: a for a in state["agents"]}
+    stance_counter = {"PRO": 0, "CON": 0}
+
+    # 이미 입론한 에이전트의 stance 카운트
+    for e in history:
+        if e["phase"] == "opening" and e["speaker_id"] != "user":
+            stance_counter[e["stance"]] += 1
+
+    current_turn = state["current_turn"]
+
+    for speaker_id in speaker_ids:
+        if speaker_id == "user" or speaker_id not in agent_map:
+            continue
+
+        agent = agent_map[speaker_id]
+        stance_counter[agent["stance"]] += 1
+        snum = stance_counter[agent["stance"]]
+        slabel = "찬성" if agent["stance"] == "PRO" else "반대"
+        display = f"{slabel}{snum}"
+
+        print(f"  [{display}] 입론 생성 중...")
+
+        search_results, tool_calls_log = _pre_search(
+            topic, agent["stance"], topic_id=state.get("topic_id", ""),
+        )
+        prompt = _build_opening_prompt(topic, agent["stance"], display, search_results)
+
+        result = write_review.invoke({
+            "topic": topic, "agent": agent,
+            "expected_stance": agent["stance"],
+            "target_argument": prompt,
+            "my_opening": "", "opp_opening": "",
+            "chain": [], "prev_weaknesses": "", "prev_attacks": "",
+            "mode": "opening",
+            "weakness": "", "search_results": "", "search_query": "",
+            "speech": "", "raw": "",
+            "review_result": {}, "retry_count": 0, "tool_calls_log": [],
+        })
+
+        final_text = result["speech"]
+        raw = result["raw"]
+
+        if not _is_valid_speech(final_text):
+            final_text = (
+                f"### 자기소개와 입장 표명\n"
+                f"저는 {display}입니다. {topic}에 대해 {slabel} 입장입니다.\n\n"
+                f"### 결론\n저는 {slabel} 입장을 유지합니다."
+            )
+
+        # 자기소개 소제목 보장
+        import re
+        if '### 자기소개' not in final_text and '### 입장 표명' not in final_text:
+            first_h = re.search(r'^### ', final_text, re.MULTILINE)
+            if first_h and first_h.start() > 0:
+                intro = final_text[:first_h.start()].strip()
+                rest = final_text[first_h.start():]
+                if intro:
+                    final_text = f"### 자기소개와 입장 표명\n{intro}\n\n{rest}"
+            elif not final_text.startswith('###'):
+                final_text = f"### 자기소개와 입장 표명\n{final_text}"
+
+        idx = state["speaking_order"].index(speaker_id)
+        history.append(DebateEntry(
+            turn=idx, speaker_id=speaker_id, stance=agent["stance"],
+            phase="opening", content=final_text, target_id=None,
+            tool_calls_log=tool_calls_log, json_raw=raw,
+        ))
+        current_turn += 1
+        print(f"  [{display}] 입론 완료\n")
+
+    history.sort(key=lambda e: e["turn"])
+    return {"debate_history": history, "current_turn": current_turn}
+
+
 def ai_opening_node(state: DebateState) -> dict:
-    """AI 에이전트 입론 생성. speaking_order에서 사용자 제외하고 생성."""
-    updated = opening_arguments_node(state)
-    return {
-        "debate_history": updated["debate_history"],
-        "current_turn": updated["current_turn"],
-        "current_speaker_index": updated["current_speaker_index"],
-        "phase": "opening",
-    }
+    """사용자 전의 AI 에이전트 입론만 생성."""
+    speaking_order = state["speaking_order"]
+    user_idx = speaking_order.index("user")
+    before_user = speaking_order[:user_idx]
+
+    print(f"\n[1단계: 입론] 사용자 전 AI: {before_user}\n")
+    result = _generate_openings_for(state, before_user)
+    result["phase"] = "opening"
+    return result
 
 
 def user_opening_node(state: DebateState) -> dict:
-    """사용자 입론 — interrupt로 대기."""
+    """사용자 입론 interrupt → 이후 남은 AI 입론 생성."""
     user_content = interrupt("사용자 입론을 입력하세요")
 
     history = list(state["debate_history"])
-    user_turn = next(
-        (i for i, sid in enumerate(state["speaking_order"]) if sid == "user"), 0
-    )
+    user_turn = state["speaking_order"].index("user")
     history.append(DebateEntry(
         turn=user_turn,
         speaker_id="user",
@@ -67,8 +150,26 @@ def user_opening_node(state: DebateState) -> dict:
     ))
     history.sort(key=lambda e: e["turn"])
 
+    # 사용자 후 남은 AI 입론 생성
+    speaking_order = state["speaking_order"]
+    after_user = speaking_order[user_turn + 1:]
+    after_ai = [s for s in after_user if s != "user"]
+
+    if after_ai:
+        print(f"\n[1단계: 입론] 사용자 후 AI: {after_ai}\n")
+        temp_state = DebateState(**{
+            **state,
+            "debate_history": history,
+            "current_turn": state["current_turn"],
+        })
+        result = _generate_openings_for(temp_state, after_ai)
+        history = result["debate_history"]
+
+    history.sort(key=lambda e: e["turn"])
+
     return {
         "debate_history": history,
+        "current_turn": len(history),
         "phase": "chained_rebuttal",
     }
 

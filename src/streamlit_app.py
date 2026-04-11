@@ -60,13 +60,36 @@ def get_display_name(entry, agents, speaking_order):
 
 
 def get_phase_label(waiting_for: str) -> tuple:
+    """(단계명, 안내 메시지)를 반환."""
     info = {
-        "user_opening": ("1단계: 입론", "입론을 작성해주세요."),
-        "user_rebuttal": ("2단계: 연쇄논박", "상대의 공격에 반박해주세요."),
-        "user_free_rebuttal": ("3단계: 자유논박", "답변과 공격을 입력해주세요."),
-        "user_role_reversal": ("4단계: 역할반전", "상대 입장을 옹호하는 발언을 작성해주세요."),
-        "user_synthesis": ("5단계: 종합", "최적해에 대한 의견을 입력해주세요."),
-        "user_finalize": ("5단계: 최적해 확정", "우리의 최적해를 작성해주세요."),
+        "user_opening": (
+            "1단계: 입론",
+            "모든 토론자의 입론이 끝났습니다. 이제 사용자의 입론을 작성해주세요."
+        ),
+        "user_rebuttal": (
+            "2단계: 연쇄논박",
+            "상대가 사용자의 입론을 공격했습니다! 반박해주세요."
+        ),
+        "user_free_rebuttal": (
+            "3단계: 자유논박",
+            "상대의 공격에 답변하고, 상대 논거의 허점을 공격하세요."
+        ),
+        "_attack_pending": (
+            "3단계: 자유논박",
+            "답변이 제출되었습니다. 이제 상대 논거를 공격하세요."
+        ),
+        "user_role_reversal": (
+            "4단계: 역할반전",
+            "이제 역할을 바꿔서 상대 입장을 옹호하는 발언을 작성해주세요."
+        ),
+        "user_synthesis": (
+            "5단계: 종합",
+            "토론자들의 의견을 들었습니다. 사용자의 생각을 말씀해주세요."
+        ),
+        "user_finalize": (
+            "5단계: 최적해 확정",
+            "회의가 충분히 진행되었습니다. 최종 결론을 대표로 작성해주세요."
+        ),
     }
     return info.get(waiting_for, ("진행 중...", ""))
 
@@ -120,6 +143,14 @@ def stream_graph(input_data, config):
     graph_state = graph.get_state(config)
     st.session_state.waiting_for = graph_state.next[0] if graph_state and graph_state.next else ""
     st.session_state.is_finished = not bool(graph_state and graph_state.next)
+
+    # 단계 전환 안내 메시지 추가
+    if st.session_state.waiting_for and not st.session_state.is_finished:
+        _, guide = get_phase_label(st.session_state.waiting_for)
+        if guide:
+            with st.chat_message("assistant"):
+                st.markdown(f"💬 {guide}")
+            st.session_state.messages.append({"role": "assistant", "content": f"💬 {guide}"})
 
 
 # ── 메인 ─────────────────────────────────────────────────────────────────
@@ -223,12 +254,12 @@ def main():
         waiting = st.session_state.waiting_for
         phase_label, guide = get_phase_label(waiting)
 
-        # 안내 메시지
-        with st.chat_message("assistant"):
-            st.markdown(f"💬 **{phase_label}** — {guide}")
-
-        # 디버그: 현재 waiting_for 표시
-        st.caption(f"[debug] waiting_for = '{waiting}'")
+        # 안내 메시지 (히스토리에 없으면 표시)
+        guide_msg = f"💬 {guide}"
+        if not any(m["content"] == guide_msg for m in st.session_state.messages):
+            with st.chat_message("assistant"):
+                st.markdown(guide_msg)
+            st.session_state.messages.append({"role": "assistant", "content": guide_msg})
 
         # ── 입론: 구조화 폼
         if waiting == "user_opening":
