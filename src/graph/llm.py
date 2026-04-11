@@ -60,7 +60,7 @@ def search_web(query: str) -> str:
 _VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
 
 _LLM_KWARGS = dict(
-    model=os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-32B-Instruct"),
+    model=os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-32B-Instruct-AWQ"),
     base_url=_VLLM_BASE_URL,
     api_key="fake",
     temperature=0.6,
