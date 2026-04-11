@@ -292,7 +292,7 @@ def route_free_rebuttal(state: DebateState) -> str:
 def route_after_ai_free(state: DebateState) -> str:
     """AI 자유논박 후: 사용자 2턴 완료 상태면 역할반전으로, 아니면 사용자 턴."""
     if state.get("free_rebuttal_user_turns", 0) >= 2:
-        return "to_role_reversal"
+        return "end_free"
     return "to_user"
 
 
@@ -334,7 +334,7 @@ def build_debate_graph():
     # 자유논박: AI 발언 후 → 사용자 턴 or 역할반전
     graph.add_conditional_edges("ai_free_rebuttal", route_after_ai_free, {
         "to_user": "user_free_rebuttal",
-        "to_role_reversal": "ai_role_reversal",
+        "end_free": "ai_role_reversal",
     })
 
     # 사용자 자유논박 후 → AI 자유논박 (루프)
