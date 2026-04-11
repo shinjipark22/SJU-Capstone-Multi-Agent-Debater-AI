@@ -27,7 +27,6 @@ from openai import APITimeoutError, APIConnectionError, APIStatusError
 from pydantic import ValidationError
 from tavily import TavilyClient
 
-from src.stage1_opening.vector_db import query_vector_db
 from src.state import DebateEntry, DebateState
 
 
@@ -78,32 +77,10 @@ def search_web(query: str) -> str:
         return f"[검색 오류] {e}"
 
 
-@tool
-def search_vector_db(query: str, topic: str, stance: str) -> str:
-    """토론 전문가 문서에서 관련 근거를 검색합니다.
-
-    Args:
-        query:  검색할 내용
-        topic:  현재 토론 주제
-        stance: 검색할 진영 PRO 또는 CON
-    """
-    try:
-        docs, ids = query_vector_db(
-            query=query, topic=topic, stance=stance,
-            exclude_ids=list(_used_doc_ids),
-        )
-        if not docs:
-            return "[검색 결과] 관련 문서를 찾을 수 없습니다."
-        _used_doc_ids.update(ids)
-        return "[검색 결과]\n" + "\n".join(f"- {d}" for d in docs)
-    except Exception as e:
-        logger.warning("[search_vector_db] 오류: %s", e)
-        return "[검색 결과] 관련 데이터를 찾을 수 없습니다."
-
 
 # ── 도구·LLM 초기화 ──────────────────────────────────────────────────────────
 
-_TOOLS: List = [search_web, search_vector_db]
+_TOOLS: List = [search_web]
 _TOOL_MAP: Dict[str, Any] = {t.name: t for t in _TOOLS}
 
 _VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
@@ -231,7 +208,7 @@ def _postprocess_speech(text: str) -> str:
     text = '\n'.join(l for l in lines if not l.strip() or re.search(r'[가-힣]', l) or l.strip().startswith('###'))
     # 영어 고유명사/기관명은 유지, 혼종단어와 영어 전용 줄만 제거
     # 도구명 흔적 제거
-    text = re.sub(r'search_web|search_vector_db', '', text)
+    text = re.sub(r'search_web', '', text)
     text = re.sub(r'를 통해 확인되는 자료에 따르면[,.]?\s*', '', text)
     text = re.sub(r'를 통해 (?:최근|확인)', '', text)
     # 영어 잔해 정리 (Forum → 세계경제포럼 등)
