@@ -73,7 +73,7 @@ _rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
 _analysis_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 200, "temperature": 0.3})
 
 
-def _decide_search(target_argument: str, attack_style: str) -> str:
+def _decide_search(target_argument: str, attack_style: str = "") -> str:
     """검색 필요 여부를 판단한다. 불필요 시 빈 문자열."""
     try:
         messages = [
@@ -217,7 +217,6 @@ def _build_rebuttal_prompt(
     stance_kr: str,
     search_results: str = "",
     my_previous: str = "",
-    attack_style: str = "",
 ) -> str:
     context = ""
     if search_results:
@@ -228,7 +227,7 @@ def _build_rebuttal_prompt(
     return f"""상대 발언:
 {target_speech}
 {context}
-상대 주장에서 틀린 부분을 찾아 반박하라. ({attack_style})
+상대 발언의 가장 효과적인 공격 지점을 스스로 판단하여 반박하라.
 
 [규칙]
 - 3~4문장으로만 답변
@@ -344,18 +343,6 @@ def _pick_one_argument(speech: str) -> str:
     return speech
 
 
-_ATTACK_STYLES = [
-    "전제 공격: 상대 주장에 깔린 가정이 틀렸음을 지적하라",
-    "현실성 공격: 실제 상황에서 작동하지 않는다는 점을 지적하라",
-    "부작용 공격: 해당 주장으로 인해 발생하는 문제를 강조하라",
-    "비교 공격: 더 나은 대안이 있음을 제시하라",
-    "데이터 공격: 상대 근거의 신뢰성이나 부족함을 지적하라",
-]
-
-# 에이전트별 공격 방식 카운터 (같은 방식 반복 방지)
-_attack_counter: Dict[str, int] = {}
-
-
 def generate_ai_rebuttal(
     topic: str,
     history: List[DebateEntry],
@@ -368,35 +355,25 @@ def generate_ai_rebuttal(
 ) -> DebateEntry:
     target_speech = "(발언 기록 없음)"
     target_stance = "CON" if agent["stance"] == "PRO" else "PRO"
-    # 연쇄논박은 상대의 입론만 공격 (상대의 연쇄논박 발언이 아님)
     for entry in reversed(history):
         if entry["speaker_id"] == target_id and entry["phase"] == "opening":
             target_speech = entry["content"]
             target_stance = entry["stance"]
             break
 
-    # 자신의 이전 발언 추출 (반복 방지)
     my_previous = ""
     for entry in reversed(history):
         if entry["speaker_id"] == agent["agent_id"] and entry["phase"] == "chained_rebuttal":
             my_previous = entry["content"][:200]
             break
 
-    # 공격 방식 순환 할당
-    aid = agent["agent_id"]
-    idx = _attack_counter.get(aid, 0)
-    attack_style = _ATTACK_STYLES[idx % len(_ATTACK_STYLES)]
-    _attack_counter[aid] = idx + 1
-
     t_label = "찬성" if target_stance == "PRO" else "반대"
     target_display = f"{t_label}{target_stance_num}" if target_id != "user" else "사용자"
     stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
 
-    # 상대 입론에서 논거 하나만 랜덤 추출
     target_argument = _pick_one_argument(target_speech)
 
-    # 소형 모델이 검색 필요 여부 판단
-    search_query = _decide_search(target_argument, attack_style)
+    search_query = _decide_search(target_argument, "")
     search_results = ""
     tool_calls_log: List[Dict] = []
     if search_query:
@@ -407,20 +384,20 @@ def generate_ai_rebuttal(
     else:
         logger.info("[rebuttal] 검색 불필요 판단")
 
-    # Qwen 7B로 약점 사전 분석
+    # 약점 분석
     weakness = analyze_weakness(target_argument, topic)
+    weakness_hint = ""
     if weakness:
         tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
         logger.info("[rebuttal] 약점 분석: %s", weakness[:60])
-        attack_style = f"{attack_style} — 특히 이 약점을 공격하라: {weakness}"
+        weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n"
 
     prompt = _build_rebuttal_prompt(
         target_speech=target_argument,
         target_display=target_display,
         stance_kr=stance_kr,
-        search_results=search_results,
+        search_results=search_results + weakness_hint,
         my_previous=my_previous,
-        attack_style=attack_style,
     )
 
     speech, raw, _tool_log = _generate_rebuttal_speech(

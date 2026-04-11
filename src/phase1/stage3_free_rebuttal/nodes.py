@@ -81,14 +81,6 @@ def _generate_attack_question(attack_text: str, stance: str, topic: str) -> str:
 
 # ── 입론에서 논거 추출 (연쇄논박과 동일) ────────────────────────────────────
 
-_ATTACK_STYLES = [
-    "전제 공격: 상대 주장에 깔린 가정이 틀렸음을 지적하라",
-    "현실성 공격: 실제 상황에서 작동하지 않는다는 점을 지적하라",
-    "부작용 공격: 해당 주장으로 인해 발생하는 문제를 강조하라",
-    "비교 공격: 더 나은 대안이 있음을 제시하라",
-    "데이터 공격: 상대 근거의 신뢰성이나 부족함을 지적하라",
-]
-_attack_idx: int = 0
 
 
 def _pick_one_argument(speech: str) -> str:
@@ -186,14 +178,10 @@ def _build_attack_prompt(
     if opp_opening:
         opp_block = f"\n[상대 입론 — 지금 발언과 모순되는 부분이 있으면 지적하라]\n{opp_opening[:300]}\n"
 
-    global _attack_idx
-    style = _ATTACK_STYLES[_attack_idx % len(_ATTACK_STYLES)]
-    _attack_idx += 1
-
     return f"""상대 발언:
 {target_argument}
 {ref_block}{opp_block}
-상대 발언에서 논리적 허점, 근거 부족, 과장된 주장을 찾아 공격하라. ({style})
+상대 발언의 가장 효과적인 공격 지점을 스스로 판단하여 반박하라.
 - 상대가 인용한 수치/출처의 신뢰성을 검증하라
 - 참고 자료에 반박 근거가 있으면 활용하라
 
