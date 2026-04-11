@@ -78,6 +78,8 @@ def search_web(query: str) -> str:
 
 
 
+
+
 # ── 도구·LLM 초기화 ──────────────────────────────────────────────────────────
 
 _TOOLS: List = [search_web]
@@ -304,6 +306,21 @@ def _is_valid_speech(speech: str) -> bool:
     return True
 
 
+# ── XML 도구 호출 폴백 파서 ──────────────────────────────────────────────────
+
+def _parse_xml_tool_calls(content: str) -> List[Dict]:
+    """<tool_call> XML 블록을 파싱."""
+    tool_calls = []
+    for block in re.findall(r'<tool_call>(.*?)</tool_call>', content, re.DOTALL):
+        func_match = re.search(r'<function=(\w+)>(.*?)</function>', block, re.DOTALL)
+        if not func_match:
+            continue
+        func_name = func_match.group(1)
+        args: Dict[str, str] = {}
+        for param in re.finditer(r'<parameter=(\w+)>\s*(.*?)\s*</parameter>', func_match.group(2), re.DOTALL):
+            args[param.group(1)] = param.group(2).strip()
+        tool_calls.append({"name": func_name, "args": args, "id": f"call_{func_name}_{uuid.uuid4().hex[:6]}"})
+    return tool_calls
 
 
 # ── 입론 프롬프트 ────────────────────────────────────────────────────────────
@@ -406,31 +423,38 @@ def _build_opening_prompt(
 # ── 입론 생성 (사전 검색 + 단일 LLM 호출) ───────────────────────────────────
 
 def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str]:
-    """write_review 서브그래프로 입론 생성."""
-    from src.graph.subgraphs import write_review
+    """단일 LLM 호출로 입론 생성. 1회 재시도 + fallback."""
+    messages = [
+        SystemMessage(content=agent["system_prompt"]),
+        HumanMessage(content=prompt),
+    ]
 
-    result = write_review.invoke({
-        "topic": "",
-        "agent": agent,
-        "expected_stance": agent.get("stance", "PRO"),
-        "target_argument": prompt,
-        "my_opening": "",
-        "opp_opening": "",
-        "chain": [],
-        "prev_weaknesses": "",
-        "prev_attacks": "",
-        "mode": "opening",
-        "weakness": "",
-        "search_results": "",
-        "search_query": "",
-        "speech": "",
-        "raw": "",
-        "review_result": {},
-        "retry_count": 0,
-        "tool_calls_log": [],
-    })
+    response: AIMessage = _invoke_with_retry(_llm, messages, label="opening")
+    raw = response.content if isinstance(response.content, str) else str(response.content)
+    speech = _postprocess_speech(_extract_delimited_text(raw))
 
-    return result["speech"], result["raw"]
+    if not _is_valid_speech(speech):
+        logger.warning("[opening] speech 무효, 재시도")
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content='한국어로만 입론을 작성하세요.\n\n### 답변 시작\n(입론)\n### 답변 끝'))
+        retry: AIMessage = _invoke_with_retry(_llm, messages, label="opening_retry")
+        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
+        speech = _postprocess_speech(_extract_delimited_text(raw))
+
+    # 영어 잔재 감지 → 수정 요청
+    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
+    if eng_words:
+        logger.warning("[opening] 영어 감지: %s → 수정 요청", eng_words[:3])
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
+        fix: AIMessage = _invoke_with_retry(_llm, messages, label="opening_fix_eng")
+        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
+        fixed = _postprocess_speech(_extract_delimited_text(raw_fix))
+        if _is_valid_speech(fixed):
+            speech = fixed
+            raw = raw_fix
+
+    return speech, raw
 
 
 # ── 메인 노드 ─────────────────────────────────────────────────────────────────
