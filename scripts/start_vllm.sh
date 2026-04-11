@@ -16,7 +16,7 @@ CUDA_VISIBLE_DEVICES=0 vllm serve \
     Qwen/Qwen2.5-32B-Instruct-AWQ \
     --port 8000 \
     --gpu-memory-utilization 0.90 \
-    --max-model-len 8192 \
+    --max-model-len 16384 \
     --quantization awq \
     --dtype float16 \
     --enforce-eager \
