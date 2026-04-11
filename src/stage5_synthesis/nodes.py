@@ -189,31 +189,44 @@ _fallback_idx = 0
 
 
 def _generate_with_synthesis_chain(
-    messages: List,
+    agent: Dict,
     prompt: str,
-) -> Tuple[str, str]:
-    """멀티턴 체인에 새 프롬프트를 추가하고 생성한다. 빈 응답 시 최대 2회 재시도."""
-    messages.append(HumanMessage(content=prompt))
+    chain: List,
+    topic: str,
+) -> Tuple[str, str, List[Dict]]:
+    """write_review 서브그래프로 종합 발언을 생성한다."""
+    from src.graph.subgraphs import write_review
 
-    for attempt in range(3):
-        response: AIMessage = _invoke_with_retry(_syn_llm, messages, label=f"synthesis_attempt{attempt}")
-        raw = response.content if isinstance(response.content, str) else str(response.content)
-        speech = _postprocess_speech(_extract_rebuttal_text(raw))
+    result = write_review.invoke({
+        "topic": topic,
+        "agent": agent,
+        "expected_stance": agent["stance"],
+        "target_argument": prompt,  # 프롬프트를 target_argument로 전달
+        "my_opening": "",
+        "opp_opening": "",
+        "chain": chain,
+        "prev_weaknesses": "",
+        "prev_attacks": "",
+        "mode": "synthesis",
+        "weakness": "",
+        "search_results": "",
+        "search_query": "",
+        "speech": "",
+        "raw": "",
+        "review_result": {},
+        "retry_count": 0,
+        "tool_calls_log": [],
+    })
 
-        # 유효하고 fallback 문장이 아니면 사용
-        if _is_valid_rebuttal(speech) and _FALLBACK_MARKER not in speech:
-            return speech, raw
+    speech = result["speech"]
+    raw = result["raw"]
 
-        logger.warning("[synthesis] speech 무효 또는 fallback, 재시도 %d/3", attempt + 1)
-        if attempt < 2:
-            messages.append(HumanMessage(content="이전 응답이 부적절합니다. 한국어로 1~2문장, 구체적인 의견을 말하세요."))
-
-    if not _is_valid_rebuttal(speech):
+    if not speech or len(speech.strip()) < 10:
         global _fallback_idx
         speech = _FALLBACK_RESPONSES[_fallback_idx % len(_FALLBACK_RESPONSES)]
         _fallback_idx += 1
 
-    return speech, raw
+    return speech, raw, result.get("tool_calls_log", [])
 
 
 # ── 메인 노드: 초기 의견 제시 ──────────────────────────────────────────────
@@ -260,7 +273,7 @@ def synthesis_node(state: DebateState) -> DebateState:
             perspective=perspective,
         )
         chain = _build_synthesis_chain(agent, history, speaker_id)
-        speech, raw = _generate_with_synthesis_chain(chain, prompt)
+        speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, chain, topic)
 
         entry = DebateEntry(
             turn=current_turn,
@@ -333,7 +346,7 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
             f"1~2문장.\n\n"
             f"### 반박 시작\n### 반박 끝"
         )
-        speech, raw = _generate_with_synthesis_chain(chain, prompt)
+        speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, chain, topic)
 
         entry = DebateEntry(
             turn=current_turn,

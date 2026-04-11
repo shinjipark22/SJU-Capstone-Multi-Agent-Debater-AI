@@ -134,141 +134,9 @@ def _extract_rebuttal_text(content: str) -> str:
 
 # ── 반박 프롬프트 ────────────────────────────────────────────────────────────
 
-def _generate_search_query(topic: str, target_argument: str) -> str:
-    """상대 논거에서 핵심 키워드를 추출해 반박 검색 쿼리를 생성한다."""
-    # 볼드/마크다운 제거
-    clean = re.sub(r'\*{1,2}', '', target_argument)
-    # 핵심 주장 추출
-    key = _extract_key_claim(clean)
-    # 한국어 명사구만 추출 (조사/어미 제거는 하지 않고 길이로 자름)
-    key = re.sub(r'[^\w가-힣\s]', '', key).strip()
-    # 너무 길면 앞부분만
-    words = key.split()
-    if len(words) > 5:
-        words = words[:5]
-    query = ' '.join(words) + ' 반박 근거'
-    return query[:40]
 
-
-def _pre_search_rebuttal(topic: str, target_argument: str) -> Tuple[str, List[Dict]]:
-    """연쇄논박용 사전검색. LLM이 생성한 쿼리로 팩트체크 검색."""
-    tool_calls_log: List[Dict] = []
-
-    query = _generate_search_query(topic, target_argument)
-    tool_calls_log.append({"name": "search_web", "args": {"query": query}})
-    web_result = search_web.invoke({"query": query})
-    result = _truncate_tool_result(web_result)
-
-    return result, tool_calls_log
-
-
-def _extract_key_claim(speech: str) -> str:
-    """상대 발언에서 핵심 주장 1문장을 추출한다."""
-    # 결론 섹션 우선
-    m = re.search(r'(?:결론|따라서|그러므로)[^\n]*', speech)
-    if m:
-        return m.group().strip()
-    # 마지막 한국어 문장
-    sentences = [s.strip() for s in speech.replace('\n', ' ').split('.') if s.strip() and re.search(r'[가-힣]', s)]
-    if sentences:
-        return sentences[-1] + '.'
-    return speech[:100]
-
-
-def _build_rebuttal_prompt(
-    target_speech: str,
-    target_display: str,
-    stance_kr: str,
-    search_results: str = "",
-    my_previous: str = "",
-    attack_style: str = "",
-) -> str:
-    context = ""
-    if search_results:
-        context += f"\n[참고 자료 — 반박 근거로 활용하라]\n{search_results}\n"
-    if my_previous:
-        context += f"\n[이전 발언 — 같은 내용 반복 금지]\n{my_previous}\n"
-
-    return f"""상대 발언:
-{target_speech}
-{context}
-상대 주장에서 틀린 부분을 찾아 반박하라. ({attack_style})
-
-[규칙]
-- 3~4문장으로만 답변
-- 핵심에 **강조** 사용
-- 소제목·번호·목록·볼드 번호(**1.** 등) 금지. 문장으로만 서술
-- 반드시 합니다체(격식체). "~한다", "~이다" 금지. "~합니다", "~입니다"만 사용
-- 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용
-- 자체적으로 수치를 지어내지 마라. 검색 결과에 있는 수치만 인용 가능
-
-반드시 아래 형식으로만 출력:
-
-### 반박 시작
-(반박 내용)
-### 반박 끝"""
-
-
-# ── 반박 생성 ────────────────────────────────────────────────────────────────
-
-def _generate_rebuttal_speech(
-    agent: Dict,
-    prompt: str,
-    target_display: str,
-    stance: str,
-) -> Tuple[str, str, List[Dict]]:
-    """소형 모델 판단 + DeepSeek 생성. 필요할 때만 검색."""
-    stance_kr = "찬성" if stance == "PRO" else "반대"
-    system = (
-        f"{agent['system_prompt']}\n\n"
-        f"[최우선 규칙] 너는 {stance_kr} 입장이다. "
-        f"반드시 3~4문장으로만 답변하라. "
-        f"상대 주장의 오류만 공격하라. 자기 의견 피력은 마지막 1문장으로만."
-    )
-    messages = [
-        SystemMessage(content=system),
-        HumanMessage(content=prompt),
-    ]
-
-    tool_calls_log: List[Dict] = []
-
-    # DeepSeek으로 반박 생성
-    response: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal")
-    raw = response.content if isinstance(response.content, str) else str(response.content)
-    speech = _postprocess_speech(_extract_rebuttal_text(raw))
-
-    # CoT 유출 또는 무효 → 1회 재시도
-    if not _is_valid_rebuttal(speech):
-        logger.warning("[rebuttal] speech 무효, 재시도")
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content="한국어로만 3~4문장으로 반박하세요."))
-        retry: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_retry")
-        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
-        speech = _postprocess_speech(_extract_rebuttal_text(raw))
-
-    # 영어 잔재 감지 → LLM 수정 요청
-    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
-    if eng_words:
-        logger.warning("[rebuttal] 영어 감지: %s → 수정 요청", eng_words[:3])
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
-        fix: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_fix_eng")
-        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
-        fixed = _postprocess_speech(_extract_rebuttal_text(raw_fix))
-        if _is_valid_rebuttal(fixed):
-            speech = fixed
-            raw = raw_fix
-
-    # fallback
-    if not _is_valid_rebuttal(speech):
-        logger.warning("[rebuttal] fallback 사용")
-        speech = (
-            f"{target_display}의 주장은 핵심 전제가 부족합니다. "
-            f"따라서 설득력이 없습니다. "
-            f"저는 {stance_kr} 입장을 유지합니다."
-        )
-
-    return speech, raw, tool_calls_log
+# (기존 _generate_rebuttal_speech, _build_rebuttal_prompt 등은
+#  search_write_review 서브그래프가 대체하므로 삭제됨)
 
 
 # ── 공개 유틸리티 ────────────────────────────────────────────────────────────
@@ -330,67 +198,50 @@ def generate_ai_rebuttal(
     current_turn: int,
     is_response: bool,
 ) -> DebateEntry:
+    """연쇄논박 발언 생성 — search_write_review 서브그래프 사용."""
+    from src.graph.subgraphs import search_write_review
+
     target_speech = "(발언 기록 없음)"
     target_stance = "CON" if agent["stance"] == "PRO" else "PRO"
-    # 연쇄논박은 상대의 입론만 공격 (상대의 연쇄논박 발언이 아님)
     for entry in reversed(history):
         if entry["speaker_id"] == target_id and entry["phase"] == "opening":
             target_speech = entry["content"]
             target_stance = entry["stance"]
             break
 
-    # 자신의 이전 발언 추출 (반복 방지)
-    my_previous = ""
-    for entry in reversed(history):
-        if entry["speaker_id"] == agent["agent_id"] and entry["phase"] == "chained_rebuttal":
-            my_previous = entry["content"][:200]
-            break
-
-    # 공격 방식 순환 할당
-    aid = agent["agent_id"]
-    idx = _attack_counter.get(aid, 0)
-    attack_style = _ATTACK_STYLES[idx % len(_ATTACK_STYLES)]
-    _attack_counter[aid] = idx + 1
-
-    t_label = "찬성" if target_stance == "PRO" else "반대"
-    target_display = f"{t_label}{target_stance_num}" if target_id != "user" else "사용자"
-    stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
-
-    # 상대 입론에서 논거 하나만 랜덤 추출
     target_argument = _pick_one_argument(target_speech)
 
-    # 소형 모델이 검색 필요 여부 판단
-    search_query = _decide_search(target_argument, attack_style)
-    search_results = ""
-    tool_calls_log: List[Dict] = []
-    if search_query:
-        logger.info("[rebuttal] 검색 판단: '%s'", search_query)
-        tool_calls_log.append({"name": "search_web", "args": {"query": search_query}})
-        web_result = search_web.invoke({"query": search_query})
-        search_results = _truncate_tool_result(web_result)
-    else:
-        logger.info("[rebuttal] 검색 불필요 판단")
+    result = search_write_review.invoke({
+        "topic": topic,
+        "agent": agent,
+        "expected_stance": agent["stance"],
+        "target_argument": target_argument,
+        "my_opening": "",
+        "opp_opening": "",
+        "chain": [],
+        "prev_weaknesses": "",
+        "prev_attacks": "",
+        "mode": "rebuttal",
+        "weakness": "",
+        "search_results": "",
+        "search_query": "",
+        "speech": "",
+        "raw": "",
+        "review_result": {},
+        "retry_count": 0,
+        "tool_calls_log": [],
+    })
 
-    # Qwen 7B로 약점 사전 분석
-    weakness = analyze_weakness(target_argument, topic)
-    if weakness:
-        tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
-        logger.info("[rebuttal] 약점 분석: %s", weakness[:60])
-        attack_style = f"{attack_style} — 특히 이 약점을 공격하라: {weakness}"
+    speech = result["speech"]
+    raw = result["raw"]
+    tool_calls_log = result.get("tool_calls_log", [])
 
-    prompt = _build_rebuttal_prompt(
-        target_speech=target_argument,
-        target_display=target_display,
-        stance_kr=stance_kr,
-        search_results=search_results,
-        my_previous=my_previous,
-        attack_style=attack_style,
-    )
-
-    speech, raw, _tool_log = _generate_rebuttal_speech(
-        agent=agent, prompt=prompt,
-        target_display=target_display, stance=agent["stance"],
-    )
+    # fallback
+    if not speech or len(speech.strip()) < 15:
+        t_label = "찬성" if target_stance == "PRO" else "반대"
+        target_display = f"{t_label}{target_stance_num}" if target_id != "user" else "사용자"
+        stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
+        speech = f"{target_display}의 주장은 핵심 전제가 부족합니다. 저는 {stance_kr} 입장을 유지합니다."
 
     return DebateEntry(
         turn=current_turn, speaker_id=agent["agent_id"],
