@@ -227,8 +227,41 @@ def main():
         with st.chat_message("assistant"):
             st.markdown(f"💬 **{phase_label}** — {guide}")
 
+        # ── 입론: 구조화 폼
+        if waiting == "user_opening":
+            with st.form("opening_form"):
+                st.subheader("✍️ 사용자 입론")
+                intro = st.text_area("자기소개와 입장 표명", placeholder="자신을 소개하고 찬성/반대 입장을 밝히세요.", height=80)
+                arg1 = st.text_area("논거 1", placeholder="첫 번째 논거를 작성하세요.", height=120)
+                arg2 = st.text_area("논거 2", placeholder="두 번째 논거를 작성하세요.", height=120)
+                conclusion = st.text_area("결론", placeholder="핵심 주장을 정리하세요.", height=80)
+                submitted = st.form_submit_button("입론 제출", type="primary", use_container_width=True)
+
+            if submitted:
+                sections = []
+                if intro.strip():
+                    sections.append(f"### 자기소개와 입장 표명\n{intro.strip()}")
+                if arg1.strip():
+                    sections.append(f"### 논거 1\n{arg1.strip()}")
+                if arg2.strip():
+                    sections.append(f"### 논거 2\n{arg2.strip()}")
+                if conclusion.strip():
+                    sections.append(f"### 결론\n{conclusion.strip()}")
+
+                if not sections:
+                    st.warning("최소 1개 섹션은 입력해주세요.")
+                else:
+                    user_opening = "\n\n".join(sections)
+                    with st.chat_message("user"):
+                        st.markdown(f"**사용자**\n\n{user_opening}")
+                    st.session_state.messages.append({"role": "user", "content": f"**사용자**\n\n{user_opening}"})
+
+                    config = {"configurable": {"thread_id": st.session_state.session_id}}
+                    stream_graph(Command(resume=user_opening), config)
+                    st.rerun()
+
         # ── 자유논박: 답변+공격
-        if waiting == "user_free_rebuttal":
+        elif waiting == "user_free_rebuttal":
             defense = st.chat_input("💬 답변 (상대 공격에 반박)")
             if defense:
                 # 답변 표시
