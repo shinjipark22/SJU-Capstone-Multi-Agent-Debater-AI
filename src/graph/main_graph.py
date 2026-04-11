@@ -176,14 +176,6 @@ def user_free_rebuttal_node(state: DebateState) -> dict:
     }
 
 
-def ai_free_final_node(state: DebateState) -> dict:
-    """에이전트 최종 답변 (턴4.5, 공격 없음)."""
-    updated = free_rebuttal_node(state)
-    return {
-        "debate_history": updated["debate_history"],
-        "current_turn": updated["current_turn"],
-        "phase": "role_reversal",
-    }
 
 
 # ── 4단계: 역할반전 ───────────────────────────────────────────────────────
@@ -291,10 +283,17 @@ def user_finalize_node(state: DebateState) -> dict:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def route_free_rebuttal(state: DebateState) -> str:
-    """자유논박 루프 라우터: 사용자 2턴 완료 → end, 아니면 continue."""
+    """자유논박 루프 라우터: 사용자 2턴 완료 → done, 아니면 continue."""
     if state.get("free_rebuttal_user_turns", 0) >= 2:
-        return "end"
+        return "done"
     return "continue"
+
+
+def route_after_ai_free(state: DebateState) -> str:
+    """AI 자유논박 후: 사용자 2턴 완료 상태면 역할반전으로, 아니면 사용자 턴."""
+    if state.get("free_rebuttal_user_turns", 0) >= 2:
+        return "to_role_reversal"
+    return "to_user"
 
 
 def route_synthesis(state: DebateState) -> str:
@@ -319,7 +318,6 @@ def build_debate_graph():
     graph.add_node("user_rebuttal", user_rebuttal_node)
     graph.add_node("ai_free_rebuttal", ai_free_rebuttal_node)
     graph.add_node("user_free_rebuttal", user_free_rebuttal_node)
-    graph.add_node("ai_free_final", ai_free_final_node)
     graph.add_node("ai_role_reversal", ai_role_reversal_node)
     graph.add_node("user_role_reversal", user_role_reversal_node)
     graph.add_node("ai_synthesis", ai_synthesis_node)
@@ -332,14 +330,18 @@ def build_debate_graph():
     graph.add_edge("user_opening", "ai_rebuttal")
     graph.add_edge("ai_rebuttal", "user_rebuttal")
     graph.add_edge("user_rebuttal", "ai_free_rebuttal")
-    graph.add_edge("ai_free_rebuttal", "user_free_rebuttal")
 
-    # 자유논박 루프
+    # 자유논박: AI 발언 후 → 사용자 턴 or 역할반전
+    graph.add_conditional_edges("ai_free_rebuttal", route_after_ai_free, {
+        "to_user": "user_free_rebuttal",
+        "to_role_reversal": "ai_role_reversal",
+    })
+
+    # 사용자 자유논박 후 → AI 자유논박 (루프)
     graph.add_conditional_edges("user_free_rebuttal", route_free_rebuttal, {
         "continue": "ai_free_rebuttal",
-        "end": "ai_free_final",
+        "done": "ai_free_rebuttal",  # 마지막 답변 생성 후 route_after_ai_free에서 역할반전으로
     })
-    graph.add_edge("ai_free_final", "ai_role_reversal")
 
     # 역할반전 → 종합
     graph.add_edge("ai_role_reversal", "user_role_reversal")
