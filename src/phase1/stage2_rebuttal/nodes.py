@@ -36,6 +36,10 @@ def _is_valid_rebuttal(speech: str) -> bool:
     if not speech or len(speech.strip()) < 15:
         logger.warning("[rebuttal 검증] 실패: 15자 미만 (%d자)", len(speech.strip()) if speech else 0)
         return False
+    # 중국어/일본어 깨진 문자 및 문장부호 감지
+    if re.search(r'[\u4e00-\u9fff。，]', speech):
+        logger.warning("[rebuttal 검증] 실패: 중국어/일본어 문자 감지")
+        return False
     # 영어 CoT 패턴 감지
     cot_patterns = [
         r'\b(?:First|Second|Third|Next|Then|Finally),?\s+I\b',

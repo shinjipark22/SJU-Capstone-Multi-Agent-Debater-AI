@@ -201,8 +201,8 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'^(### .*)$', lambda m: m.group(1).replace('*', ''), text, flags=re.MULTILINE)
     # 깨진 유니코드 문자 제거
     text = text.replace('\ufffd', '')
-    # 외국 문자 제거 (한자, 일본어, 러시아어, 태국어, 아랍어, 베트남어 등)
-    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff\u00c0-\u00ff\u0150-\u017f]+', '', text)
+    # 외국 문자 + 중국어 문장부호 제거
+    text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\u0400-\u04ff\u0e00-\u0e7f\u0600-\u06ff\u0100-\u024f\u1e00-\u1eff\u00c0-\u00ff\u0150-\u017f\u3000-\u303f\uff00-\uff60]+', '', text)
     # 한국어 문장 중간의 영어 소문자 단어 제거 (대문자 시작 고유명사 McKinsey, OECD 등은 유지)
     text = re.sub(r'(?<=[가-힣\s])[a-z]{5,}(?=[가-힣\s.,])', '', text)
     # 영어 줄 제거 (한글 없이 영어로만 이루어진 줄)
@@ -257,9 +257,14 @@ def _postprocess_speech(text: str) -> str:
     # 끊김 패턴 수리: "을합니다" → "을 합니다", 조사+동사 바로 붙은 경우
     text = re.sub(r'([을를이가은는에])합니다', r'\1 합니다', text)
     text = re.sub(r'([을를이가은는에])하[게면고]', lambda m: m.group(1) + ' 하' + m.group(0)[-1], text)
+    # 볼드 안 영어 전용 텍스트 제거 (**According to...** 등 검색 결과 제목 유출)
+    text = re.sub(r'\*{2}[a-zA-Z][a-zA-Z\s,.\-;:\'\"()]{5,}\*{2}', '', text)
     # 깨진 혼합어 제거 ("카티rophic", "머천cies" 등)
-    text = re.sub(r'[가-힣]+[a-zA-Z]{3,}[가-힣]*', '', text)
-    text = re.sub(r'[a-zA-Z]{3,}[가-힣]+[a-zA-Z]*', '', text)
+    # 한국어 2글자+영어 3글자 이상 = 깨진 단어 ("카티rophic")
+    text = re.sub(r'[가-힣]{2,}[a-zA-Z]{3,}[가-힣]*', '', text)
+    # 영어 3글자+한국어 3���자 이상 = 깨진 단어 ("techno단지에서")
+    # 한국어 1~2글자(조사: 의/에/는/가/를 등)는 유지 → "McKinsey의" 보존
+    text = re.sub(r'[a-zA-Z]{3,}[가-힣]{3,}[a-zA-Z]*', '', text)
     # 불완전 문장 정리: 마지막 문장이 끝맺음 없이 끊겼으면 제거
     lines = text.rstrip().split('\n')
     if lines:
