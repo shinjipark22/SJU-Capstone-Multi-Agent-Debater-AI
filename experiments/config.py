@@ -77,12 +77,14 @@ MODELS: Dict[str, ModelConfig] = {
     "DeepSeek-R1-Distill-Qwen-14B": ModelConfig(
         model_id="DeepSeek-R1-Distill-Qwen-14B",
         model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+        tensor_parallel=1,
         extra_vllm_args={"is_cot": True, "max_tokens_multiplier": 2},
     ),
     # ── 소형 ──
     "Qwen-2.5-7B-Instruct": ModelConfig(
         model_id="Qwen-2.5-7B-Instruct",
         model_name="Qwen/Qwen2.5-7B-Instruct",
+        tensor_parallel=1,
     ),
 }
 
@@ -179,4 +181,4 @@ API_MAX_EXPERIMENTS = 48  # 48개 초과 시 중단
 
 # ── 실험 타임아웃 ───────────────────────────────────────────────────────────
 
-SINGLE_EXPERIMENT_TIMEOUT = 900  # 초 (15분)
+SINGLE_EXPERIMENT_TIMEOUT = 1800  # 초 (30분)

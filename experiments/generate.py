@@ -259,6 +259,15 @@ def generate_for_model(model_id: str) -> dict:
                     success += 1
                 else:
                     fail += 1
+                    # vLLM 크래시 감지 — 연속 3회 실패 시 서버 재시작
+                    if fail >= 3 and fail == (success + fail) - success:
+                        recent_fails = fail - max(0, fail - 3)
+                        if recent_fails >= 3 and needs_vllm:
+                            logger.warning("연속 실패 감지 — vLLM 재시작 시도")
+                            stop_vllm(vllm_proc)
+                            vllm_proc = start_vllm(config)
+                            if not wait_for_vllm(config.base_url):
+                                return {"model": model_id, "success": success, "fail": fail}
 
         return {"model": model_id, "success": success, "fail": fail}
 
