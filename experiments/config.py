@@ -77,7 +77,7 @@ MODELS: Dict[str, ModelConfig] = {
     "DeepSeek-R1-Distill-Qwen-14B": ModelConfig(
         model_id="DeepSeek-R1-Distill-Qwen-14B",
         model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
-        tensor_parallel=1,
+        tensor_parallel=2,  # FP16 28GB → 1장 안됨
         extra_vllm_args={"is_cot": True, "max_tokens_multiplier": 2},
     ),
     # ── 소형 ──
