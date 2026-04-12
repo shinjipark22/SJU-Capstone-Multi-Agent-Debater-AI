@@ -24,8 +24,6 @@ from experiments.config import (
     LLM_EVAL_CRITERIA,
     LOGS_DIR,
     MODELS,
-    WEIGHT_FORMAT,
-    WEIGHT_LLM,
     WIN_THRESHOLD,
 )
 
@@ -147,7 +145,9 @@ def stage_aggregate() -> Path:
             llm_mean = sum(llm_values.values()) / len(LLM_EVAL_CRITERIA) if llm_values else 0
 
             # Final score
-            final = WEIGHT_FORMAT * fmt_norm + WEIGHT_LLM * llm_mean
+            # 균등 가중치: Rule 1개 + LLM 8개 = 9개 항목 단순 평균
+            all_scores = [fmt_norm] + [llm_values.get(c, 0) for c in LLM_EVAL_CRITERIA]
+            final = sum(all_scores) / len(all_scores) if all_scores else 0
 
             # 파일명에서 메타 추출: tech_001_2v2_balanced.json
             name_no_ext = fname.replace(".json", "")
