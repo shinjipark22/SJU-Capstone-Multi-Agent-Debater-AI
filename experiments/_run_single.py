@@ -85,7 +85,13 @@ def run_experiment(
     )
 
     # ── 사용자 대행 에이전트 초기화 (GPT-4o-mini, temp=0, seed=42)
-    user = UserAgent(topic_id, topic_dict["title"], user_stance)
+    user = UserAgent(
+        topic_id=topic_id,
+        topic_title=topic_dict["title"],
+        stance=user_stance,
+        pro_claim=topic_dict.get("pro", ""),
+        con_claim=topic_dict.get("con", ""),
+    )
     logger.info("UserAgent 초기화: %s / %s / %s", topic_id, user_stance, debate_format)
 
     # ══════════════════════════════════════════════════════════════════
@@ -93,6 +99,11 @@ def run_experiment(
     # ══════════════════════════════════════════════════════════════════
     state = opening_arguments_node(state)
     state = dict(state)
+
+    # AI 입론들을 사용자 대행에게 전달 (맥락)
+    for e in state["debate_history"]:
+        if e["phase"] == "opening" and e["speaker_id"] != "user":
+            user.add_ai_context(e["content"][:300], e["speaker_id"])
 
     # 사용자 입론 — GPT-4o-mini 동적 생성
     user_opening = user.generate_opening()
