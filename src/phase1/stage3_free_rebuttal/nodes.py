@@ -31,7 +31,6 @@ from src.phase1.stage1_opening.nodes import (
     _invoke_with_retry,
     _postprocess_speech,
     _truncate_tool_result,
-    _has_cot_leakage,
     search_web,
     _LLM_KWARGS,
 )
