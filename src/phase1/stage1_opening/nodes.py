@@ -275,46 +275,85 @@ def _postprocess_speech(text: str) -> str:
     return text
 
 
-def _has_cot_leakage(text: str) -> bool:
-    """영어 CoT 유출 감지."""
+def validate_quality(speech: str, min_chars: int = 20) -> Tuple[bool, str]:
+    """품질보증 검증. (통과 여부, 실패 사유) 반환.
+
+    모든 스테이지에서 공통으로 사용하는 통합 검증 함수.
+    """
+    if not speech or len(speech.strip()) < min_chars:
+        return False, f"길이 부족 ({len(speech.strip()) if speech else 0}자)"
+
+    # 1. 깨진 문자: 중국어/일본어/중국어 문장부호
+    if re.search(r'[\u4e00-\u9fff\u3000-\u303f\uff00-\uff60。，]', speech):
+        return False, "외국어 깨진 문자"
+
+    # 2. 한국어 비율
+    korean = len(re.findall(r'[가-힣]', speech))
+    english = len(re.findall(r'[a-zA-Z]', speech))
+    if korean < 10:
+        return False, f"한국어 부족 ({korean}자)"
+    if korean + english > 0 and english / (korean + english) > 0.5:
+        return False, f"영어 비율 과다 ({english / (korean + english):.0%})"
+
+    # 3. CoT 유출 (영어 사고 과정)
     cot_patterns = [
         r'\b(?:First|Second|Third|Next|Then|Finally),?\s+I\b',
         r'\bI (?:need|should|will|can|must)\b',
-        r'\bLet me\b',
-        r'\bIn order to\b',
-        r'\bthe (?:answer|response|argument|topic)\b',
-        r'\b(?:Okay|OK),?\s+so\b',
-        r'\bHmm\b',
-        r'\bAssuming\b',
+        r'\bLet me\b', r'\bIn order to\b',
+        r'\b(?:Okay|OK),?\s+so\b', r'\bHmm\b',
     ]
-    for pattern in cot_patterns:
-        if re.search(pattern, text, re.IGNORECASE):
-            return True
+    for p in cot_patterns:
+        if re.search(p, speech, re.IGNORECASE):
+            return False, "CoT 유출"
 
-    # 영어 비율이 30% 초과하면 CoT 유출로 판단
-    korean_chars = len(re.findall(r'[가-힣]', text))
-    english_chars = len(re.findall(r'[a-zA-Z]', text))
-    if korean_chars + english_chars > 0:
-        if english_chars / (korean_chars + english_chars) > 0.3:
-            return True
+    # 4. 문장 끊김: 마지막 줄이 끝맺음 없이 끊긴 경우
+    lines = speech.rstrip().split('\n')
+    last = lines[-1].strip() if lines else ""
+    if last and not last.startswith('###') and len(last) > 10:
+        if not re.search(r'[.?!다까요)\*"]$', last):
+            return False, f"문장 끊김"
 
-    return False
+    # 5. 빈 소제목: ### 뒤에 내용 없이 바로 ###이 오거나, ### 로 끝나는 경우
+    if re.search(r'###[^\n]*\n\s*###', speech):
+        return False, "빈 소제목"
+    if re.search(r'###\s*$', speech.rstrip()):
+        return False, "빈 소제목으로 끝남"
+
+    # 6. 깨진 숫자/콤마 잔해 (후처리 후 잔여)
+    if re.search(r'(?:^|\n)\s*[\d,\s]{5,}\s*(?:$|\n)', speech):
+        return False, "깨진 숫자 잔해"
+
+    # 7. 동일 문장 반복 (30자 이상 문장이 2회 출현)
+    sentences = [s.strip() for s in re.split(r'[.!?]\s+', speech) if len(s.strip()) > 30]
+    if len(sentences) != len(set(sentences)):
+        return False, "문장 반복"
+
+    return True, "OK"
+
+
+# ── 스테이지별 소제목 검증 ──────────────────────────────────────────────────
+
+_REQUIRED_HEADINGS = {
+    "opening": ["자기소개", "논거 1", "논거 2", "결론"],
+    "role_reversal": ["논거 1", "논거 2", "결론"],
+}
+
+
+def check_headings(speech: str, stage: str) -> Tuple[bool, List[str]]:
+    """스테이지별 필수 소제목(### 포함) 존재 여부 확인. (통과, 누락 목록) 반환."""
+    required = _REQUIRED_HEADINGS.get(stage, [])
+    if not required:
+        return True, []
+    missing = [h for h in required if not re.search(rf'###\s*{re.escape(h)}', speech)]
+    return len(missing) == 0, missing
 
 
 def _is_valid_speech(speech: str) -> bool:
-    """최소 검증: 20자 이상, CoT 유출 없음, 외국어 깨짐 없음."""
-    if not speech or len(speech.strip()) < 20:
-        return False
-    # 중국어/일본어 깨진 문자 감지
-    if re.search(r'[\u4e00-\u9fff。，]', speech):
-        return False
-    # 한국어 비율이 너무 낮으면 무효
-    korean_chars = len(re.findall(r'[가-힣]', speech))
-    if korean_chars < 10:
-        return False
-    if _has_cot_leakage(speech):
-        return False
-    return True
+    """하위 호환용 래퍼. 입론/역할반전용 (min_chars=20)."""
+    ok, reason = validate_quality(speech, min_chars=20)
+    if not ok:
+        logger.warning("[품질검증] 실패: %s", reason)
+    return ok
 
 
 # ── XML 도구 호출 폴백 파서 ──────────────────────────────────────────────────
@@ -402,10 +441,10 @@ def _build_opening_prompt(
 - 핵심 문장에 **강조** 사용
 - 일반론 금지. "~은 문제입니다" 수준의 막연한 주장 대신, 구체적 사례와 수치를 들어 설득하라
 
-[인용 규칙 — 가장 중요]
-- 주장은 자유롭게 하되, 수치·통계·출처를 근거로 들 때는 반드시 search_web 도구로 검색한 결과만 인용하라
-- search_web으로 검색하지 않은 수치나 연구를 지어내지 마라
-- 확실하지 않으면 수치 없이 논리로 주장하라
+[인용 규칙]
+- 논증과 주장은 너의 지식을 바탕으로 자유롭게 구성하라
+- 통계·수치·최신 데이터가 필요하면 search_web 도구로 검색하여 인용하라
+- 존재하지 않는 연구나 기관을 지어내지 마라
 
 [형식]
 - 반드시 합니다체(격식체). 모든 문장을 "~합니다", "~입니다", "~됩니다"로 끝내라
@@ -457,10 +496,20 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_delimited_text(raw))
 
-    if not _is_valid_speech(speech):
-        logger.warning("[opening] speech 무효, 재시도")
+    # 품질 검증 + 소제목 검증 → 실패 시 1회 재시도
+    ok, reason = validate_quality(speech, min_chars=20)
+    headings_ok, missing = check_headings(speech, "opening")
+
+    if not ok or not headings_ok:
+        retry_hint = ""
+        if not ok:
+            retry_hint += f"이전 응답이 부적절합니다 ({reason}). "
+        if not headings_ok:
+            retry_hint += f"다음 소제목이 빠져있습니다: {', '.join(missing)}. "
+        retry_hint += "한국어로 반드시 모든 소제목을 포함하여 다시 작성하세요."
+        logger.warning("[opening] 재시도: %s / 누락 소제목: %s", reason, missing)
         messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content='한국어로만 입론을 작성하세요.\n\n### 답변 시작\n(입론)\n### 답변 끝'))
+        messages.append(HumanMessage(content=f'{retry_hint}\n\n### 답변 시작\n### 자기소개와 입장 표명\n(자기소개)\n### 논거 1: 소제목\n(논거)\n### 논거 2: 소제목\n(논거)\n### 결론\n(결론)\n### 답변 끝'))
         retry: AIMessage = _invoke_with_retry(_llm, messages, label="opening_retry")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))

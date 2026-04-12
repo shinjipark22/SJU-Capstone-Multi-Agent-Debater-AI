@@ -17,7 +17,7 @@ from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 import src.phase1.stage1_opening.nodes as _opening_mod
@@ -32,38 +32,12 @@ from src.phase1.stage1_opening.nodes import (
 
 
 def _is_valid_rebuttal(speech: str) -> bool:
-    """연쇄논박 전용 검증. 입론보다 영어 임계값 완화 (짧은 텍스트 특성 반영)."""
-    if not speech or len(speech.strip()) < 15:
-        logger.warning("[rebuttal 검증] 실패: 15자 미만 (%d자)", len(speech.strip()) if speech else 0)
-        return False
-    # 중국어/일본어 깨진 문자 및 문장부호 감지
-    if re.search(r'[\u4e00-\u9fff。，]', speech):
-        logger.warning("[rebuttal 검증] 실패: 중국어/일본어 문자 감지")
-        return False
-    # 영어 CoT 패턴 감지
-    cot_patterns = [
-        r'\b(?:First|Second|Third|Next|Then|Finally),?\s+I\b',
-        r'\bI (?:need|should|will|can|must)\b',
-        r'\bLet me\b',
-        r'\bIn order to\b',
-        r'\b(?:Okay|OK),?\s+so\b',
-        r'\bHmm\b',
-        r'\bAssuming\b',
-    ]
-    for pattern in cot_patterns:
-        m = re.search(pattern, speech, re.IGNORECASE)
-        if m:
-            logger.warning("[rebuttal 검증] 실패: CoT 패턴 '%s'", m.group())
-            return False
-    # 영어 비율 50% 초과 시 유출
-    korean_chars = len(re.findall(r'[가-힣]', speech))
-    english_chars = len(re.findall(r'[a-zA-Z]', speech))
-    if korean_chars + english_chars > 0:
-        ratio = english_chars / (korean_chars + english_chars)
-        if ratio > 0.5:
-            logger.warning("[rebuttal 검증] 실패: 영어 비율 %.1f%%", ratio * 100)
-            return False
-    return True
+    """논박/종합용 품질 검증. validate_quality 래퍼 (min_chars=15)."""
+    from src.phase1.stage1_opening.nodes import validate_quality
+    ok, reason = validate_quality(speech, min_chars=15)
+    if not ok:
+        logger.warning("[rebuttal 검증] 실패: %s", reason)
+    return ok
 from src.state import (
     DebateEntry,
     DebateState,
@@ -72,6 +46,7 @@ from src.state import (
 
 # ── 반박용 LLM (32B, 짧은 응답) ────────────────────────────────────────────
 _rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
+_rebuttal_llm_with_tools = _rebuttal_llm.bind_tools([search_web])
 
 # ── 분석용 LLM (32B 동일, 짧은 응답) ──────────────────────────────────────
 _analysis_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 200, "temperature": 0.3})
@@ -258,12 +233,16 @@ def _generate_rebuttal_speech(
 ) -> Tuple[str, str, List[Dict]]:
     """반박 생성. 전체 토론 히스토리를 메시지 체인으로 참조."""
     from src.graph.llm import build_debate_chain
+    from src.phase0.persona_factory import INTENSITY_PROFILES
 
     stance_kr = "찬성" if stance == "PRO" else "반대"
+    intensity = agent.get("intensity", 3)
+    intensity_style = INTENSITY_PROFILES.get(intensity, INTENSITY_PROFILES[3])["style"]
     system = (
         f"{agent['system_prompt']}\n\n"
         f"[최우선 규칙] 너는 {stance_kr} 입장이다. "
-        f"3~4문장. 반드시 합니다체(격식체). 모든 문장을 '~합니다', '~입니다'로 끝내라."
+        f"3~4문장. 반드시 합니다체(격식체).\n"
+        f"[논증 스타일] {intensity_style}"
     )
     messages = [SystemMessage(content=system)]
     if debate_chain:
@@ -272,8 +251,24 @@ def _generate_rebuttal_speech(
 
     tool_calls_log: List[Dict] = []
 
-    # DeepSeek으로 반박 생성
-    response: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal")
+    # tool calling으로 반박 생성 (모델이 수치 필요 시 search_web 호출)
+    response: AIMessage = _invoke_with_retry(_rebuttal_llm_with_tools, messages, label="rebuttal")
+
+    # tool call 처리
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        messages.append(response)
+        for tc in response.tool_calls:
+            tool_name = tc.get("name", "")
+            tool_args = tc.get("args", {})
+            tool_id = tc.get("id", "")
+            if tool_name == "search_web":
+                tool_calls_log.append({"name": tool_name, "args": tool_args})
+                result = search_web.invoke(tool_args)
+                result = _truncate_tool_result(str(result))
+                messages.append(ToolMessage(content=result, tool_call_id=tool_id))
+                logger.info("[rebuttal] tool call: search_web(%s)", tool_args)
+        response = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_with_search")
+
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
@@ -285,19 +280,6 @@ def _generate_rebuttal_speech(
         retry: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_retry")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_rebuttal_text(raw))
-
-    # 영어 잔재 감지 → LLM 수정 요청
-    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
-    if eng_words:
-        logger.warning("[rebuttal] 영어 감지: %s → 수정 요청", eng_words[:3])
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
-        fix: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_fix_eng")
-        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
-        fixed = _postprocess_speech(_extract_rebuttal_text(raw_fix))
-        if _is_valid_rebuttal(fixed):
-            speech = fixed
-            raw = raw_fix
 
     # fallback
     if not _is_valid_rebuttal(speech):
@@ -377,17 +359,7 @@ def generate_ai_rebuttal(
     stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
 
     target_argument = _pick_one_argument(target_speech)
-
-    search_query = _decide_search(target_argument, "")
-    search_results = ""
     tool_calls_log: List[Dict] = []
-    if search_query:
-        logger.info("[rebuttal] 검색 판단: '%s'", search_query)
-        tool_calls_log.append({"name": "search_web", "args": {"query": search_query}})
-        web_result = search_web.invoke({"query": search_query})
-        search_results = _truncate_tool_result(web_result)
-    else:
-        logger.info("[rebuttal] 검색 불필요 판단")
 
     # 약점 분석
     weakness = analyze_weakness(target_argument, topic)
@@ -401,7 +373,7 @@ def generate_ai_rebuttal(
         target_speech=target_argument,
         target_display=target_display,
         stance_kr=stance_kr,
-        search_results=search_results + weakness_hint,
+        search_results=weakness_hint,
         my_previous=my_previous,
     )
 
@@ -409,11 +381,13 @@ def generate_ai_rebuttal(
     from src.graph.llm import build_debate_chain
     debate_chain = build_debate_chain(history, agent["agent_id"])
 
-    speech, raw, _tool_log = _generate_rebuttal_speech(
+    # tool calling으로 반박 생성 (검색은 모델이 필요 시 자동 호출)
+    speech, raw, tc_log = _generate_rebuttal_speech(
         agent=agent, prompt=prompt,
         target_display=target_display, stance=agent["stance"],
         debate_chain=debate_chain,
     )
+    tool_calls_log.extend(tc_log)
 
     return DebateEntry(
         turn=current_turn, speaker_id=agent["agent_id"],

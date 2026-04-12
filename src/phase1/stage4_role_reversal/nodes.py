@@ -25,12 +25,13 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 import src.phase1.stage1_opening.nodes as _opening_mod
+from langchain_core.messages import ToolMessage
+
 from src.phase1.stage1_opening.nodes import (
     _invoke_with_retry,
     _postprocess_speech,
     _extract_delimited_text,
     _is_valid_speech,
-    _pre_search,
     _truncate_tool_result,
     search_web,
     _LLM_KWARGS,
@@ -40,6 +41,7 @@ from src.state import DebateEntry, DebateState
 
 # ── 역할반전 전용 LLM ──────────────────────────────────────────────────────
 _rr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 2048, "temperature": 0.6})
+_rr_llm_with_tools = _rr_llm.bind_tools([search_web])
 
 
 # ── 상대팀 대표 랜덤 선정 ──────────────────────────────────────────────────
@@ -83,21 +85,19 @@ def _build_role_reversal_prompt(
 {stance_kr} 입장에서만 주장하라. {opposite_kr} 입장의 논거를 절대 사용하지 마라.
 상대방({opposite_kr})의 관점에서 진심으로 설득력 있는 주장을 펼쳐라.
 
-아래 참고 자료와 기존 {stance_kr}측 입론을 바탕으로 '{topic}'에 대한 {stance_kr} 입론을 작성하라.
+기존 {stance_kr}측 입론을 참고하여 '{topic}'에 대한 {stance_kr} 입론을 작성하라.
 
 [기존 {stance_kr}측 입론 — 참고하되 그대로 베끼지 말 것]
 {opponent_openings}
-
-[참고 자료]
-{search_results}
 
 [구조]
 - 논거 2개, 각 3줄 이내
 - 핵심 문장에 **강조** 사용
 
 [인용 규칙]
-- 참고 자료의 수치만 인용. 없는 수치를 지어내지 마라
-- 확실하지 않으면 수치 없이 논리로 주장하라
+- 논증과 주장은 너의 지식을 바탕으로 자유롭게 구성하라
+- 통계·수치·최신 데이터가 필요하면 search_web 도구로 검색하여 인용하라
+- 존재하지 않는 연구나 기관을 지어내지 마라
 
 [형식]
 - 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용. 그 외 모든 서술은 한국어로
@@ -118,36 +118,47 @@ def _build_role_reversal_prompt(
 # ── 역할반전 발언 생성 ────────────────────────────────────────────────────
 
 def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str]:
-    """역할반전 발언 생성. 입론과 동일한 패턴."""
+    """역할반전 발언 생성. 품질검증 + 소제목 검증 후 재시도."""
+    from src.phase1.stage1_opening.nodes import validate_quality, check_headings
+
     messages = [
         SystemMessage(content=agent["system_prompt"]),
         HumanMessage(content=prompt),
     ]
 
-    response: AIMessage = _invoke_with_retry(_rr_llm, messages, label="role_reversal")
+    response: AIMessage = _invoke_with_retry(_rr_llm_with_tools, messages, label="role_reversal")
+
+    # tool call 처리
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        messages.append(response)
+        for tc in response.tool_calls:
+            if tc.get("name") == "search_web":
+                result = search_web.invoke(tc.get("args", {}))
+                result = _truncate_tool_result(str(result))
+                messages.append(ToolMessage(content=result, tool_call_id=tc.get("id", "")))
+                logger.info("[role_reversal] tool call: search_web(%s)", tc.get("args"))
+        response = _invoke_with_retry(_rr_llm, messages, label="role_reversal_with_search")
+
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_delimited_text(raw))
 
-    if not _is_valid_speech(speech):
-        logger.warning("[role_reversal] speech 무효, 재시도")
+    # 품질 검증 + 소제목 검증
+    ok, reason = validate_quality(speech, min_chars=20)
+    headings_ok, missing = check_headings(speech, "role_reversal")
+
+    if not ok or not headings_ok:
+        retry_hint = ""
+        if not ok:
+            retry_hint += f"이전 응답이 부적절합니다 ({reason}). "
+        if not headings_ok:
+            retry_hint += f"다음 소제목이 빠져있습니다: {', '.join(missing)}. "
+        retry_hint += "한국어로 반드시 모든 소제목을 포함하여 다시 작성하세요."
+        logger.warning("[role_reversal] 재시도: %s / 누락 소제목: %s", reason, missing)
         messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content="한국어로만 역할반전 발언을 작성하세요.\n\n### 답변 시작\n(발언)\n### 답변 끝"))
+        messages.append(HumanMessage(content=f'{retry_hint}\n\n### 답변 시작\n### 논거 1: 소제목\n(논거)\n### 논거 2: 소제목\n(논거)\n### 결론\n(결론)\n### 답변 끝'))
         retry: AIMessage = _invoke_with_retry(_rr_llm, messages, label="role_reversal_retry")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
-
-    # 영어 잔재 감지 → 수정 요청
-    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
-    if eng_words:
-        logger.warning("[role_reversal] 영어 감지: %s → 수정 요청", eng_words[:3])
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
-        fix: AIMessage = _invoke_with_retry(_rr_llm, messages, label="role_reversal_fix_eng")
-        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
-        fixed = _postprocess_speech(_extract_delimited_text(raw_fix))
-        if _is_valid_speech(fixed):
-            speech = fixed
-            raw = raw_fix
 
     return speech, raw
 
@@ -190,22 +201,25 @@ def role_reversal_node(state: DebateState) -> DebateState:
             opponent_openings.append(entry["content"][:300])
     openings_text = "\n---\n".join(opponent_openings) if opponent_openings else "(없음)"
 
-    # ── 사전 검색 (반전된 입장의 근거)
+    # ── 프롬프트 구성 + LLM 호출 (tool calling으로 검색은 모델 판단)
     print(f"  [{rep_display}] 역할반전 발언 생성 중...")
-    search_results, tool_calls_log = _pre_search(
-        topic, reversed_stance,
-        topic_id=state.get("topic_id", ""),
-    )
-
-    # ── 프롬프트 구성 + LLM 호출
+    tool_calls_log: List[Dict] = []
     prompt = _build_role_reversal_prompt(
         topic=topic,
         reversed_stance=reversed_stance,
         agent_name=rep_display,
-        search_results=search_results,
+        search_results="",
         opponent_openings=openings_text,
     )
     final_text, raw = _generate_role_reversal(representative, prompt)
+
+    # ── 논거 1 소제목 보장 (### 없이 시작하면 추가)
+    if final_text and not final_text.startswith('###'):
+        m = re.match(r'(논거\s*1\s*[:：])', final_text)
+        if m:
+            final_text = f"### {final_text}"
+        else:
+            final_text = f"### 논거 1\n{final_text}"
 
     # ── fallback
     if not _is_valid_speech(final_text):
