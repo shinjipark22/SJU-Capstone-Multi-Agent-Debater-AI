@@ -117,7 +117,7 @@ def _build_role_reversal_prompt(
 
 # ── 역할반전 발언 생성 ────────────────────────────────────────────────────
 
-def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str]:
+def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
     """역할반전 발언 생성. 품질검증 + 소제목 검증 후 재시도."""
     from src.phase1.stage1_opening.nodes import validate_quality, check_headings
 
@@ -125,6 +125,7 @@ def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str]:
         SystemMessage(content=agent["system_prompt"]),
         HumanMessage(content=prompt),
     ]
+    tc_log: List[Dict] = []
 
     response: AIMessage = _invoke_with_retry(_rr_llm_with_tools, messages, label="role_reversal")
 
@@ -135,6 +136,7 @@ def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str]:
             if tc.get("name") == "search_web":
                 result = search_web.invoke(tc.get("args", {}))
                 result = _truncate_tool_result(str(result))
+                tc_log.append({"name": "search_web", "args": tc.get("args", {}), "result": result})
                 messages.append(ToolMessage(content=result, tool_call_id=tc.get("id", "")))
                 logger.info("[role_reversal] tool call: search_web(%s)", tc.get("args"))
         response = _invoke_with_retry(_rr_llm, messages, label="role_reversal_with_search")
@@ -160,7 +162,7 @@ def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str]:
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
 
-    return speech, raw
+    return speech, raw, tc_log
 
 
 # ── 메인 노드 ──────────────────────────────────────────────────────────────
@@ -211,7 +213,8 @@ def role_reversal_node(state: DebateState) -> DebateState:
         search_results="",
         opponent_openings=openings_text,
     )
-    final_text, raw = _generate_role_reversal(representative, prompt)
+    final_text, raw, tc_log = _generate_role_reversal(representative, prompt)
+    tool_calls_log.extend(tc_log)
 
     # ── 논거 1 소제목 보장 (### 없이 시작하면 추가)
     if final_text and not final_text.startswith('###'):

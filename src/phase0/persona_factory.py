@@ -115,7 +115,9 @@ def _build_system_prompt(
 당신의 주장: "{my_claim}"
 상대방의 주장(반박 대상): "{opp_claim}"
 
-참고 자료에 없는 수치나 통계를 지어내지 마세요.
+자료·사례·통계·수치를 인용할 때는 반드시 search_web 도구로 검색한 결과만 사용하세요.
+내장 지식의 수치나 보고서명을 절대 인용하지 마세요.
+주장에 근거가 필요하면 반드시 search_web으로 검색하세요.
 """
     return prompt.strip()
 

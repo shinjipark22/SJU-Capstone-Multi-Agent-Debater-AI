@@ -146,9 +146,10 @@ def _build_message_chain(
 def _generate_with_chain(
     messages: List,
     prompt: str,
-) -> Tuple[str, str]:
+) -> Tuple[str, str, List[Dict]]:
     """멀티턴 체인에 새 프롬프트를 추가하고 tool calling으로 생성한다."""
     messages.append(HumanMessage(content=prompt))
+    tc_log: List[Dict] = []
 
     response: AIMessage = _invoke_with_retry(_fr_llm_with_tools, messages, label="free_rebuttal")
 
@@ -159,6 +160,7 @@ def _generate_with_chain(
             if tc.get("name") == "search_web":
                 result = search_web.invoke(tc.get("args", {}))
                 result = _truncate_tool_result(str(result))
+                tc_log.append({"name": "search_web", "args": tc.get("args", {}), "result": result})
                 messages.append(_ToolMessage(content=result, tool_call_id=tc.get("id", "")))
                 logger.info("[free_rebuttal] tool call: search_web(%s)", tc.get("args"))
         response = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal_with_search")
@@ -180,7 +182,7 @@ def _generate_with_chain(
         logger.warning("[free_rebuttal] fallback 사용")
         speech = "상대의 주장은 핵심 전제가 부족합니다. 따라서 설득력이 없습니다."
 
-    return speech, raw
+    return speech, raw, tc_log
 
 
 # ── 공격 프롬프트 (상대 입론 논거 공격) ─────────────────────────────────────
@@ -329,7 +331,8 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         print(f"  [Step 1 - 답변] 사용자 공격에 방어{' (최종 답변)' if final_turn else ''}\n")
 
         defense_prompt = _build_defense_prompt(user_latest_attack, my_opening)
-        defense, raw_def = _generate_with_chain(list(chain), defense_prompt)
+        defense, raw_def, tc_def = _generate_with_chain(list(chain), defense_prompt)
+        tool_calls_log.extend(tc_def)
         speeches.append(("답변", defense, raw_def))
 
     # ── Step 2: 공격 (마지막 턴이면 스킵 — 사용자 응답 기회 없으므로)
@@ -354,7 +357,8 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         attack_chain = list(chain)
         if speeches:
             attack_chain.append(AIMessage(content=speeches[0][1]))  # 답변을 체인에 포함
-        attack, raw_atk = _generate_with_chain(attack_chain, attack_prompt)
+        attack, raw_atk, tc_atk = _generate_with_chain(attack_chain, attack_prompt)
+        tool_calls_log.extend(tc_atk)
 
         # 공격 결과를 읽고 맥락에 맞는 질문 생성
         attack_question = _generate_attack_question(attack, opponent["stance"], state["topic"])
