@@ -89,7 +89,7 @@ TOPIC_IDS: List[str] = [
 
 DEBATE_FORMATS: List[str] = ["2:2", "3:3"]
 
-# 강경도 프리셋: 같은 포맷이라도 강경도 조합이 다르면 다른 ��론이 나온다
+# 강경도 프리셋: 같은 포맷이라도 강경도 조합이 다르면 다른 토론이 나온다
 # label은 결과 파일명/분석에 사용
 INTENSITY_PRESETS: Dict[str, Dict] = {
     "2v2_balanced": {
