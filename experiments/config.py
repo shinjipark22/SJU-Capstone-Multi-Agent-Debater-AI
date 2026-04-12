@@ -58,11 +58,10 @@ MODELS: Dict[str, ModelConfig] = {
     "Gemma-2-27b-it": ModelConfig(
         model_id="Gemma-2-27b-it",
         model_name="google/gemma-2-27b-it",
-        quantization="awq",
     ),
     "EXAONE-3.5-32B-Instruct": ModelConfig(
         model_id="EXAONE-3.5-32B-Instruct",
-        model_name="LGAI-EXAONE/EXAONE-3.5-32B-Instruct",
+        model_name="LGAI-EXAONE/EXAONE-3.5-32B-Instruct-AWQ",
         quantization="awq",
     ),
     "DeepSeek-R1-Distill-Qwen-14B": ModelConfig(
