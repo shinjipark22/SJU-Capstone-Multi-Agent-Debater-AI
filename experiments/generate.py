@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Optional
 
 from experiments.config import (
+    API_COST_CONFIRM,
+    API_MAX_EXPERIMENTS,
     HF_CACHE_DIR,
     INTENSITY_PRESETS,
     LOGS_DIR,
@@ -199,6 +201,22 @@ def generate_for_model(model_id: str) -> dict:
     )
 
     try:
+        # API 모델 비용 안전장치
+        if config.model_type == "openai" and API_COST_CONFIRM:
+            presets = list(INTENSITY_PRESETS.keys())
+            total = len(TOPIC_IDS) * len(presets)
+            est_cost = total * 35 * 3000 / 1_000_000 * 12  # 대략 추정 ($)
+            print(f"\n{'='*60}")
+            print(f"  ⚠️  API 모델 실험: {model_id}")
+            print(f"  실험 수: {total}개")
+            print(f"  예상 API 호출: ~{total * 35}회")
+            print(f"  예상 비용: ~${est_cost:.0f}")
+            print(f"{'='*60}")
+            answer = input("  계속하시겠습니까? (y/N): ").strip().lower()
+            if answer != "y":
+                logger.info("사용자가 취소함")
+                return {"model": model_id, "success": 0, "fail": 0, "cancelled": True}
+
         if needs_vllm:
             vllm_proc = start_vllm(config)
             if not wait_for_vllm(config.base_url):
@@ -211,6 +229,13 @@ def generate_for_model(model_id: str) -> dict:
         for i, topic_id in enumerate(TOPIC_IDS):
             for preset_key in presets:
                 idx = i * len(presets) + presets.index(preset_key) + 1
+
+                # API 모델 실험 수 제한
+                if config.model_type == "openai" and API_MAX_EXPERIMENTS > 0:
+                    if (success + fail) >= API_MAX_EXPERIMENTS:
+                        logger.warning("API 실험 수 제한 도달 (%d개), 중단", API_MAX_EXPERIMENTS)
+                        return {"model": model_id, "success": success, "fail": fail}
+
                 logger.info("[%d/%d] %s — %s / %s", idx, total, model_id, topic_id, preset_key)
 
                 ok = run_single_experiment(config, topic_id, preset_key)

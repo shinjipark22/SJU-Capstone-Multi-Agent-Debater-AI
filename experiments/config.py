@@ -160,6 +160,14 @@ USER_AGENT_MODEL = "gpt-4o-mini"
 USER_AGENT_TEMPERATURE = 0       # 재현성 보장
 USER_AGENT_SEED = 42             # 고정 시드
 
+# ── 비용 안전장치 ───────────────────────────────────────────────────────────
+
+# API 모델(GPT-5.4) 실험 전 확인 프롬프트 표시
+API_COST_CONFIRM = True
+
+# API 모델 실험 수 제한 (실수 방지, 0=무제한)
+API_MAX_EXPERIMENTS = 48  # 48개 초과 시 중단
+
 # ── 실험 타임아웃 ───────────────────────────────────────────────────────────
 
 SINGLE_EXPERIMENT_TIMEOUT = 900  # 초 (15분)
