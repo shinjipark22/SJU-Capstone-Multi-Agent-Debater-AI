@@ -207,6 +207,14 @@ def role_reversal_node(state: DebateState) -> DebateState:
     )
     final_text, raw = _generate_role_reversal(representative, prompt)
 
+    # ── 논거 1 소제목 보장 (### 없이 시작하면 추가)
+    if final_text and not final_text.startswith('###'):
+        m = re.match(r'(논거\s*1\s*[:：])', final_text)
+        if m:
+            final_text = f"### {final_text}"
+        else:
+            final_text = f"### 논거 1\n{final_text}"
+
     # ── fallback
     if not _is_valid_speech(final_text):
         logger.warning("[role_reversal] fallback 사용")
