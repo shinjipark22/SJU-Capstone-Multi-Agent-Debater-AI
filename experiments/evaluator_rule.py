@@ -93,11 +93,13 @@ def evaluate_single_log(log_path: Path) -> Dict:
         phase = turn.get("phase", "")
         speaker = turn.get("speaker", "")
         text = turn.get("text", "")
-        is_user = (speaker == "user")
+
+        # 사용자 턴은 평가 대상 아님 — 스킵
+        if speaker == "user":
+            continue
 
         # 헤더 검사
-        heading_type = "user" if is_user else "agent"
-        patterns = REQUIRED_HEADINGS.get(phase, {}).get(heading_type, [])
+        patterns = REQUIRED_HEADINGS.get(phase, {}).get("agent", [])
         found, total = _check_headings(text, patterns)
         total_heading_found += found
         total_heading_required += total
@@ -106,7 +108,7 @@ def evaluate_single_log(log_path: Path) -> Dict:
         lang = _check_language_quality(text)
         if lang["cot_leaked"] or lang["broken_chars"] or lang["truncated"]:
             language_issues += 1
-        if lang["korean_ratio"] < 0.3 and not is_user:
+        if lang["korean_ratio"] < 0.3:
             language_issues += 1
 
         # 도구 사용

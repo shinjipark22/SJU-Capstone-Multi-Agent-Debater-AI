@@ -69,6 +69,10 @@ def run_experiment(
     user_inputs = _load_user_inputs()
     topic_data = user_inputs["topics"][topic_id]
 
+    # user_inputs는 PRO 기준으로 작성됨.
+    # CON 실험 시에도 동일 mock 데이터를 사용 (사용자 입력은 평가 대상 아님)
+    # 실제 서비스에서는 사용자가 직접 입력하므로 mock 데이터 stance 불일치는 무관
+
     # 강경도 설정
     intensities_map = {"2:2": [3, 2, 4], "3:3": [3, 2, 4, 3, 2]}
     agent_intensities = intensities_map[debate_format]

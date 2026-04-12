@@ -92,10 +92,14 @@ def _format_debate_for_judge(log_data: Dict) -> str:
         phase = turn.get("phase", "")
         text = turn.get("text", "")
 
-        side_kr = "찬성" if side == "PRO" else "반대"
-        speaker_display = "사용자" if speaker == "user" else speaker
+        # 사용자 턴은 맥락용으로만 짧게 표시 (평가 대상 아님)
+        if speaker == "user":
+            lines.append(f"[{phase}] 사용자 (발언 생략 — 평가 대상 아님)")
+            lines.append("")
+            continue
 
-        lines.append(f"[{phase}] {speaker_display} ({side_kr})")
+        side_kr = "찬성" if side == "PRO" else "반대"
+        lines.append(f"[{phase}] {speaker} ({side_kr})")
         lines.append(text)
 
         # 검색 도구 사용 여부
@@ -109,7 +113,8 @@ def _format_debate_for_judge(log_data: Dict) -> str:
 
 
 JUDGE_SYSTEM_PROMPT = """당신은 AI 토론 시스템의 전문 심판입니다.
-주어진 토론 로그를 읽고, 아래 7개 항목을 각각 1~5점으로 평가하세요.
+주어진 토론 로그에서 **AI 에이전트의 발언만** 평가하세요. 사용자 발언은 평가 대상이 아닙니다.
+아래 7개 항목을 각각 1~5점으로 평가하세요.
 각 항목에 대해 score(정수)와 reason(한국어, 1~2문장)을 반드시 포함하세요.
 
 평가 항목:
