@@ -5,6 +5,7 @@ persona_factory.py — 동적 AI 에이전트 페르소나 생성 (Phase 0)
 강경도에 맞는 시스템 프롬프트를 생성한다.
 """
 
+import os
 from typing import List, Literal, Dict, Optional
 from dataclasses import dataclass, field
 
@@ -119,6 +120,10 @@ def _build_system_prompt(
 내장 지식의 수치나 보고서명을 절대 인용하지 마세요.
 주장에 근거가 필요하면 반드시 search_web으로 검색하세요.
 """
+    # Qwen3 계열: thinking 비활성화
+    model_name = os.environ.get("LLM_MODEL", "")
+    if "Qwen3" in model_name:
+        prompt += "\n/no_think"
     return prompt.strip()
 
 

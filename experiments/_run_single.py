@@ -46,7 +46,7 @@ class UserProxy:
     동일 모델로 user 발언을 생성하여 주입한다.
     """
 
-    def __init__(self, topic: dict, stance: str):
+    def __init__(self, topic: dict, stance: str, disable_thinking: bool = False):
         from langchain_openai import ChatOpenAI
         from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -66,6 +66,9 @@ class UserProxy:
         my_claim = topic.get("pro", "") if stance == "PRO" else topic.get("con", "")
         opp_claim = topic.get("con", "") if stance == "PRO" else topic.get("pro", "")
 
+        # Qwen3: /no_think로 CoT 비활성화
+        think_directive = "\n/no_think" if disable_thinking else ""
+
         self.system = (
             f"너는 토론 참가자다. {stance_kr} 입장에서 토론한다.\n"
             f"논제: {topic['title']}\n"
@@ -73,6 +76,7 @@ class UserProxy:
             f"상대 주장(반박 대상): {opp_claim}\n\n"
             f"반드시 한국어 합니다체로 작성하라. 핵심 주장에 **강조** 표시하라.\n"
             f"자료를 인용할 때는 search_web으로 검색한 결과만 사용하라."
+            f"{think_directive}"
         )
 
     def generate(self, prompt: str, max_tokens: int = 1024) -> str:
@@ -182,9 +186,15 @@ def run_experiment(
         user_intensity=3, agents=snapshots, topic_id=topic_dict["id"],
     )
 
+    # CoT 모델 대응: Qwen3는 thinking 비활성화
+    model_name = os.environ.get("LLM_MODEL", "")
+    is_cot_model = "DeepSeek-R1" in model_name
+    disable_thinking = "Qwen3" in model_name  # Qwen3는 /no_think로 비활성화
+
     # user 프록시 — 동일 모델이 user 역할 수행
-    proxy = UserProxy(topic_dict, user_stance)
-    logger.info("실험 시작: %s / %s (전원 AI, user_stance=%s)", topic_id, debate_format, user_stance)
+    proxy = UserProxy(topic_dict, user_stance, disable_thinking=disable_thinking)
+    logger.info("실험 시작: %s / %s (전원 AI, CoT=%s, thinking_off=%s)",
+                topic_id, debate_format, is_cot_model, disable_thinking)
 
     # ── 1단계: 입론 ──────────────────────────────────────────────────
     state = opening_arguments_node(state)

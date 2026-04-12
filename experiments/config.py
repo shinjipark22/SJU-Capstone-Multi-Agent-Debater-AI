@@ -61,6 +61,7 @@ MODELS: Dict[str, ModelConfig] = {
         model_id="Qwen3-32B",
         model_name="Qwen/Qwen3-32B-AWQ",
         quantization="awq",
+        extra_vllm_args={"disable_thinking": True},  # /no_think로 CoT 비활성화
     ),
     "EXAONE-3.5-32B-Instruct": ModelConfig(
         model_id="EXAONE-3.5-32B-Instruct",
@@ -71,6 +72,7 @@ MODELS: Dict[str, ModelConfig] = {
     "DeepSeek-R1-Distill-Qwen-14B": ModelConfig(
         model_id="DeepSeek-R1-Distill-Qwen-14B",
         model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+        extra_vllm_args={"max_tokens_multiplier": 2},  # CoT 토큰 소모 대응
     ),
     # ── 소형 ──
     "Qwen-2.5-7B-Instruct": ModelConfig(
