@@ -53,9 +53,6 @@ MODELS: Dict[str, ModelConfig] = {
     "Qwen-2.5-32B-Instruct": ModelConfig(
         model_id="Qwen-2.5-32B-Instruct",
         model_name="Qwen/Qwen2.5-32B-Instruct-AWQ",
-        base_url="http://localhost:8000/v1",  # 이미 GPU 0,1에서 서빙 중
-        gpu_devices="0,1",
-        port=8000,
         quantization="awq",
     ),
     "Gemma-2-27b-it": ModelConfig(

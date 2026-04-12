@@ -194,11 +194,7 @@ def generate_for_model(model_id: str) -> dict:
     config = MODELS[model_id]
     vllm_proc = None
 
-    # Qwen-2.5-32B-Instruct는 이미 GPU 0,1에서 서빙 중 → vLLM 시작 불필요
-    needs_vllm = (
-        config.model_type == "vllm"
-        and config.model_id != "Qwen-2.5-32B-Instruct"
-    )
+    needs_vllm = (config.model_type == "vllm")
 
     try:
         # API 모델 비용 안전장치
