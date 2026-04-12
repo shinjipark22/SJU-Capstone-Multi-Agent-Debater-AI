@@ -80,12 +80,7 @@ MODELS: Dict[str, ModelConfig] = {
         tensor_parallel=2,  # FP16 28GB → 1장 안됨
         extra_vllm_args={"is_cot": True, "max_tokens_multiplier": 2},
     ),
-    # ── 소형 ──
-    "Qwen-2.5-7B-Instruct": ModelConfig(
-        model_id="Qwen-2.5-7B-Instruct",
-        model_name="Qwen/Qwen2.5-7B-Instruct",
-        tensor_parallel=2,  # 다른 모델과 동일 조건 (TP=2, max_len=16384)
-    ),
+    # Qwen-2.5-7B: 실험 제외 (vLLM hang 문제)
 }
 
 # ── 실험 조합 ───────────────────────────────────────────────────────────────
@@ -182,3 +177,4 @@ API_MAX_EXPERIMENTS = 48  # 48개 초과 시 중단
 # ── 실험 타임아웃 ───────────────────────────────────────────────────────────
 
 SINGLE_EXPERIMENT_TIMEOUT = 1800  # 초 (30분)
+VLLM_RESTART_EVERY = 10           # N개 실험마다 vLLM 예방적 재시작
