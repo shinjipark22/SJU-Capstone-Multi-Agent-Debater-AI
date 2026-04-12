@@ -31,10 +31,10 @@ class ModelConfig:
     model_id: str                                       # 짧은 식별자 (디렉토리명)
     model_name: str                                     # HuggingFace 모델명 or OpenAI 모델명
     model_type: Literal["vllm", "openai"] = "vllm"     # 서빙 방식
-    base_url: str = "http://localhost:8001/v1"          # vLLM 또는 OpenAI 엔드포인트
+    base_url: str = "http://localhost:8002/v1"          # 실험용 vLLM (8001은 FastAPI)
     api_key_env: str = "LLM_API_KEY"                    # API 키 환경변수명
     gpu_devices: str = "2,3"                            # CUDA_VISIBLE_DEVICES
-    port: int = 8001                                    # vLLM 포트
+    port: int = 8002                                    # 실험용 vLLM 포트 (8001은 FastAPI)
     tensor_parallel: int = 2                            # 텐서 병렬 수
     quantization: Optional[str] = None                  # awq / gptq / None
     max_model_len: int = 16384
