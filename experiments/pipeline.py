@@ -113,8 +113,13 @@ def stage_aggregate() -> Path:
 
     # Raw CSV 생성
     raw_path = ARTIFACTS_DIR / "results_raw.csv"
+    # 토픽→카테고리 매핑
+    category_map = {
+        "tech": "기술", "econ": "경제", "poli": "정치", "env": "환경",
+    }
+
     fieldnames = [
-        "model_id", "file", "topic_id", "user_stance", "debate_format",
+        "model_id", "file", "topic_id", "category", "preset", "debate_format",
         "format_score_raw", "format_score_norm",
     ] + [f"llm_{c}" for c in LLM_EVAL_CRITERIA] + [
         "llm_mean", "final_score",
@@ -144,17 +149,27 @@ def stage_aggregate() -> Path:
             # Final score
             final = WEIGHT_FORMAT * fmt_norm + WEIGHT_LLM * llm_mean
 
-            # 파일명에서 메타 추출
-            parts = fname.replace(".json", "").split("_")
+            # 파일명에서 메타 추출: tech_001_2v2_balanced.json
+            name_no_ext = fname.replace(".json", "")
+            parts = name_no_ext.split("_")
             topic_id = f"{parts[0]}_{parts[1]}" if len(parts) >= 2 else ""
-            stance = parts[2] if len(parts) >= 3 else ""
-            fmt = parts[3].replace("v", ":") if len(parts) >= 4 else ""
+            # preset은 토픽ID 이후 전부 (예: 2v2_balanced, 3v3_mixed)
+            preset = "_".join(parts[2:]) if len(parts) >= 3 else ""
+            cat_prefix = parts[0] if parts else ""
+            category = category_map.get(cat_prefix, cat_prefix)
+            # 포맷 추출
+            fmt = ""
+            if "2v2" in preset:
+                fmt = "2:2"
+            elif "3v3" in preset:
+                fmt = "3:3"
 
             row = {
                 "model_id": model_id,
                 "file": fname,
                 "topic_id": topic_id,
-                "user_stance": stance,
+                "category": category,
+                "preset": preset,
                 "debate_format": fmt,
                 "format_score_raw": round(fmt_raw, 1),
                 "format_score_norm": round(fmt_norm, 2),
