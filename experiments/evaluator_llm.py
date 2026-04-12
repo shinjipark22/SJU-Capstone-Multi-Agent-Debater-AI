@@ -125,6 +125,7 @@ JUDGE_SYSTEM_PROMPT = """당신은 AI 토론 시스템의 전문 심판입니다
 5. web_search_tool_use: 통계/사건이 필요한 시점에 검색 도구를 적절히 사용했는가? (5=탁월한 활용, 1=전혀 미사용)
 6. faithfulness_hallucination_control: 검색 결과를 왜곡 없이 반영했는가? 없는 수치를 만들어냈는가? (5=왜곡 없음, 1=심각한 할루시네이션)
 7. logic_evidence_synthesis: 주장-근거-추론(CER) 구조로 논리적으로 엮었는가? (5=탄탄한 논증, 1=사실 나열)
+8. korean_language_compliance: 한국어로 자연스럽게 작성했는가? 영어 문장, 외국어 섞임, CoT 유출(<think> 블록), 깨진 문자가 없는가? 고유명사(기관명, 인명)는 영어 허용. (5=완벽한 한국어, 1=외국어 대량 섞임)
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
@@ -134,7 +135,8 @@ JUDGE_SYSTEM_PROMPT = """당신은 AI 토론 시스템의 전문 심판입니다
   "persona_tone_toxicity": {"score": N, "reason": "..."},
   "web_search_tool_use": {"score": N, "reason": "..."},
   "faithfulness_hallucination_control": {"score": N, "reason": "..."},
-  "logic_evidence_synthesis": {"score": N, "reason": "..."}
+  "logic_evidence_synthesis": {"score": N, "reason": "..."},
+  "korean_language_compliance": {"score": N, "reason": "..."}
 }"""
 
 

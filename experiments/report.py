@@ -79,6 +79,7 @@ CRITERIA_LABELS = {
     "web_search_tool_use": "검색 활용",
     "faithfulness_hallucination_control": "사실성/할루",
     "logic_evidence_synthesis": "논리/근거",
+    "korean_language_compliance": "한국어 준수",
 }
 
 

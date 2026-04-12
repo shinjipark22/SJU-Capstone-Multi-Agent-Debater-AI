@@ -61,7 +61,12 @@ MODELS: Dict[str, ModelConfig] = {
         model_id="Qwen3-32B",
         model_name="Qwen/Qwen3-32B-AWQ",
         quantization="awq",
-        extra_vllm_args={"disable_thinking": True},  # /no_think로 CoT 비활성화
+        extra_vllm_args={"is_cot": True},  # CoT 활성화 (thinking 허용)
+    ),
+    "Gemma-3-27b-it": ModelConfig(
+        model_id="Gemma-3-27b-it",
+        model_name="pytorch/gemma-3-27b-it-AWQ-INT4",
+        quantization="awq",
     ),
     "EXAONE-3.5-32B-Instruct": ModelConfig(
         model_id="EXAONE-3.5-32B-Instruct",
@@ -72,7 +77,7 @@ MODELS: Dict[str, ModelConfig] = {
     "DeepSeek-R1-Distill-Qwen-14B": ModelConfig(
         model_id="DeepSeek-R1-Distill-Qwen-14B",
         model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
-        extra_vllm_args={"max_tokens_multiplier": 2},  # CoT 토큰 소모 대응
+        extra_vllm_args={"is_cot": True, "max_tokens_multiplier": 2},
     ),
     # ── 소형 ──
     "Qwen-2.5-7B-Instruct": ModelConfig(
@@ -141,6 +146,7 @@ LLM_EVAL_CRITERIA = [
     "web_search_tool_use",
     "faithfulness_hallucination_control",
     "logic_evidence_synthesis",
+    "korean_language_compliance",
 ]
 
 # ── 점수 가중치 ─────────────────────────────────────────────────────────────

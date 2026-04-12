@@ -120,10 +120,8 @@ def _build_system_prompt(
 내장 지식의 수치나 보고서명을 절대 인용하지 마세요.
 주장에 근거가 필요하면 반드시 search_web으로 검색하세요.
 """
-    # Qwen3 계열: thinking 비활성화
-    model_name = os.environ.get("LLM_MODEL", "")
-    if "Qwen3" in model_name:
-        prompt += "\n/no_think"
+    # CoT 모델(Qwen3, DeepSeek-R1): thinking 허용
+    # 후처리에서 <think> 블록 제거하여 최종 출력은 깨끗하게 유지
     return prompt.strip()
 
 
