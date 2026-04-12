@@ -51,8 +51,24 @@ logger = logging.getLogger(__name__)
 
 # ── vLLM 서버 관리 ──────────────────────────────────────────────────────────
 
+def _kill_port(port: int):
+    """해당 포트를 사용 중인 프로세스를 종료한다."""
+    try:
+        result = subprocess.run(["lsof", "-ti", f":{port}"], capture_output=True, text=True)
+        pids = result.stdout.strip().split()
+        for pid in pids:
+            if pid:
+                os.kill(int(pid), signal.SIGTERM)
+                logger.info("포트 %d 사용 중인 프로세스 %s 종료", port, pid)
+        if pids:
+            time.sleep(3)
+    except Exception:
+        pass
+
+
 def start_vllm(config: ModelConfig) -> subprocess.Popen:
     """GPU 2,3에서 vLLM 서버를 시작한다."""
+    _kill_port(config.port)  # 포트 충돌 방지
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = config.gpu_devices
     env["HF_HOME"] = HF_CACHE_DIR
@@ -78,19 +94,23 @@ def start_vllm(config: ModelConfig) -> subprocess.Popen:
 
 
 def wait_for_vllm(base_url: str, timeout: int = VLLM_STARTUP_TIMEOUT) -> bool:
-    """vLLM 헬스체크가 성공할 때까지 대기한다."""
+    """vLLM의 /v1/models 엔드포인트가 응답할 때까지 대기한다."""
     import urllib.request
     import urllib.error
 
-    health_url = f"{base_url.rstrip('/').replace('/v1', '')}/health"
+    # /v1/models는 vLLM 전용 — FastAPI 등 다른 서버와 혼동 방지
+    models_url = f"{base_url.rstrip('/')}/models"
     start = time.time()
     while time.time() - start < timeout:
         try:
-            req = urllib.request.Request(health_url)
-            with urllib.request.urlopen(req, timeout=5):
-                logger.info("vLLM 준비 완료: %s", base_url)
-                return True
-        except (urllib.error.URLError, ConnectionError, OSError):
+            req = urllib.request.Request(models_url)
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                import json
+                data = json.loads(resp.read())
+                if data.get("data"):
+                    logger.info("vLLM 준비 완료: %s (%s)", base_url, data["data"][0]["id"])
+                    return True
+        except (urllib.error.URLError, ConnectionError, OSError, Exception):
             time.sleep(VLLM_HEALTH_POLL_INTERVAL)
     logger.error("vLLM 시작 타임아웃 (%d초): %s", timeout, base_url)
     return False
