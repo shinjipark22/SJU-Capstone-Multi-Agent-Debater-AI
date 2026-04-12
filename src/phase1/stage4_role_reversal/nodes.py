@@ -25,12 +25,13 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 import src.phase1.stage1_opening.nodes as _opening_mod
+from langchain_core.messages import ToolMessage
+
 from src.phase1.stage1_opening.nodes import (
     _invoke_with_retry,
     _postprocess_speech,
     _extract_delimited_text,
     _is_valid_speech,
-    _pre_search,
     _truncate_tool_result,
     search_web,
     _LLM_KWARGS,
@@ -40,6 +41,7 @@ from src.state import DebateEntry, DebateState
 
 # ── 역할반전 전용 LLM ──────────────────────────────────────────────────────
 _rr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 2048, "temperature": 0.6})
+_rr_llm_with_tools = _rr_llm.bind_tools([search_web])
 
 
 # ── 상대팀 대표 랜덤 선정 ──────────────────────────────────────────────────
@@ -83,21 +85,19 @@ def _build_role_reversal_prompt(
 {stance_kr} 입장에서만 주장하라. {opposite_kr} 입장의 논거를 절대 사용하지 마라.
 상대방({opposite_kr})의 관점에서 진심으로 설득력 있는 주장을 펼쳐라.
 
-아래 참고 자료와 기존 {stance_kr}측 입론을 바탕으로 '{topic}'에 대한 {stance_kr} 입론을 작성하라.
+기존 {stance_kr}측 입론을 참고하여 '{topic}'에 대한 {stance_kr} 입론을 작성하라.
 
 [기존 {stance_kr}측 입론 — 참고하되 그대로 베끼지 말 것]
 {opponent_openings}
-
-[참고 자료]
-{search_results}
 
 [구조]
 - 논거 2개, 각 3줄 이내
 - 핵심 문장에 **강조** 사용
 
 [인용 규칙]
-- 참고 자료의 수치만 인용. 없는 수치를 지어내지 마라
-- 확실하지 않으면 수치 없이 논리로 주장하라
+- 논증과 주장은 너의 지식을 바탕으로 자유롭게 구성하라
+- 통계·수치·최신 데이터가 필요하면 search_web 도구로 검색하여 인용하라
+- 존재하지 않는 연구나 기관을 지어내지 마라
 
 [형식]
 - 한국어로 작성. 고유명사(기관명, 인명, 기술명)만 영어 허용. 그 외 모든 서술은 한국어로
@@ -126,7 +126,19 @@ def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str]:
         HumanMessage(content=prompt),
     ]
 
-    response: AIMessage = _invoke_with_retry(_rr_llm, messages, label="role_reversal")
+    response: AIMessage = _invoke_with_retry(_rr_llm_with_tools, messages, label="role_reversal")
+
+    # tool call 처리
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        messages.append(response)
+        for tc in response.tool_calls:
+            if tc.get("name") == "search_web":
+                result = search_web.invoke(tc.get("args", {}))
+                result = _truncate_tool_result(str(result))
+                messages.append(ToolMessage(content=result, tool_call_id=tc.get("id", "")))
+                logger.info("[role_reversal] tool call: search_web(%s)", tc.get("args"))
+        response = _invoke_with_retry(_rr_llm, messages, label="role_reversal_with_search")
+
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_delimited_text(raw))
 
@@ -189,19 +201,14 @@ def role_reversal_node(state: DebateState) -> DebateState:
             opponent_openings.append(entry["content"][:300])
     openings_text = "\n---\n".join(opponent_openings) if opponent_openings else "(없음)"
 
-    # ── 사전 검색 (반전된 입장의 근거)
+    # ── 프롬프트 구성 + LLM 호출 (tool calling으로 검색은 모델 판단)
     print(f"  [{rep_display}] 역할반전 발언 생성 중...")
-    search_results, tool_calls_log = _pre_search(
-        topic, reversed_stance,
-        topic_id=state.get("topic_id", ""),
-    )
-
-    # ── 프롬프트 구성 + LLM 호출
+    tool_calls_log: List[Dict] = []
     prompt = _build_role_reversal_prompt(
         topic=topic,
         reversed_stance=reversed_stance,
         agent_name=rep_display,
-        search_results=search_results,
+        search_results="",
         opponent_openings=openings_text,
     )
     final_text, raw = _generate_role_reversal(representative, prompt)
