@@ -275,46 +275,66 @@ def _postprocess_speech(text: str) -> str:
     return text
 
 
-def _has_cot_leakage(text: str) -> bool:
-    """영어 CoT 유출 감지."""
+def validate_quality(speech: str, min_chars: int = 20) -> Tuple[bool, str]:
+    """품질보증 검증. (통과 여부, 실패 사유) 반환.
+
+    모든 스테이지에서 공통으로 사용하는 통합 검증 함수.
+    """
+    if not speech or len(speech.strip()) < min_chars:
+        return False, f"길이 부족 ({len(speech.strip()) if speech else 0}자)"
+
+    # 1. 깨진 문자: 중국어/일본어/중국어 문장부호
+    if re.search(r'[\u4e00-\u9fff\u3000-\u303f\uff00-\uff60。，]', speech):
+        return False, "외국어 깨진 문자"
+
+    # 2. 한국어 비율
+    korean = len(re.findall(r'[가-힣]', speech))
+    english = len(re.findall(r'[a-zA-Z]', speech))
+    if korean < 10:
+        return False, f"한국어 부족 ({korean}자)"
+    if korean + english > 0 and english / (korean + english) > 0.5:
+        return False, f"영어 비율 과다 ({english / (korean + english):.0%})"
+
+    # 3. CoT 유출 (영어 사고 과정)
     cot_patterns = [
         r'\b(?:First|Second|Third|Next|Then|Finally),?\s+I\b',
         r'\bI (?:need|should|will|can|must)\b',
-        r'\bLet me\b',
-        r'\bIn order to\b',
-        r'\bthe (?:answer|response|argument|topic)\b',
-        r'\b(?:Okay|OK),?\s+so\b',
-        r'\bHmm\b',
-        r'\bAssuming\b',
+        r'\bLet me\b', r'\bIn order to\b',
+        r'\b(?:Okay|OK),?\s+so\b', r'\bHmm\b',
     ]
-    for pattern in cot_patterns:
-        if re.search(pattern, text, re.IGNORECASE):
-            return True
+    for p in cot_patterns:
+        if re.search(p, speech, re.IGNORECASE):
+            return False, "CoT 유출"
 
-    # 영어 비율이 30% 초과하면 CoT 유출로 판단
-    korean_chars = len(re.findall(r'[가-힣]', text))
-    english_chars = len(re.findall(r'[a-zA-Z]', text))
-    if korean_chars + english_chars > 0:
-        if english_chars / (korean_chars + english_chars) > 0.3:
-            return True
+    # 4. 문장 끊김: 마지막 줄이 끝맺음 없이 끊긴 경우
+    lines = speech.rstrip().split('\n')
+    last = lines[-1].strip() if lines else ""
+    if last and not last.startswith('###') and len(last) > 10:
+        if not re.search(r'[.?!다까요)\*"]$', last):
+            return False, f"문장 끊김"
 
-    return False
+    # 5. 빈 소제목: ### 뒤에 바로 다음 ### 이 오는 경우
+    if re.search(r'###[^\n]*\n\s*###', speech):
+        return False, "빈 소제목"
+
+    # 6. 깨진 숫자/콤마 잔해 (후처리 후 잔여)
+    if re.search(r'(?:^|\n)\s*[\d,\s]{5,}\s*(?:$|\n)', speech):
+        return False, "깨진 숫자 잔해"
+
+    # 7. 동일 문장 반복 (30자 이상 문장이 2회 출현)
+    sentences = [s.strip() for s in re.split(r'[.!?]\s+', speech) if len(s.strip()) > 30]
+    if len(sentences) != len(set(sentences)):
+        return False, "문장 반복"
+
+    return True, "OK"
 
 
 def _is_valid_speech(speech: str) -> bool:
-    """최소 검증: 20자 이상, CoT 유출 없음, 외국어 깨짐 없음."""
-    if not speech or len(speech.strip()) < 20:
-        return False
-    # 중국어/일본어 깨진 문자 감지
-    if re.search(r'[\u4e00-\u9fff。，]', speech):
-        return False
-    # 한국어 비율이 너무 낮으면 무효
-    korean_chars = len(re.findall(r'[가-힣]', speech))
-    if korean_chars < 10:
-        return False
-    if _has_cot_leakage(speech):
-        return False
-    return True
+    """하위 호환용 래퍼. 입론/역할반전용 (min_chars=20)."""
+    ok, reason = validate_quality(speech, min_chars=20)
+    if not ok:
+        logger.warning("[품질검증] 실패: %s", reason)
+    return ok
 
 
 # ── XML 도구 호출 폴백 파서 ──────────────────────────────────────────────────

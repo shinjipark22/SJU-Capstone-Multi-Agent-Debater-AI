@@ -32,38 +32,12 @@ from src.phase1.stage1_opening.nodes import (
 
 
 def _is_valid_rebuttal(speech: str) -> bool:
-    """연쇄논박 전용 검증. 입론보다 영어 임계값 완화 (짧은 텍스트 특성 반영)."""
-    if not speech or len(speech.strip()) < 15:
-        logger.warning("[rebuttal 검증] 실패: 15자 미만 (%d자)", len(speech.strip()) if speech else 0)
-        return False
-    # 중국어/일본어 깨진 문자 및 문장부호 감지
-    if re.search(r'[\u4e00-\u9fff。，]', speech):
-        logger.warning("[rebuttal 검증] 실패: 중국어/일본어 문자 감지")
-        return False
-    # 영어 CoT 패턴 감지
-    cot_patterns = [
-        r'\b(?:First|Second|Third|Next|Then|Finally),?\s+I\b',
-        r'\bI (?:need|should|will|can|must)\b',
-        r'\bLet me\b',
-        r'\bIn order to\b',
-        r'\b(?:Okay|OK),?\s+so\b',
-        r'\bHmm\b',
-        r'\bAssuming\b',
-    ]
-    for pattern in cot_patterns:
-        m = re.search(pattern, speech, re.IGNORECASE)
-        if m:
-            logger.warning("[rebuttal 검증] 실패: CoT 패턴 '%s'", m.group())
-            return False
-    # 영어 비율 50% 초과 시 유출
-    korean_chars = len(re.findall(r'[가-힣]', speech))
-    english_chars = len(re.findall(r'[a-zA-Z]', speech))
-    if korean_chars + english_chars > 0:
-        ratio = english_chars / (korean_chars + english_chars)
-        if ratio > 0.5:
-            logger.warning("[rebuttal 검증] 실패: 영어 비율 %.1f%%", ratio * 100)
-            return False
-    return True
+    """논박/종합용 품질 검증. validate_quality 래퍼 (min_chars=15)."""
+    from src.phase1.stage1_opening.nodes import validate_quality
+    ok, reason = validate_quality(speech, min_chars=15)
+    if not ok:
+        logger.warning("[rebuttal 검증] 실패: %s", reason)
+    return ok
 from src.state import (
     DebateEntry,
     DebateState,
@@ -289,19 +263,6 @@ def _generate_rebuttal_speech(
         retry: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_retry")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_rebuttal_text(raw))
-
-    # 영어 잔재 감지 → LLM 수정 요청
-    eng_words = re.findall(r'(?<![a-zA-Z])[a-z]{4,}(?![a-zA-Z])', speech)
-    if eng_words:
-        logger.warning("[rebuttal] 영어 감지: %s → 수정 요청", eng_words[:3])
-        messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content=f'다음 영어 단어를 한국어로 바꿔서 다시 작성하라: {", ".join(eng_words[:5])}\n한국어만 사용. 같은 형식 유지.'))
-        fix: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_fix_eng")
-        raw_fix = fix.content if isinstance(fix.content, str) else str(fix.content)
-        fixed = _postprocess_speech(_extract_rebuttal_text(raw_fix))
-        if _is_valid_rebuttal(fixed):
-            speech = fixed
-            raw = raw_fix
 
     # fallback
     if not _is_valid_rebuttal(speech):
