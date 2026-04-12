@@ -118,7 +118,9 @@ def _build_role_reversal_prompt(
 # ── 역할반전 발언 생성 ────────────────────────────────────────────────────
 
 def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str]:
-    """역할반전 발언 생성. 입론과 동일한 패턴."""
+    """역할반전 발언 생성. 품질검증 + 소제목 검증 후 재시도."""
+    from src.phase1.stage1_opening.nodes import validate_quality, check_headings
+
     messages = [
         SystemMessage(content=agent["system_prompt"]),
         HumanMessage(content=prompt),
@@ -128,10 +130,20 @@ def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str]:
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_delimited_text(raw))
 
-    if not _is_valid_speech(speech):
-        logger.warning("[role_reversal] speech 무효, 재시도")
+    # 품질 검증 + 소제목 검증
+    ok, reason = validate_quality(speech, min_chars=20)
+    headings_ok, missing = check_headings(speech, "role_reversal")
+
+    if not ok or not headings_ok:
+        retry_hint = ""
+        if not ok:
+            retry_hint += f"이전 응답이 부적절합니다 ({reason}). "
+        if not headings_ok:
+            retry_hint += f"다음 소제목이 빠져있습니다: {', '.join(missing)}. "
+        retry_hint += "한국어로 반드시 모든 소제목을 포함하여 다시 작성하세요."
+        logger.warning("[role_reversal] 재시도: %s / 누락 소제목: %s", reason, missing)
         messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content="한국어로만 역할반전 발언을 작성하세요.\n\n### 답변 시작\n(발언)\n### 답변 끝"))
+        messages.append(HumanMessage(content=f'{retry_hint}\n\n### 답변 시작\n### 논거 1: 소제목\n(논거)\n### 논거 2: 소제목\n(논거)\n### 결론\n(결론)\n### 답변 끝'))
         retry: AIMessage = _invoke_with_retry(_rr_llm, messages, label="role_reversal_retry")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))

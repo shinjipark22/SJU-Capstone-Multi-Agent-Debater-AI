@@ -329,6 +329,23 @@ def validate_quality(speech: str, min_chars: int = 20) -> Tuple[bool, str]:
     return True, "OK"
 
 
+# ── 스테이지별 소제목 검증 ──────────────────────────────────────────────────
+
+_REQUIRED_HEADINGS = {
+    "opening": ["자기소개", "논거 1", "논거 2", "결론"],
+    "role_reversal": ["논거 1", "논거 2", "결론"],
+}
+
+
+def check_headings(speech: str, stage: str) -> Tuple[bool, List[str]]:
+    """스테이지별 필수 소제목 존재 여부 확인. (통과, 누락 목록) 반환."""
+    required = _REQUIRED_HEADINGS.get(stage, [])
+    if not required:
+        return True, []
+    missing = [h for h in required if f"### {h}" not in speech and h not in speech]
+    return len(missing) == 0, missing
+
+
 def _is_valid_speech(speech: str) -> bool:
     """하위 호환용 래퍼. 입론/역할반전용 (min_chars=20)."""
     ok, reason = validate_quality(speech, min_chars=20)
@@ -477,10 +494,20 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_delimited_text(raw))
 
-    if not _is_valid_speech(speech):
-        logger.warning("[opening] speech 무효, 재시도")
+    # 품질 검증 + 소제목 검증 → 실패 시 1회 재시도
+    ok, reason = validate_quality(speech, min_chars=20)
+    headings_ok, missing = check_headings(speech, "opening")
+
+    if not ok or not headings_ok:
+        retry_hint = ""
+        if not ok:
+            retry_hint += f"이전 응답이 부적절합니다 ({reason}). "
+        if not headings_ok:
+            retry_hint += f"다음 소제목이 빠져있습니다: {', '.join(missing)}. "
+        retry_hint += "한국어로 반드시 모든 소제목을 포함하여 다시 작성하세요."
+        logger.warning("[opening] 재시도: %s / 누락 소제목: %s", reason, missing)
         messages.append(AIMessage(content=raw))
-        messages.append(HumanMessage(content='한국어로만 입론을 작성하세요.\n\n### 답변 시작\n(입론)\n### 답변 끝'))
+        messages.append(HumanMessage(content=f'{retry_hint}\n\n### 답변 시작\n### 자기소개와 입장 표명\n(자기소개)\n### 논거 1: 소제목\n(논거)\n### 논거 2: 소제목\n(논거)\n### 결론\n(결론)\n### 답변 끝'))
         retry: AIMessage = _invoke_with_retry(_llm, messages, label="opening_retry")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
