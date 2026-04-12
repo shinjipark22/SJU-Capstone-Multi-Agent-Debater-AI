@@ -24,16 +24,14 @@ from pathlib import Path
 from typing import Optional
 
 from experiments.config import (
-    DEBATE_FORMATS,
-    FORMAT_INTENSITIES,
     HF_CACHE_DIR,
+    INTENSITY_PRESETS,
     LOGS_DIR,
     MODELS,
     ModelConfig,
     PROJECT_ROOT,
     SINGLE_EXPERIMENT_TIMEOUT,
     TOPIC_IDS,
-    USER_STANCE_DEFAULT,
     VLLM_HEALTH_POLL_INTERVAL,
     VLLM_STARTUP_TIMEOUT,
 )
@@ -112,19 +110,20 @@ def stop_vllm(proc: Optional[subprocess.Popen]):
 
 # ── 실험 실행 ───────────────────────────────────────────────────────────────
 
-def _build_output_path(model_id: str, topic_id: str, fmt: str) -> Path:
+def _build_output_path(model_id: str, topic_id: str, preset_key: str) -> Path:
     """실험 결과 JSON 경로를 생성한다."""
-    fmt_safe = fmt.replace(":", "v")
-    return LOGS_DIR / model_id / f"{topic_id}_{fmt_safe}.json"
+    return LOGS_DIR / model_id / f"{topic_id}_{preset_key}.json"
 
 
 def run_single_experiment(
     config: ModelConfig,
     topic_id: str,
-    fmt: str,
+    preset_key: str,
 ) -> bool:
     """서브프로세스로 단일 실험을 실행한다."""
-    output_path = _build_output_path(config.model_id, topic_id, fmt)
+    output_path = _build_output_path(config.model_id, topic_id, preset_key)
+    preset = INTENSITY_PRESETS[preset_key]
+    fmt = preset["format"]
 
     # 이미 완료된 실험은 스킵
     if output_path.exists():
@@ -154,14 +153,17 @@ def run_single_experiment(
     else:
         env["LLM_API_KEY"] = "fake"
 
+    intensities_str = ",".join(str(i) for i in preset["intensities"])
     cmd = [
         sys.executable, "-m", "experiments._run_single",
         "--topic", topic_id,
         "--format", fmt,
+        "--intensities", intensities_str,
+        "--preset", preset_key,
         "--output", str(output_path),
     ]
 
-    logger.info("실험 시작: %s / %s / %s", config.model_id, topic_id, fmt)
+    logger.info("실험 시작: %s / %s / %s (%s)", config.model_id, topic_id, preset_key, preset["label"])
 
     try:
         result = subprocess.run(
@@ -203,14 +205,15 @@ def generate_for_model(model_id: str) -> dict:
                 return {"model": model_id, "success": 0, "fail": 48, "skip": 0}
 
         success, fail = 0, 0
-        total = len(TOPIC_IDS) * len(DEBATE_FORMATS)
+        presets = list(INTENSITY_PRESETS.keys())
+        total = len(TOPIC_IDS) * len(presets)
 
         for i, topic_id in enumerate(TOPIC_IDS):
-            for fmt in DEBATE_FORMATS:
-                idx = i * len(DEBATE_FORMATS) + DEBATE_FORMATS.index(fmt) + 1
-                logger.info("[%d/%d] %s — %s %s", idx, total, model_id, topic_id, fmt)
+            for preset_key in presets:
+                idx = i * len(presets) + presets.index(preset_key) + 1
+                logger.info("[%d/%d] %s — %s / %s", idx, total, model_id, topic_id, preset_key)
 
-                ok = run_single_experiment(config, topic_id, fmt)
+                ok = run_single_experiment(config, topic_id, preset_key)
                 if ok:
                     success += 1
                 else:

@@ -143,6 +143,8 @@ def run_experiment(
     topic_id: str,
     debate_format: str,
     output_path: str,
+    intensities: str = "",
+    preset_key: str = "",
     user_stance: str = "PRO",
 ) -> dict:
     """단일 토론 실험. 모든 참여자가 동일 모델(user 포함)."""
@@ -157,8 +159,12 @@ def run_experiment(
     start_time = time.time()
     topic_dict = _load_topic(topic_id)
 
-    intensities_map = {"2:2": [3, 2, 4], "3:3": [3, 2, 4, 3, 2]}
-    agent_intensities = intensities_map[debate_format]
+    # 강경도: CLI에서 전달받거나 기본값 사용
+    if intensities:
+        agent_intensities = [int(x) for x in intensities.split(",")]
+    else:
+        intensities_map = {"2:2": [3, 2, 4], "3:3": [3, 2, 4, 3, 2]}
+        agent_intensities = intensities_map[debate_format]
 
     personas = create_agents(
         topic=topic_dict, debate_format=debate_format,
@@ -327,6 +333,8 @@ def run_experiment(
         "debate_format": debate_format,
         "model_name": os.environ.get("LLM_MODEL", "unknown"),
         "experiment_mode": "all_ai",
+        "intensity_preset": preset_key,
+        "agent_intensities": agent_intensities,
         "created_at": datetime.now().isoformat(),
         "duration_seconds": round(elapsed, 1),
         "is_finished": state.get("is_finished", False),
@@ -372,9 +380,11 @@ def main():
     parser.add_argument("--topic", required=True)
     parser.add_argument("--format", required=True, choices=["2:2", "3:3"])
     parser.add_argument("--output", required=True)
+    parser.add_argument("--intensities", default="", help="강경도 (콤마 구분, 예: 5,1,4)")
+    parser.add_argument("--preset", default="", help="프리셋 키 (예: 2v2_polarized)")
     parser.add_argument("--stance", default="PRO", choices=["PRO", "CON"])
     args = parser.parse_args()
-    run_experiment(args.topic, args.format, args.output, args.stance)
+    run_experiment(args.topic, args.format, args.output, args.intensities, args.preset, args.stance)
 
 
 if __name__ == "__main__":

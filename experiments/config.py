@@ -89,17 +89,36 @@ TOPIC_IDS: List[str] = [
 
 DEBATE_FORMATS: List[str] = ["2:2", "3:3"]
 
-FORMAT_INTENSITIES: Dict[str, List[int]] = {
-    "2:2": [3, 2, 4],
-    "3:3": [3, 2, 4, 3, 2],
+# 강경도 프리셋: 같은 포맷이라도 강경도 조합이 다르면 다른 ��론이 나온다
+# label은 결과 파일명/분석에 사용
+INTENSITY_PRESETS: Dict[str, Dict] = {
+    "2v2_balanced": {
+        "format": "2:2",
+        "intensities": [3, 3, 3],
+        "label": "균형형",
+    },
+    "2v2_polarized": {
+        "format": "2:2",
+        "intensities": [5, 1, 4],
+        "label": "극단형",
+    },
+    "3v3_balanced": {
+        "format": "3:3",
+        "intensities": [3, 3, 3, 3, 3],
+        "label": "균형형",
+    },
+    "3v3_mixed": {
+        "format": "3:3",
+        "intensities": [5, 2, 4, 1, 3],
+        "label": "혼합형",
+    },
 }
 
 # 실험 전용 모드: 사용자 없이 전원 AI
-# user_stance는 내부적으로 PRO 고정 (슬롯 배분용, 평가에 영향 없음)
 USER_STANCE_DEFAULT = "PRO"
 
-# 12 topics × 2 formats = 24
-EXPERIMENTS_PER_MODEL = len(TOPIC_IDS) * len(DEBATE_FORMATS)
+# 12 topics × 4 presets = 48
+EXPERIMENTS_PER_MODEL = len(TOPIC_IDS) * len(INTENSITY_PRESETS)
 
 # ── LLM Judge 설정 ──────────────────────────────────────────────────────────
 
