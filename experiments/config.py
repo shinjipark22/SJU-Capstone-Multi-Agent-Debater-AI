@@ -85,6 +85,7 @@ MODELS: Dict[str, ModelConfig] = {
         model_id="Qwen-2.5-7B-Instruct",
         model_name="Qwen/Qwen2.5-7B-Instruct",
         tensor_parallel=1,
+        max_model_len=8192,  # 1장이라 KV 캐시 여유 필요
     ),
 }
 
