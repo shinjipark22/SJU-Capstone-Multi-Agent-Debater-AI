@@ -34,9 +34,9 @@ from src.phase1.stage1_opening.nodes import (
     search_web,
     _LLM_KWARGS,
 )
+from langchain_core.messages import ToolMessage as _ToolMessage
 from src.phase1.stage2_rebuttal.nodes import (
     _extract_rebuttal_text,
-    _decide_search,
     _is_valid_rebuttal,
     build_agent_stance_nums,
     analyze_weakness,
@@ -46,6 +46,7 @@ from src.state import DebateEntry, DebateState
 
 # ── 자유논박 전용 LLM ───────────────────────────────────────────────────────
 _fr_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 512, "temperature": 0.6})
+_fr_llm_with_tools = _fr_llm.bind_tools([search_web])
 
 
 # ── 공격 질문 생성 (자유논박 전용) ─────────────────────────────────────────
@@ -146,10 +147,22 @@ def _generate_with_chain(
     messages: List,
     prompt: str,
 ) -> Tuple[str, str]:
-    """멀티턴 체인에 새 프롬프트를 추가하고 생성한다."""
+    """멀티턴 체인에 새 프롬프트를 추가하고 tool calling으로 생성한다."""
     messages.append(HumanMessage(content=prompt))
 
-    response: AIMessage = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal")
+    response: AIMessage = _invoke_with_retry(_fr_llm_with_tools, messages, label="free_rebuttal")
+
+    # tool call 처리
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        messages.append(response)
+        for tc in response.tool_calls:
+            if tc.get("name") == "search_web":
+                result = search_web.invoke(tc.get("args", {}))
+                result = _truncate_tool_result(str(result))
+                messages.append(_ToolMessage(content=result, tool_call_id=tc.get("id", "")))
+                logger.info("[free_rebuttal] tool call: search_web(%s)", tc.get("args"))
+        response = _invoke_with_retry(_fr_llm, messages, label="free_rebuttal_with_search")
+
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
@@ -315,15 +328,7 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     if not is_first_turn and user_latest_attack:
         print(f"  [Step 1 - 답변] 사용자 공격에 방어{' (최종 답변)' if final_turn else ''}\n")
 
-        query_def = _decide_search(user_latest_attack, "")
-        search_def = ""
-        if query_def:
-            tool_calls_log.append({"name": "search_web", "args": {"query": query_def}})
-            web_result = search_web.invoke({"query": query_def})
-            search_def = _truncate_tool_result(web_result)
-            print(f"  [검색] '{query_def}'\n")
-
-        defense_prompt = _build_defense_prompt(user_latest_attack, my_opening, search_def)
+        defense_prompt = _build_defense_prompt(user_latest_attack, my_opening)
         defense, raw_def = _generate_with_chain(list(chain), defense_prompt)
         speeches.append(("답변", defense, raw_def))
 
@@ -342,17 +347,9 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
             tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
             print(f"  [약점 분석] {weakness[:60]}\n")
 
-        query_atk = _decide_search(target_argument, "")
-        search_atk = ""
-        if query_atk:
-            tool_calls_log.append({"name": "search_web", "args": {"query": query_atk}})
-            web_result = search_web.invoke({"query": query_atk})
-            search_atk = _truncate_tool_result(web_result)
-            print(f"  [검색] '{query_atk}'\n")
-
         weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
         prev_hint = f"\n[이전 공격 — 아래 내용은 이미 사용했으니 반복 금지. 완전히 다른 관점으로 공격하라]\n{prev_attacks_text}\n" if prev_attacks_text else ""
-        attack_prompt = _build_attack_prompt(target_argument, search_atk + weakness_hint + prev_hint, opp_opening)
+        attack_prompt = _build_attack_prompt(target_argument, weakness_hint + prev_hint, opp_opening)
         # 답변이 있으면 그 결과를 체인에 추가한 뒤 공격
         attack_chain = list(chain)
         if speeches:

@@ -17,7 +17,7 @@ from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 import src.phase1.stage1_opening.nodes as _opening_mod
@@ -46,6 +46,7 @@ from src.state import (
 
 # ── 반박용 LLM (32B, 짧은 응답) ────────────────────────────────────────────
 _rebuttal_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024})
+_rebuttal_llm_with_tools = _rebuttal_llm.bind_tools([search_web])
 
 # ── 분석용 LLM (32B 동일, 짧은 응답) ──────────────────────────────────────
 _analysis_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 200, "temperature": 0.3})
@@ -250,8 +251,24 @@ def _generate_rebuttal_speech(
 
     tool_calls_log: List[Dict] = []
 
-    # DeepSeek으로 반박 생성
-    response: AIMessage = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal")
+    # tool calling으로 반박 생성 (모델이 수치 필요 시 search_web 호출)
+    response: AIMessage = _invoke_with_retry(_rebuttal_llm_with_tools, messages, label="rebuttal")
+
+    # tool call 처리
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        messages.append(response)
+        for tc in response.tool_calls:
+            tool_name = tc.get("name", "")
+            tool_args = tc.get("args", {})
+            tool_id = tc.get("id", "")
+            if tool_name == "search_web":
+                tool_calls_log.append({"name": tool_name, "args": tool_args})
+                result = search_web.invoke(tool_args)
+                result = _truncate_tool_result(str(result))
+                messages.append(ToolMessage(content=result, tool_call_id=tool_id))
+                logger.info("[rebuttal] tool call: search_web(%s)", tool_args)
+        response = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_with_search")
+
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_rebuttal_text(raw))
 
@@ -342,17 +359,7 @@ def generate_ai_rebuttal(
     stance_kr = "찬성" if agent["stance"] == "PRO" else "반대"
 
     target_argument = _pick_one_argument(target_speech)
-
-    search_query = _decide_search(target_argument, "")
-    search_results = ""
     tool_calls_log: List[Dict] = []
-    if search_query:
-        logger.info("[rebuttal] 검색 판단: '%s'", search_query)
-        tool_calls_log.append({"name": "search_web", "args": {"query": search_query}})
-        web_result = search_web.invoke({"query": search_query})
-        search_results = _truncate_tool_result(web_result)
-    else:
-        logger.info("[rebuttal] 검색 불필요 판단")
 
     # 약점 분석
     weakness = analyze_weakness(target_argument, topic)
@@ -366,7 +373,7 @@ def generate_ai_rebuttal(
         target_speech=target_argument,
         target_display=target_display,
         stance_kr=stance_kr,
-        search_results=search_results + weakness_hint,
+        search_results=weakness_hint,
         my_previous=my_previous,
     )
 
@@ -374,11 +381,13 @@ def generate_ai_rebuttal(
     from src.graph.llm import build_debate_chain
     debate_chain = build_debate_chain(history, agent["agent_id"])
 
-    speech, raw, _tool_log = _generate_rebuttal_speech(
+    # tool calling으로 반박 생성 (검색은 모델이 필요 시 자동 호출)
+    speech, raw, tc_log = _generate_rebuttal_speech(
         agent=agent, prompt=prompt,
         target_display=target_display, stance=agent["stance"],
         debate_chain=debate_chain,
     )
+    tool_calls_log.extend(tc_log)
 
     return DebateEntry(
         turn=current_turn, speaker_id=agent["agent_id"],
