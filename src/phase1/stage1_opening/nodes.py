@@ -338,11 +338,11 @@ _REQUIRED_HEADINGS = {
 
 
 def check_headings(speech: str, stage: str) -> Tuple[bool, List[str]]:
-    """스테이지별 필수 소제목 존재 여부 확인. (통과, 누락 목록) 반환."""
+    """스테이지별 필수 소제목(### 포함) 존재 여부 확인. (통과, 누락 목록) 반환."""
     required = _REQUIRED_HEADINGS.get(stage, [])
     if not required:
         return True, []
-    missing = [h for h in required if f"### {h}" not in speech and h not in speech]
+    missing = [h for h in required if not re.search(rf'###\s*{re.escape(h)}', speech)]
     return len(missing) == 0, missing
 
 
