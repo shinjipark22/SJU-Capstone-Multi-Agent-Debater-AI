@@ -57,7 +57,8 @@ MODELS: Dict[str, ModelConfig] = {
     ),
     "Gemma-2-27b-it": ModelConfig(
         model_id="Gemma-2-27b-it",
-        model_name="google/gemma-2-27b-it",
+        model_name="mbley/google-gemma-2-27b-it-AWQ",
+        quantization="awq",
     ),
     "EXAONE-3.5-32B-Instruct": ModelConfig(
         model_id="EXAONE-3.5-32B-Instruct",
