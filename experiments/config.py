@@ -42,6 +42,7 @@ class ModelConfig:
 
 
 MODELS: Dict[str, ModelConfig] = {
+    # ── 상한선 (API) ──
     "GPT-5.4": ModelConfig(
         model_id="GPT-5.4",
         model_name="gpt-5.4",
@@ -50,14 +51,15 @@ MODELS: Dict[str, ModelConfig] = {
         api_key_env="OPENAI_API_KEY",
         gpu_devices="",
     ),
+    # ── 32B 동체급 ──
     "Qwen-2.5-32B-Instruct": ModelConfig(
         model_id="Qwen-2.5-32B-Instruct",
         model_name="Qwen/Qwen2.5-32B-Instruct-AWQ",
         quantization="awq",
     ),
-    "Gemma-2-27b-it": ModelConfig(
-        model_id="Gemma-2-27b-it",
-        model_name="mbley/google-gemma-2-27b-it-AWQ",
+    "Qwen3-32B": ModelConfig(
+        model_id="Qwen3-32B",
+        model_name="Qwen/Qwen3-32B-AWQ",
         quantization="awq",
     ),
     "EXAONE-3.5-32B-Instruct": ModelConfig(
@@ -65,10 +67,12 @@ MODELS: Dict[str, ModelConfig] = {
         model_name="LGAI-EXAONE/EXAONE-3.5-32B-Instruct-AWQ",
         quantization="awq",
     ),
+    # ── 14B급 ──
     "DeepSeek-R1-Distill-Qwen-14B": ModelConfig(
         model_id="DeepSeek-R1-Distill-Qwen-14B",
         model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
     ),
+    # ── 소형 ──
     "Qwen-2.5-7B-Instruct": ModelConfig(
         model_id="Qwen-2.5-7B-Instruct",
         model_name="Qwen/Qwen2.5-7B-Instruct",
