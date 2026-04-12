@@ -1,13 +1,13 @@
 """
-_run_single.py -- 단일 실험 실행 (��브프로세스에서 호출)
+_run_single.py -- 단일 실험 실행 (실험 전용 모드)
 
-1~2단계(입론, 연쇄논박): 사전 정의된 mock 데이터 사용 (재현성 100%)
-3~5단계(자유논박, 역할반전, 종합): GPT-4o-mini 동적 대화 (temp=0, seed=42)
+모든 참여자가 AI. "user" 슬롯도 테스트 대상 모델이 직접 수행한다.
+기존 토론 엔진 코드는 수정하지 않고, user 입력만 LLM으로 대체한다.
 
 사용법:
     python -m experiments._run_single \
-        --topic tech_001 --stance PRO --format 2:2 \
-        --output data/logs/Qwen-2.5-32B-Instruct/tech_001_PRO_2v2.json
+        --topic tech_001 --format 2:2 \
+        --output data/logs/Qwen-2.5-32B-Instruct/tech_001_2v2.json
 """
 
 from __future__ import annotations
@@ -39,19 +39,113 @@ def _load_topic(topic_id: str) -> dict:
     raise ValueError(f"topic ID '{topic_id}'를 찾을 수 없습니다.")
 
 
-def _load_user_inputs() -> dict:
-    user_inputs_path = PROJECT_ROOT / "tests" / "user_inputs_all_topics.json"
-    with user_inputs_path.open(encoding="utf-8") as f:
-        return json.load(f)
+class UserProxy:
+    """테스트 대상 모델이 user 역할도 수행하는 프록시.
+
+    기존 엔진은 'user' speaker_id를 기대하므로,
+    동일 모델로 user 발언을 생성하여 주입한다.
+    """
+
+    def __init__(self, topic: dict, stance: str):
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        self._ChatOpenAI = ChatOpenAI
+        self._HumanMessage = HumanMessage
+        self._SystemMessage = SystemMessage
+
+        self.llm = ChatOpenAI(
+            model=os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-32B-Instruct-AWQ"),
+            base_url=os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1"),
+            api_key=os.environ.get("LLM_API_KEY", "fake"),
+            temperature=0,
+            max_tokens=1024,
+        )
+
+        stance_kr = "찬성" if stance == "PRO" else "반대"
+        my_claim = topic.get("pro", "") if stance == "PRO" else topic.get("con", "")
+        opp_claim = topic.get("con", "") if stance == "PRO" else topic.get("pro", "")
+
+        self.system = (
+            f"너는 토론 참가자다. {stance_kr} 입장에서 토론한다.\n"
+            f"논제: {topic['title']}\n"
+            f"너의 주장: {my_claim}\n"
+            f"상대 주장(반박 대상): {opp_claim}\n\n"
+            f"반드시 한국어 합니다체로 작성하라. 핵심 주장에 **강조** 표시하라.\n"
+            f"자료를 인용할 때는 search_web으로 검색한 결과만 사용하라."
+        )
+
+    def generate(self, prompt: str, max_tokens: int = 1024) -> str:
+        """user 역할의 발언을 생성한다."""
+        messages = [
+            self._SystemMessage(content=self.system),
+            self._HumanMessage(content=prompt),
+        ]
+        response = self.llm.invoke(messages)
+        return response.content if isinstance(response.content, str) else str(response.content)
+
+    def opening(self, ai_openings: str) -> str:
+        return self.generate(f"""상대 AI들의 입론:
+{ai_openings[:600]}
+
+위를 읽고 입론을 작성하라.
+
+### 자기소개와 입장 표명
+(1~2문장)
+### 논거 1: 소제목
+(3~5줄, 구체적 사례·수치 포함)
+### 논거 2: 소제목
+(3~5줄, 구체적 사례·수치 포함)
+### 결론
+(1~2문장)""")
+
+    def rebuttal(self, ai_attack: str) -> str:
+        return self.generate(
+            f"상대의 공격:\n{ai_attack[:400]}\n\n"
+            f"위 공격에서 가장 약한 논거 1개를 골라 3~4문장으로 반박하라.",
+            max_tokens=512,
+        )
+
+    def free_defense(self, ai_attack: str) -> str:
+        return self.generate(
+            f"상대의 공격:\n{ai_attack[:300]}\n\n1~2문장으로 방어하라.",
+            max_tokens=256,
+        )
+
+    def free_attack(self) -> str:
+        return self.generate("상대의 논거에서 아직 공격하지 않은 약점을 1~2문장으로 공격하라.", max_tokens=256)
+
+    def role_reversal(self, reversed_stance_kr: str) -> str:
+        return self.generate(f"""[역할 반전] 이제 {reversed_stance_kr} 입장에서 주장하라.
+
+### 논거 1: 소제목
+(3~4문장)
+### 논거 2: 소제목
+(3~4문장)
+### 결론
+(1~2문장)""", max_tokens=512)
+
+    def synthesis(self, ai_opinions: str) -> str:
+        return self.generate(
+            f"AI 에이전트들의 의견:\n{ai_opinions[:400]}\n\n"
+            f"위에 반응하며 최적해를 향한 제안을 1~2문장으로 하라.",
+            max_tokens=256,
+        )
+
+    def synthesis_final(self) -> str:
+        return self.generate(
+            "지금까지의 토론을 종합하여 '우리의 최적해'를 2~3문장으로 확정하라.",
+            max_tokens=256,
+        )
 
 
 def run_experiment(
     topic_id: str,
-    user_stance: str,
     debate_format: str,
     output_path: str,
+    user_stance: str = "PRO",
 ) -> dict:
-    from experiments.user_agent import UserAgent
+    """단일 토론 실험. 모든 참여자가 동일 모델(user 포함)."""
     from src.phase0.persona_factory import create_agents
     from src.state import AgentSnapshot, DebateEntry, build_initial_state
     from src.phase1.stage1_opening.nodes import opening_arguments_node
@@ -62,11 +156,6 @@ def run_experiment(
 
     start_time = time.time()
     topic_dict = _load_topic(topic_id)
-    user_inputs = _load_user_inputs()
-    topic_data = user_inputs["topics"].get(topic_id, {})
-
-    # mock 데이터 사용 가능 여부 (PRO 입장만 존재)
-    mock_available = bool(topic_data) and user_inputs.get("user_stance") == user_stance
 
     intensities_map = {"2:2": [3, 2, 4], "3:3": [3, 2, 4, 3, 2]}
     agent_intensities = intensities_map[debate_format]
@@ -87,36 +176,18 @@ def run_experiment(
         user_intensity=3, agents=snapshots, topic_id=topic_dict["id"],
     )
 
-    # 3~5단계용 UserAgent (GPT-4o-mini, temp=0, seed=42)
-    user_agent = UserAgent(
-        topic_id=topic_id, topic_title=topic_dict["title"],
-        stance=user_stance,
-        pro_claim=topic_dict.get("pro", ""),
-        con_claim=topic_dict.get("con", ""),
-    )
+    # user 프록시 — 동일 모델이 user 역할 수행
+    proxy = UserProxy(topic_dict, user_stance)
+    logger.info("실험 시작: %s / %s (전원 AI, user_stance=%s)", topic_id, debate_format, user_stance)
 
-    # ══════════════════════════════════════════════════════════════════
-    # 1단계: 입론 — mock 데이�� (mock 없으면 UserAgent)
-    # ══════════════════════════════════════════════════════════════════
+    # ── 1단계: 입론 ──────────────────────────────────────────────────
     state = opening_arguments_node(state)
     state = dict(state)
 
-    if mock_available:
-        opening = topic_data["opening"]
-        user_opening = (
-            f"### 자기소개와 입장 표명\n{opening['intro']}\n\n"
-            f"### 논거 1\n{opening['arg1']}\n\n"
-            f"### 논거 2\n{opening['arg2']}\n\n"
-            f"### 결론\n{opening['conclusion']}"
-        )
-        logger.info("[1단계] 사용��� 입론: mock 데이터")
-    else:
-        for e in state["debate_history"]:
-            if e["phase"] == "opening" and e["speaker_id"] != "user":
-                user_agent.add_ai_context(e["content"][:300], e["speaker_id"])
-        user_opening = user_agent.generate_opening()
-        logger.info("[1단계] 사용자 입론: GPT-4o-mini 동적 생성")
-
+    ai_openings = "\n---\n".join(
+        e["content"][:300] for e in state["debate_history"] if e["phase"] == "opening"
+    )
+    user_opening = proxy.opening(ai_openings)
     user_turn = len([e for e in state["debate_history"] if e["phase"] == "opening"])
     state["debate_history"].append(DebateEntry(
         turn=user_turn, speaker_id="user", stance=user_stance,
@@ -126,9 +197,7 @@ def run_experiment(
     state["debate_history"].sort(key=lambda e: e["turn"])
     state["phase"] = "chained_rebuttal"
 
-    # ══════════════════════════════════════════════════════════════════
-    # 2단계: 연쇄논박 — mock 데이터 (mock 없으면 UserAgent)
-    # ══════════════════════════════════════════════════════════════════
+    # ── 2단계: 연쇄논박 ─────────────────────────────────────────────
     state = chained_rebuttal_node(state)
     state = dict(state)
 
@@ -139,18 +208,13 @@ def run_experiment(
             break
     target_id = attacker_id or "agent_1"
 
-    if mock_available:
-        user_rebuttal = topic_data["rebuttal"]
-        logger.info("[2단계] 사용자 연쇄논박: mock 데이터")
-    else:
-        ai_attack = ""
-        for e in reversed(state["debate_history"]):
-            if e["phase"] == "chained_rebuttal" and e.get("target_id") == "user":
-                ai_attack = e["content"]
-                break
-        user_rebuttal = user_agent.generate_rebuttal(ai_attack)
-        logger.info("[2단계] 사용자 연쇄논박: GPT-4o-mini 동적 생성")
+    ai_attack = ""
+    for e in reversed(state["debate_history"]):
+        if e["phase"] == "chained_rebuttal" and e.get("target_id") == "user":
+            ai_attack = e["content"]
+            break
 
+    user_rebuttal = proxy.rebuttal(ai_attack)
     state["debate_history"].append(DebateEntry(
         turn=state["current_turn"], speaker_id="user", stance=user_stance,
         phase="chained_rebuttal", content=user_rebuttal, target_id=target_id,
@@ -159,25 +223,16 @@ def run_experiment(
     state["current_turn"] += 1
     state["phase"] = "free_rebuttal"
 
-    # ══════════════════════════════════════════════════════════════════
-    # 3단계: 자유논박 — GPT-4o-mini 동적 대화
-    # ══════════════════════════════════════════════════════════════════
-    # 지금까지의 토론 맥락을 UserAgent에 전달
-    for e in state["debate_history"]:
-        if e["speaker_id"] != "user":
-            user_agent.add_ai_context(e["content"][:200], e["speaker_id"])
-
+    # ── 3단계: 자유논박 ─────────────────────────────────────────────
     opposite = "CON" if user_stance == "PRO" else "PRO"
     opponent = next((a for a in state["agents"] if a["stance"] == opposite), None)
     if opponent:
         state["selected_opponent_id"] = opponent["agent_id"]
 
-    # 턴1: 에이전트 첫 공격
     state = free_rebuttal_node(state)
     state = dict(state)
 
     for turn_idx in range(2):
-        # 에이전트의 마지막 발언 추출
         agent_entries = [
             e for e in state["debate_history"]
             if e["speaker_id"] == state.get("selected_opponent_id")
@@ -185,8 +240,7 @@ def run_experiment(
         ]
         last_agent = agent_entries[-1]["content"] if agent_entries else ""
 
-        # 사용자 방어 — AI 공격에 동적 반응
-        user_defense = user_agent.generate_free_rebuttal_defense(last_agent)
+        user_defense = proxy.free_defense(last_agent)
         state["debate_history"].append(DebateEntry(
             turn=state["current_turn"], speaker_id="user", stance=user_stance,
             phase="free_rebuttal", content=user_defense,
@@ -195,8 +249,7 @@ def run_experiment(
         ))
         state["current_turn"] += 1
 
-        # 사용자 공격 — 동적 생성
-        user_attack = user_agent.generate_free_rebuttal_attack()
+        user_attack = proxy.free_attack()
         state["debate_history"].append(DebateEntry(
             turn=state["current_turn"], speaker_id="user", stance=user_stance,
             phase="free_rebuttal", content=user_attack,
@@ -206,34 +259,29 @@ def run_experiment(
         state["current_turn"] += 1
         state["free_rebuttal_user_turns"] = turn_idx + 1
 
-        # 에이전트 답변+공격 (마지막 턴은 답변만)
         state = free_rebuttal_node(state)
         state = dict(state)
-        logger.info("[3단계] 자유논박 턴 %d/2 완료", turn_idx + 1)
+        logger.info("[3단계] 자유논박 턴 %d/2", turn_idx + 1)
 
     state["phase"] = "role_reversal"
 
-    # ══════════════════════════════════════════════════════════════════
-    # 4단계: 역할반전 — GPT-4o-mini 동적 대화
-    # ══════════════════════════════════════════════════════════════════
+    # ── 4단계: 역할반전 ─────────────────────────────────────────────
     state = role_reversal_node(state)
     state = dict(state)
 
     reversed_stance = "CON" if user_stance == "PRO" else "PRO"
-    user_role_reversal = user_agent.generate_role_reversal()
+    reversed_kr = "반대" if user_stance == "PRO" else "찬성"
+    user_rr = proxy.role_reversal(reversed_kr)
     state["debate_history"].append(DebateEntry(
         turn=state["current_turn"], speaker_id="user",
         stance=reversed_stance, phase="role_reversal",
-        content=user_role_reversal, target_id=None,
+        content=user_rr, target_id=None,
         tool_calls_log=[], json_raw="",
     ))
     state["current_turn"] += 1
     state["phase"] = "synthesis"
-    logger.info("[4단계] 사용자 역할반전: GPT-4o-mini")
 
-    # ══════════════════════════════════════════════════════════════════
-    # 5단계: 종합 회의 — GPT-4o-mini 동적 대화
-    # ══════════════════════════════════════════════════════════════════
+    # ── 5단계: 종합 ─────────────────────────────────────────────────
     state = synthesis_node(state)
     state = dict(state)
 
@@ -244,7 +292,7 @@ def run_experiment(
             if e["phase"] == "synthesis" and e["speaker_id"] != "user"
         )[-500:]
 
-        user_syn = user_agent.generate_synthesis(ai_opinions)
+        user_syn = proxy.synthesis(ai_opinions)
         state["debate_history"].append(DebateEntry(
             turn=state["current_turn"], speaker_id="user",
             stance=user_stance, phase="synthesis",
@@ -256,9 +304,9 @@ def run_experiment(
 
         state = synthesis_discuss_node(state)
         state = dict(state)
-        logger.info("[5단계] 종합 회의 턴 %d/2 완료", syn_idx + 1)
+        logger.info("[5단계] 종합 턴 %d/2", syn_idx + 1)
 
-    user_final = user_agent.generate_synthesis_final()
+    user_final = proxy.synthesis_final()
     state["debate_history"].append(DebateEntry(
         turn=state["current_turn"], speaker_id="user",
         stance=user_stance, phase="synthesis",
@@ -270,9 +318,7 @@ def run_experiment(
 
     elapsed = time.time() - start_time
 
-    # ══════════════════════════════════════════════════════════════════
-    # JSON 출력
-    # ══════════════════════════════════════════════════════════════════
+    # ── JSON 출력 ────────────────────────────────────────────────────
     result = {
         "topic_id": topic_id,
         "topic": topic_dict["title"],
@@ -280,10 +326,7 @@ def run_experiment(
         "user_stance": user_stance,
         "debate_format": debate_format,
         "model_name": os.environ.get("LLM_MODEL", "unknown"),
-        "user_agent": {
-            "stages_1_2": "mock" if mock_available else "gpt-4o-mini",
-            "stages_3_5": "gpt-4o-mini (temp=0, seed=42)",
-        },
+        "experiment_mode": "all_ai",
         "created_at": datetime.now().isoformat(),
         "duration_seconds": round(elapsed, 1),
         "is_finished": state.get("is_finished", False),
@@ -327,11 +370,11 @@ def run_experiment(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--topic", required=True)
-    parser.add_argument("--stance", required=True, choices=["PRO", "CON"])
     parser.add_argument("--format", required=True, choices=["2:2", "3:3"])
     parser.add_argument("--output", required=True)
+    parser.add_argument("--stance", default="PRO", choices=["PRO", "CON"])
     args = parser.parse_args()
-    run_experiment(args.topic, args.stance, args.format, args.output)
+    run_experiment(args.topic, args.format, args.output, args.stance)
 
 
 if __name__ == "__main__":

@@ -87,7 +87,6 @@ TOPIC_IDS: List[str] = [
     "env_001",  "env_002",  "env_003",
 ]
 
-USER_STANCES: List[str] = ["PRO", "CON"]
 DEBATE_FORMATS: List[str] = ["2:2", "3:3"]
 
 FORMAT_INTENSITIES: Dict[str, List[int]] = {
@@ -95,8 +94,12 @@ FORMAT_INTENSITIES: Dict[str, List[int]] = {
     "3:3": [3, 2, 4, 3, 2],
 }
 
-# 12 topics × 2 stances × 2 formats = 48
-EXPERIMENTS_PER_MODEL = len(TOPIC_IDS) * len(USER_STANCES) * len(DEBATE_FORMATS)
+# 실험 전용 모드: 사용자 없이 전원 AI
+# user_stance는 내부적으로 PRO 고정 (슬롯 배분용, 평가에 영향 없음)
+USER_STANCE_DEFAULT = "PRO"
+
+# 12 topics × 2 formats = 24
+EXPERIMENTS_PER_MODEL = len(TOPIC_IDS) * len(DEBATE_FORMATS)
 
 # ── LLM Judge 설정 ──────────────────────────────────────────────────────────
 

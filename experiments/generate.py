@@ -33,7 +33,7 @@ from experiments.config import (
     PROJECT_ROOT,
     SINGLE_EXPERIMENT_TIMEOUT,
     TOPIC_IDS,
-    USER_STANCES,
+    USER_STANCE_DEFAULT,
     VLLM_HEALTH_POLL_INTERVAL,
     VLLM_STARTUP_TIMEOUT,
 )
@@ -112,20 +112,19 @@ def stop_vllm(proc: Optional[subprocess.Popen]):
 
 # ── 실험 실행 ───────────────────────────────────────────────────────────────
 
-def _build_output_path(model_id: str, topic_id: str, stance: str, fmt: str) -> Path:
+def _build_output_path(model_id: str, topic_id: str, fmt: str) -> Path:
     """실험 결과 JSON 경로를 생성한다."""
     fmt_safe = fmt.replace(":", "v")
-    return LOGS_DIR / model_id / f"{topic_id}_{stance}_{fmt_safe}.json"
+    return LOGS_DIR / model_id / f"{topic_id}_{fmt_safe}.json"
 
 
 def run_single_experiment(
     config: ModelConfig,
     topic_id: str,
-    stance: str,
     fmt: str,
 ) -> bool:
     """서브프로세스로 단일 실험을 실행한다."""
-    output_path = _build_output_path(config.model_id, topic_id, stance, fmt)
+    output_path = _build_output_path(config.model_id, topic_id, fmt)
 
     # 이미 완료된 실험은 스킵
     if output_path.exists():
@@ -158,12 +157,11 @@ def run_single_experiment(
     cmd = [
         sys.executable, "-m", "experiments._run_single",
         "--topic", topic_id,
-        "--stance", stance,
         "--format", fmt,
         "--output", str(output_path),
     ]
 
-    logger.info("실험 시작: %s / %s / %s / %s", config.model_id, topic_id, stance, fmt)
+    logger.info("실험 시작: %s / %s / %s", config.model_id, topic_id, fmt)
 
     try:
         result = subprocess.run(
@@ -205,21 +203,18 @@ def generate_for_model(model_id: str) -> dict:
                 return {"model": model_id, "success": 0, "fail": 48, "skip": 0}
 
         success, fail = 0, 0
-        total = len(TOPIC_IDS) * len(USER_STANCES) * len(DEBATE_FORMATS)
+        total = len(TOPIC_IDS) * len(DEBATE_FORMATS)
 
         for i, topic_id in enumerate(TOPIC_IDS):
-            for stance in USER_STANCES:
-                for fmt in DEBATE_FORMATS:
-                    idx = i * len(USER_STANCES) * len(DEBATE_FORMATS) + \
-                          USER_STANCES.index(stance) * len(DEBATE_FORMATS) + \
-                          DEBATE_FORMATS.index(fmt) + 1
-                    logger.info("[%d/%d] %s — %s %s %s", idx, total, model_id, topic_id, stance, fmt)
+            for fmt in DEBATE_FORMATS:
+                idx = i * len(DEBATE_FORMATS) + DEBATE_FORMATS.index(fmt) + 1
+                logger.info("[%d/%d] %s — %s %s", idx, total, model_id, topic_id, fmt)
 
-                    ok = run_single_experiment(config, topic_id, stance, fmt)
-                    if ok:
-                        success += 1
-                    else:
-                        fail += 1
+                ok = run_single_experiment(config, topic_id, fmt)
+                if ok:
+                    success += 1
+                else:
+                    fail += 1
 
         return {"model": model_id, "success": success, "fail": fail}
 
