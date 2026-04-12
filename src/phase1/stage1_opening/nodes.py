@@ -485,9 +485,9 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
             tool_args = tc.get("args", {})
             tool_id = tc.get("id", "")
             if tool_name in _TOOL_MAP:
-                tool_calls_log.append({"name": tool_name, "args": tool_args})
                 result = _TOOL_MAP[tool_name].invoke(tool_args)
                 result = _truncate_tool_result(str(result))
+                tool_calls_log.append({"name": tool_name, "args": tool_args, "result": result})
                 messages.append(ToolMessage(content=result, tool_call_id=tool_id))
                 logger.info("[opening] tool call: %s(%s)", tool_name, tool_args)
         # 검색 결과 포함하여 재호출 (도구 없이)

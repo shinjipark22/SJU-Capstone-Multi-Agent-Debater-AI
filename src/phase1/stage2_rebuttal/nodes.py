@@ -262,9 +262,9 @@ def _generate_rebuttal_speech(
             tool_args = tc.get("args", {})
             tool_id = tc.get("id", "")
             if tool_name == "search_web":
-                tool_calls_log.append({"name": tool_name, "args": tool_args})
                 result = search_web.invoke(tool_args)
                 result = _truncate_tool_result(str(result))
+                tool_calls_log.append({"name": tool_name, "args": tool_args, "result": result})
                 messages.append(ToolMessage(content=result, tool_call_id=tool_id))
                 logger.info("[rebuttal] tool call: search_web(%s)", tool_args)
         response = _invoke_with_retry(_rebuttal_llm, messages, label="rebuttal_with_search")
