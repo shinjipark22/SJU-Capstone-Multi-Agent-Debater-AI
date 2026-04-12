@@ -142,12 +142,16 @@ def run_single_experiment(
     env["VLLM_BASE_URL"] = config.base_url
     env["LLM_MODEL"] = config.model_name
 
+    # 사용자 대행(GPT-4o-mini)용 OpenAI 키는 항상 전달
+    openai_key = os.environ.get("OPENAI_API_KEY", "")
+    if openai_key:
+        env["OPENAI_API_KEY"] = openai_key
+
     if config.model_type == "openai":
-        api_key = os.environ.get(config.api_key_env, "")
-        if not api_key:
-            logger.error("API 키 없음: %s", config.api_key_env)
+        if not openai_key:
+            logger.error("OPENAI_API_KEY가 설정되지 않았습니다.")
             return False
-        env["LLM_API_KEY"] = api_key
+        env["LLM_API_KEY"] = openai_key
     else:
         env["LLM_API_KEY"] = "fake"
 

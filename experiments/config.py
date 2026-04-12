@@ -132,6 +132,12 @@ WIN_THRESHOLD = 0.15   # Final Score 차이가 이 값 초과 시 승/패, 이�
 VLLM_STARTUP_TIMEOUT = 300   # 초
 VLLM_HEALTH_POLL_INTERVAL = 5  # 초
 
+# ── 사용자 대행 에이전트 ─────────────────────────────────────────────────────
+
+USER_AGENT_MODEL = "gpt-4o-mini"
+USER_AGENT_TEMPERATURE = 0       # 재현성 보장
+USER_AGENT_SEED = 42             # 고정 시드
+
 # ── 실험 타임아웃 ───────────────────────────────────────────────────────────
 
 SINGLE_EXPERIMENT_TIMEOUT = 900  # 초 (15분)
