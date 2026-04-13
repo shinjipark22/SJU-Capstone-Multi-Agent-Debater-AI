@@ -44,6 +44,20 @@ def _check_headings(text: str, patterns: List[str]) -> Tuple[int, int]:
     return found, len(patterns)
 
 
+def _check_template_copy(text: str) -> bool:
+    """프롬프트 템플릿을 그대로 복사한 경우를 감지한다."""
+    template_markers = [
+        r'###\s*논거\s*\d+\s*:\s*소제목\s*$',  # "### 논거 1: 소제목" 그대로
+        r'\(자기소개와 입장\)',
+        r'\(논거\)',
+        r'\(결론\)',
+    ]
+    for p in template_markers:
+        if re.search(p, text, re.MULTILINE):
+            return True
+    return False
+
+
 def _check_language_quality(text: str) -> Dict[str, float]:
     """한국어 비율, CoT 유출, 깨진 문자 등을 검사한다."""
     korean = len(re.findall(r'[가-힣]', text))
@@ -58,12 +72,12 @@ def _check_language_quality(text: str) -> Dict[str, float]:
 
     broken_chars = bool(re.search(r'[\u4e00-\u9fff\u3000-\u303f\uff00-\uff60。，]', text))
 
-    # 마지막 줄 끊김
+    # 마지막 줄 끊김 (숫자/영어/조사로 끝나면 끊긴 것)
     lines = text.rstrip().split('\n')
     last = lines[-1].strip() if lines else ""
     truncated = (
         bool(last) and not last.startswith('###') and len(last) > 10
-        and not re.search(r'[.?!다까요)\*"]$', last)
+        and not re.search(r'[.?!다까요)\*"—]$', last)
     )
 
     return {
@@ -110,6 +124,10 @@ def evaluate_single_log(log_path: Path) -> Dict:
             language_issues += 1
         if lang["korean_ratio"] < 0.3:
             language_issues += 1
+
+        # 템플릿 복사 감지 ("### 논거 1: 소제목" 그대로 쓴 경우)
+        if _check_template_copy(text):
+            language_issues += 2  # 심한 감점
 
         # 도구 사용
         tc_count = len(turn.get("tool_calls", []))
