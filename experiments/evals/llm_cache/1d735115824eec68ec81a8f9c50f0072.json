@@ -1,0 +1,34 @@
+{
+  "self_repetition": {
+    "score": 3,
+    "reason": "AI 자동화, 산업혁명 사례, 대기업 해고 사례 등을 반복적으로 언급하며 새로운 관점을 일부 추가했지만, 전반적으로 비슷한 논점을 계속 재사용했습니다."
+  },
+  "team_repetition": {
+    "score": 2,
+    "reason": "반대 진영 내에서 대기업 해고 사례(Dow, Oracle), AI 노출 위험, 고용 불평등 등 유사한 논점들을 기계적으로 반복하여 독립성이 부족했습니다."
+  },
+  "role_consistency": {
+    "score": 5,
+    "reason": "처음부터 끝까지 'AI 발전이 고용 축소를 가져온다'는 반대 입장을 일관되게 유지했습니다."
+  },
+  "persona_tone_toxicity": {
+    "score": 5,
+    "reason": "전 과정에서 전문적이고 예의 바른 논조를 유지하며, 욕설이나 인신공격 없이 논리적으로 반박했습니다."
+  },
+  "web_search_tool_use": {
+    "score": 4,
+    "reason": "opening과 role_reversal에서 적절히 검색 도구를 사용했으며, 구체적인 통계와 사례를 찾기 위해 노력했습니다."
+  },
+  "faithfulness_hallucination_control": {
+    "score": 3,
+    "reason": "IBM 10만 명 교육, 일본 고용노동성 자료 등 일부 구체적 수치를 언급했는데 검색 결과와의 정확한 매칭 여부가 불분명합니다."
+  },
+  "logic_evidence_synthesis": {
+    "score": 4,
+    "reason": "대기업 해고 사례 → AI가 고용 축소 초래한다는 결론으로 이어지는 논리적 구조를 갖추고 있으나, 반박 과정에서 논증이 다소 약해졌습니다."
+  },
+  "korean_language_compliance": {
+    "score": 5,
+    "reason": "전체적으로 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 특이한 표현 없이 완성도 높은 글을 보였습니다."
+  }
+}

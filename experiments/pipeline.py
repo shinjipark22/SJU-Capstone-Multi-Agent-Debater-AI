@@ -229,12 +229,12 @@ def stage_aggregate() -> Path:
 def _compute_win_rate(rows: List[Dict]):
     """Qwen-2.5-32B-Instruct 기준 승무패를 계산한다."""
     hero = "Qwen-2.5-32B-Instruct"
-    opponents = [m for m in MODELS if m != hero and m != "GPT-5.4"]
+    opponents = [m for m in MODELS if m != hero and m != "GPT-5.4" and m in set(r["model_id"] for r in rows)]
 
     # (topic_id, stance, format) → {model_id: final_score}
     experiments: Dict[tuple, Dict[str, float]] = {}
     for row in rows:
-        key = (row["topic_id"], row["user_stance"], row["debate_format"])
+        key = (row["topic_id"], row["preset"], row["debate_format"])
         experiments.setdefault(key, {})[row["model_id"]] = row["final_score"]
 
     win_rate_rows = []

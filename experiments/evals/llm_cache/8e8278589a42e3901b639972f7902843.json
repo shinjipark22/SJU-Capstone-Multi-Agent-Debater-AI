@@ -1,0 +1,34 @@
+{
+  "self_repetition": {
+    "score": 2,
+    "reason": "agent_1은 '2020년 기준의 데이터만 제시하여 최근 추세를 반영하지 않음'이라는 동일한 논점을 여러 발언에서 반복하고, AI 인프라 확충의 경제적 이익을 단조롭게 강조함"
+  },
+  "team_repetition": {
+    "score": 3,
+    "reason": "반대진영 내에서 고용 창출, 투자 효율성, 경제성장 등 비슷한 논리를 반복하는 경향이 있으나, 보안 문제나 국제사례 등으로 일부 차별화된 관점을 제시함"
+  },
+  "role_consistency": {
+    "score": 5,
+    "reason": "AI 인프라 확충이 우선이라는 반대 입장을 토론 전반에 걸쳐 일관되게 유지하며, 역할 전환 시에도 입장을 명확히 구분함"
+  },
+  "persona_tone_toxicity": {
+    "score": 5,
+    "reason": "전문적이고 예의 바른 논조를 유지하며, 인신공격이나 감정적 표현 없이 논리적으로 반박함"
+  },
+  "web_search_tool_use": {
+    "score": 1,
+    "reason": "구체적 통계나 사실 확인이 필요한 여러 시점에서 검색 도구를 전혀 사용하지 않음"
+  },
+  "faithfulness_hallucination_control": {
+    "score": 3,
+    "reason": "한국 데이터센터 시장 규모나 성장률 등 구체적 수치를 제시하지만 출처가 불분명하며, 일부 주장의 근거가 모호함"
+  },
+  "logic_evidence_synthesis": {
+    "score": 3,
+    "reason": "주장과 근거를 제시하려 노력하지만, 논증 구조가 때로 산만하고 근거와 결론 간 연결이 약한 부분이 있음"
+  },
+  "korean_language_compliance": {
+    "score": 4,
+    "reason": "전반적으로 자연스러운 한국어를 사용하지만, 'AI 인프ra'와 같은 오타나 'AI 효율AI...'와 같은 불완전한 문장이 일부 발견됨"
+  }
+}

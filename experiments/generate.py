@@ -35,6 +35,7 @@ from experiments.config import (
     SINGLE_EXPERIMENT_TIMEOUT,
     TOPIC_IDS,
     VLLM_HEALTH_POLL_INTERVAL,
+    VLLM_RESTART_EVERY,
     VLLM_STARTUP_TIMEOUT,
 )
 
@@ -117,7 +118,7 @@ def wait_for_vllm(base_url: str, timeout: int = VLLM_STARTUP_TIMEOUT) -> bool:
 
 
 def stop_vllm(proc: Optional[subprocess.Popen]):
-    """vLLM 서버를 종료한다."""
+    """vLLM 서버를 종료하고 GPU 메모리를 확실히 해제한다."""
     if proc is None:
         return
     logger.info("vLLM 종료 중...")
@@ -127,6 +128,10 @@ def stop_vllm(proc: Optional[subprocess.Popen]):
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.wait()
+    # 포트에 남은 프로세스도 강제 종료
+    _kill_port(8002)
+    # GPU 메모리 해제 대기
+    time.sleep(10)
     logger.info("vLLM 종료 완료")
 
 
@@ -259,15 +264,30 @@ def generate_for_model(model_id: str) -> dict:
                     success += 1
                 else:
                     fail += 1
-                    # vLLM 크래시 감지 — 연속 3회 실패 시 서버 재시작
-                    if fail >= 3 and fail == (success + fail) - success:
-                        recent_fails = fail - max(0, fail - 3)
-                        if recent_fails >= 3 and needs_vllm:
-                            logger.warning("연속 실패 감지 — vLLM 재시작 시도")
-                            stop_vllm(vllm_proc)
-                            vllm_proc = start_vllm(config)
-                            if not wait_for_vllm(config.base_url):
-                                return {"model": model_id, "success": success, "fail": fail}
+
+                run_count = success + fail
+
+                # 예방적 재시작: N개마다 vLLM 재시작 (deadlock 방지)
+                if needs_vllm and run_count > 0 and run_count % VLLM_RESTART_EVERY == 0:
+                    logger.info("예방적 vLLM 재시작 (%d개 완료)", run_count)
+                    stop_vllm(vllm_proc)
+                    time.sleep(5)
+                    vllm_proc = start_vllm(config)
+                    if not wait_for_vllm(config.base_url):
+                        return {"model": model_id, "success": success, "fail": fail}
+
+                # 실패 시 vLLM 살아있는지 확인 → 죽었으면 재시작
+                if not ok and needs_vllm:
+                    import urllib.request
+                    try:
+                        urllib.request.urlopen(f"{config.base_url}/models", timeout=5)
+                    except Exception:
+                        logger.warning("vLLM 응답 없음 — 재시작")
+                        stop_vllm(vllm_proc)
+                        time.sleep(5)
+                        vllm_proc = start_vllm(config)
+                        if not wait_for_vllm(config.base_url):
+                            return {"model": model_id, "success": success, "fail": fail}
 
         return {"model": model_id, "success": success, "fail": fail}
 
