@@ -130,13 +130,11 @@ def evaluate_single_log(log_path: Path) -> Dict:
         if is_template:
             language_issues += 2
 
-        # 격식체(합니다체) 위반 감지
+        # 격식체 — Rule에서 제외 (프롬프트 한계, LLM judge에서 평가)
         informal_count = len(re.findall(
             r'거든요|잖아요|인데요|네요[.]|[가-힣]야\s|해요[.]|같아요|어요[.]|죠[.]',
             text
         ))
-        if informal_count > 0:
-            language_issues += min(informal_count, 3)  # 최대 3점 감점
 
         # delimiter 유출 (### 답변 시작/끝, ### 반박 시작/끝이 출력에 남음)
         if re.search(r'답변\s*시작|답변\s*끝|반박\s*시작|반박\s*끝', text):
