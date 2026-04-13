@@ -40,9 +40,10 @@ logger = logging.getLogger(__name__)
 
 def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
     """지정된 speaker_ids에 대해서만 입론을 생성한다."""
-    from src.graph.subgraphs import write_review
-    from src.phase1.stage1_opening.nodes import _pre_search, _build_opening_prompt, _is_valid_speech
-
+    import re
+    from src.phase1.stage1_opening.nodes import (
+        _generate_opening, _get_focus_area, _build_opening_prompt, _is_valid_speech,
+    )
     import src.phase1.stage1_opening.nodes as _opening_mod
     _opening_mod._used_doc_ids = set()
 
@@ -51,7 +52,6 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
     agent_map = {a["agent_id"]: a for a in state["agents"]}
     stance_counter = {"PRO": 0, "CON": 0}
 
-    # 이미 입론한 에이전트의 stance 카운트
     for e in history:
         if e["phase"] == "opening" and e["speaker_id"] != "user":
             stance_counter[e["stance"]] += 1
@@ -70,25 +70,9 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
 
         print(f"  [{display}] 입론 생성 중...")
 
-        search_results, tool_calls_log = _pre_search(
-            topic, agent["stance"], topic_id=state.get("topic_id", ""),
-        )
-        prompt = _build_opening_prompt(topic, agent["stance"], display, search_results)
-
-        result = write_review.invoke({
-            "topic": topic, "agent": agent,
-            "expected_stance": agent["stance"],
-            "target_argument": prompt,
-            "my_opening": "", "opp_opening": "",
-            "chain": [], "prev_weaknesses": "", "prev_attacks": "",
-            "mode": "opening",
-            "weakness": "", "search_results": "", "search_query": "",
-            "speech": "", "raw": "",
-            "review_result": {}, "retry_count": 0, "tool_calls_log": [],
-        })
-
-        final_text = result["speech"]
-        raw = result["raw"]
+        focus_area = _get_focus_area(agent["stance"], topic_id=state.get("topic_id", ""))
+        prompt = _build_opening_prompt(topic, agent["stance"], display, focus_area)
+        final_text, raw, tool_calls_log = _generate_opening(agent, prompt)
 
         if not _is_valid_speech(final_text):
             final_text = (
@@ -97,8 +81,6 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
                 f"### 결론\n저는 {slabel} 입장을 유지합니다."
             )
 
-        # 자기소개 소제목 보장
-        import re
         if '### 자기소개' not in final_text and '### 입장 표명' not in final_text:
             first_h = re.search(r'^### ', final_text, re.MULTILINE)
             if first_h and first_h.start() > 0:
