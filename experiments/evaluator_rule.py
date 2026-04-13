@@ -126,8 +126,19 @@ def evaluate_single_log(log_path: Path) -> Dict:
             language_issues += 1
 
         # 템플릿 복사 감지 ("### 논거 1: 소제목" 그대로 쓴 경우)
-        if _check_template_copy(text):
+        is_template = _check_template_copy(text)
+        if is_template:
             language_issues += 2  # 심한 감점
+
+        # 스탠스 오류 감지 (PRO/CON 진영 지시를 무시한 경우)
+        # — 상세 검증은 LLM judge에서 하되, 명백한 경우만 Rule에서 잡음
+        side = turn.get("side", "")
+        if side and phase == "opening":
+            # PRO인데 반대 주장, CON인데 찬성 주장하는 패턴
+            topic_text = data.get("topic", "")
+            if side == "PRO" and "아닌" in topic_text:
+                # 논제가 "A가 아닌 B이다" 형태일 때, PRO는 B를 주장해야 함
+                pass  # 복잡한 논제 구조라 Rule에서 잡기 어려움
 
         # 도구 사용
         tc_count = len(turn.get("tool_calls", []))
@@ -143,6 +154,7 @@ def evaluate_single_log(log_path: Path) -> Dict:
             "cot_leaked": lang["cot_leaked"],
             "broken_chars": lang["broken_chars"],
             "truncated": lang["truncated"],
+            "template_copy": is_template,
             "tool_calls": tc_count,
             "char_count": len(text),
         })
