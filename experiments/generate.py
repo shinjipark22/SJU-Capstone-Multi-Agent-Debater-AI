@@ -222,6 +222,11 @@ def generate_for_model(model_id: str) -> dict:
     needs_vllm = (config.model_type == "vllm")
 
     try:
+        # 이미 vLLM이 떠있으면 새로 시작하지 않음
+        if needs_vllm and wait_for_vllm(config.base_url, timeout=10):
+            logger.info("기존 vLLM 감지 — 새로 시작하지 않음")
+            needs_vllm = False
+
         # API 모델 비용 안전장치
         if config.model_type == "openai" and API_COST_CONFIRM:
             presets = list(INTENSITY_PRESETS.keys())
