@@ -108,9 +108,7 @@ def evaluate_single_log(log_path: Path) -> Dict:
         speaker = turn.get("speaker", "")
         text = turn.get("text", "")
 
-        # 사용자 턴은 평가 대상 아님 — 스킵
-        if speaker == "user":
-            continue
+        # 전원 AI 모드: 모든 턴 평가
 
         # 헤더 검사
         patterns = REQUIRED_HEADINGS.get(phase, {}).get("agent", [])
