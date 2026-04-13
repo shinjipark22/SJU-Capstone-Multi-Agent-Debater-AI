@@ -128,17 +128,28 @@ def evaluate_single_log(log_path: Path) -> Dict:
         # 템플릿 복사 감지 ("### 논거 1: 소제목" 그대로 쓴 경우)
         is_template = _check_template_copy(text)
         if is_template:
-            language_issues += 2  # 심한 감점
+            language_issues += 2
 
-        # 스탠스 오류 감지 (PRO/CON 진영 지시를 무시한 경우)
-        # — 상세 검증은 LLM judge에서 하되, 명백한 경우만 Rule에서 잡음
-        side = turn.get("side", "")
-        if side and phase == "opening":
-            # PRO인데 반대 주장, CON인데 찬성 주장하는 패턴
-            topic_text = data.get("topic", "")
-            if side == "PRO" and "아닌" in topic_text:
-                # 논제가 "A가 아닌 B이다" 형태일 때, PRO는 B를 주장해야 함
-                pass  # 복잡한 논제 구조라 Rule에서 잡기 어려움
+        # 격식체(합니다체) 위반 감지
+        informal_count = len(re.findall(
+            r'거든요|잖아요|인데요|네요[.]|[가-힣]야\s|해요[.]|같아요|어요[.]|죠[.]',
+            text
+        ))
+        if informal_count > 0:
+            language_issues += min(informal_count, 3)  # 최대 3점 감점
+
+        # delimiter 유출 (### 답변 시작/끝, ### 반박 시작/끝이 출력에 남음)
+        if re.search(r'답변\s*시작|답변\s*끝|반박\s*시작|반박\s*끝', text):
+            language_issues += 1
+
+        # 볼드 깨짐 (** 열고 안 닫음)
+        if text.count('**') % 2 != 0:
+            language_issues += 1
+
+        # 소제목 번호 중복 (### 논거 1이 2번)
+        heading_nums = re.findall(r'###\s*논거\s*(\d+)', text)
+        if heading_nums and len(heading_nums) != len(set(heading_nums)):
+            language_issues += 1
 
         # 도구 사용
         tc_count = len(turn.get("tool_calls", []))
@@ -155,6 +166,10 @@ def evaluate_single_log(log_path: Path) -> Dict:
             "broken_chars": lang["broken_chars"],
             "truncated": lang["truncated"],
             "template_copy": is_template,
+            "informal_count": informal_count,
+            "delimiter_leaked": bool(re.search(r'답변\s*시작|답변\s*끝|반박\s*시작|반박\s*끝', text)),
+            "bold_broken": text.count('**') % 2 != 0,
+            "heading_num_dup": len(heading_nums) != len(set(heading_nums)) if heading_nums else False,
             "tool_calls": tc_count,
             "char_count": len(text),
         })
