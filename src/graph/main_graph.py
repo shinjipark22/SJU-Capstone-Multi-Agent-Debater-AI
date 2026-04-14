@@ -401,8 +401,11 @@ def route_after_ai_free(state: DebateState) -> str:
 
 
 def route_synthesis(state: DebateState) -> str:
-    """종합 회의 루프 라우터: 사용자 2턴 완료 → finalize, 아니면 continue."""
-    if state.get("synthesis_user_turns", 0) >= 2:
+    """종합 회의 루프 라우터: 사용자 3턴 완료 → finalize, 아니면 continue.
+
+    기대 흐름: (에이전트들 + 사용자) × 3라운드 → 마지막에 user_finalize.
+    """
+    if state.get("synthesis_user_turns", 0) >= 3:
         return "finalize"
     return "continue"
 
