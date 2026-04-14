@@ -11,8 +11,9 @@ LangGraph 메인 토론 그래프 기반.
 
 import asyncio
 import json
+import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -20,9 +21,12 @@ from langgraph.types import Command
 from pydantic import BaseModel, field_validator
 
 from src.graph.main_graph import build_debate_graph
+from src.live_analyzer import DebatrixJudge, project_frontend_event
 from src.models import DebateInitRequest
 from src.phase0.persona_factory import create_agents, AgentPersona
 from src.state import AgentSnapshot, DebateState, build_initial_state, generate_session_id
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Multi-Agent Debater AI",
@@ -32,6 +36,55 @@ app = FastAPI(
 
 # ── LangGraph 메인 그래프 (싱글톤) ────────────────────────────────────────
 debate_graph = build_debate_graph()
+
+# ── 세션별 실시간 분석기 캐시 ──────────────────────────────────────────────
+# 토론 세션 단위로 DebatrixJudge 인스턴스를 유지, 턴별 누적 분석을 위해.
+_session_judges: Dict[str, DebatrixJudge] = {}
+
+
+def _build_teams_from_state(initial_state: DebateState) -> dict:
+    """initial_state에서 PRO/CON 팀 구성을 만든다 (judge init용)."""
+    pro: list = []
+    con: list = []
+    user_stance = initial_state.get("user_stance", "PRO")
+    for agent in initial_state.get("agents", []):
+        aid = agent.get("agent_id") if isinstance(agent, dict) else agent.agent_id
+        side = agent.get("stance") if isinstance(agent, dict) else agent.stance
+        (pro if side == "PRO" else con).append(aid)
+    # user 포함
+    (pro if user_stance == "PRO" else con).append("user")
+    return {"PRO": sorted(pro), "CON": sorted(con)}
+
+
+async def _run_judge_turn(judge: DebatrixJudge, entry: dict) -> Optional[dict]:
+    """judge.judge_turn을 async로 실행. 실패 시 None 반환 (debate는 계속)."""
+    speaker = entry.get("speaker_id") or entry.get("speaker") or ""
+    stance = entry.get("stance") or entry.get("side") or "PRO"
+    phase = entry.get("phase") or ""
+    content = entry.get("content") or entry.get("text") or ""
+    target = entry.get("target_id")
+    if target in (None, "None", ""):
+        target = None
+
+    def _call():
+        try:
+            analysis = judge.judge_turn(
+                speaker_id=speaker,
+                speaker_stance=stance,
+                phase=phase,
+                speech_content=content,
+                target_id=target,
+            )
+            if analysis is None:
+                return None  # 분석 대상 외 phase
+            live = judge.memory.live_debate_snapshot()
+            analysis_row = judge.memory.analysis_memory[-1]
+            return project_frontend_event(analysis_row, live)
+        except Exception as e:
+            logger.warning("live_analyzer 실패: %s", e)
+            return None
+
+    return await asyncio.to_thread(_call)
 
 
 # ── 요청 모델 ─────────────────────────────────────────────────────────────
@@ -138,6 +191,16 @@ async def initialize_debate(request: DebateInitRequest):
     session_id = generate_session_id()
     config = {"configurable": {"thread_id": session_id}}
 
+    # 세션별 실시간 분석기 준비
+    judge = DebatrixJudge(
+        topic=topic_dict["title"],
+        debate_format=request.debate_format,
+        user_id="user",
+        user_stance=request.user_stance,
+        teams=_build_teams_from_state(initial_state),
+    )
+    _session_judges[session_id] = judge
+
     async def event_stream():
         # 세션 시작 이벤트
         yield _sse_event("session", {"session_id": session_id, "topic": topic_dict["title"]})
@@ -155,6 +218,10 @@ async def initialize_debate(request: DebateInitRequest):
             for entry in new_entries:
                 entry_dict = dict(entry) if isinstance(entry, dict) else entry
                 yield _sse_event("entry", entry_dict)
+                # 실시간 분석 — 턴 발행 직후 점수 emit
+                ev = await _run_judge_turn(judge, entry_dict)
+                if ev is not None:
+                    yield _sse_event("analysis", ev)
 
             prev_history = list(cur_history)
 
@@ -187,6 +254,8 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             detail="세션을 찾을 수 없거나 이미 완료된 토론입니다.",
         )
 
+    judge = _session_judges.get(session_id)
+
     async def event_stream():
         # 현재 히스토리 길이 기록
         current_values = graph_state.values or {}
@@ -207,6 +276,11 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             for entry in new_entries:
                 entry_dict = dict(entry) if isinstance(entry, dict) else entry
                 yield _sse_event("entry", entry_dict)
+                # 실시간 분석 — 턴 발행 직후 점수 emit
+                if judge is not None:
+                    ev = await _run_judge_turn(judge, entry_dict)
+                    if ev is not None:
+                        yield _sse_event("analysis", ev)
 
             prev_history = list(cur_history)
 
@@ -218,6 +292,8 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             final_state = debate_graph.get_state(config)
             if final_state and final_state.values:
                 synthesis_draft = final_state.values.get("synthesis_draft", "")
+            # 완료된 세션의 judge 정리
+            _session_judges.pop(session_id, None)
 
         yield _sse_event("waiting", {
             "session_id": session_id,
