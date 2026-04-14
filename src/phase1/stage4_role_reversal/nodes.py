@@ -121,6 +121,12 @@ def _build_role_reversal_prompt(
 def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
     """역할반전 발언 생성. 품질검증 + 소제목 검증 후 재시도."""
     from src.phase1.stage1_opening.nodes import validate_quality, check_headings
+    # 역할반전은 현재 agent가 argue하는 stance 기준 (system_prompt에 이미 반전됨)
+    try:
+        from src.graph.vector_store import set_current_stance
+        set_current_stance(agent.get("stance"))
+    except Exception:
+        pass
 
     messages = [
         SystemMessage(content=agent["system_prompt"]),

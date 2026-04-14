@@ -124,6 +124,12 @@ class UserProxy:
         from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
         from src.graph.llm import build_debate_chain
         from langchain_core.messages import SystemMessage
+        # 진영별 URL 중복 제외 컨텍스트 (user stance)
+        try:
+            from src.graph.vector_store import set_current_stance
+            set_current_stance(self.stance)
+        except Exception:
+            pass
 
         def _chain():
             msgs = [SystemMessage(content=self.agent["system_prompt"])]

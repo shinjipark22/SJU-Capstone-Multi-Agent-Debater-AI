@@ -282,6 +282,12 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         raise ValueError(f"[free_rebuttal] 존재하지 않는 에이전트: {selected_id}")
 
     opponent = agent_map[selected_id]
+    # 진영별 URL 중복 제외 컨텍스트
+    try:
+        from src.graph.vector_store import set_current_stance
+        set_current_stance(opponent.get("stance"))
+    except Exception:
+        pass
     history: List[DebateEntry] = list(state["debate_history"])
     current_turn: int = state["current_turn"]
     speaking_order = state["speaking_order"]
