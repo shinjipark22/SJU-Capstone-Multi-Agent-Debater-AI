@@ -33,6 +33,9 @@ class SideResult(BaseModel):
 
 
 class EvaluateResponse(BaseModel):
+    topic_id: str
     topic: str
+    pro_label: str
+    con_label: str
     pro: SideResult
     con: SideResult
