@@ -338,8 +338,14 @@ def ai_synthesis_node(state: DebateState) -> dict:
 
 
 def user_synthesis_node(state: DebateState) -> dict:
-    """사용자 종합 의견 — interrupt로 대기."""
-    user_content = interrupt("최적해에 대한 의견을 입력하세요")
+    """사용자 종합 의견 — interrupt로 대기. Round 3에는 개별 최적해 선언 유도."""
+    is_final_round = state.get("synthesis_user_turns", 0) >= 2
+    if is_final_round:
+        user_content = interrupt(
+            "Round 3: '제가 생각하는 최적해는 ~입니다' 형식으로 개별 최적해를 선언해주세요 (2~3문장)"
+        )
+    else:
+        user_content = interrupt("최적해에 대한 의견을 입력하세요")
 
     history = list(state["debate_history"])
     history.append(DebateEntry(
