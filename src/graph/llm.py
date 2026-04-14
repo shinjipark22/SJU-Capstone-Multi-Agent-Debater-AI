@@ -78,8 +78,9 @@ def search_web(query: str) -> str:
         items = [r for r in items if r.get("url") not in excluded][:3]
         if not items:
             return "[검색 결과] 관련 결과를 찾을 수 없습니다."
-        # 3) Pinecone 저장 (SEARCH_CACHE_SAVE=0 이면 skip)
-        _save_enabled = os.environ.get("SEARCH_CACHE_SAVE", "1").strip() not in ("0", "false", "False", "")
+        # 3) Pinecone 저장 — 기본 OFF (벤치마크 인덱스 오염 방지).
+        # 명시적으로 SEARCH_CACHE_SAVE=1 설정 시에만 저장 (인덱스 구축/업데이트 작업 시)
+        _save_enabled = os.environ.get("SEARCH_CACHE_SAVE", "0").strip() in ("1", "true", "True")
         if _save_enabled:
             try:
                 upsert_search_results(query, items)
