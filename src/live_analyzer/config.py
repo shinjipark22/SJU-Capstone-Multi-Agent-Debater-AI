@@ -13,8 +13,11 @@ PERCENT_STEP = 3.0
 # 반박·종합 단계 (평가 컨텍스트가 입론과 다름)
 REBUTTAL_PHASES = {"chained_rebuttal", "free_rebuttal", "role_reversal", "synthesis"}
 
+# 실시간 분석기는 자유논박까지만 평가한다 (역할반전·종합은 대상 외)
+ANALYZED_PHASES = {"opening", "chained_rebuttal", "free_rebuttal"}
+
 # 지수이동평균 평활 계수 (높을수록 최근 발언 가중)
-EMA_ALPHA = 0.4
+EMA_ALPHA = 0.6
 
 # 최근 컨텍스트 유지 개수
 RECENT_WINDOW = 5

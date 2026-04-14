@@ -3,7 +3,7 @@ import json as pyjson
 import re
 from typing import Optional
 
-from .config import REBUTTAL_PHASES
+from .config import REBUTTAL_PHASES, ANALYZED_PHASES
 from .models import TurnAnalysis, DimensionResult
 from .memory import AnalysisMemory
 from .prompts import SPEECH_SUMMARY_PROMPT, ARGUMENT_PROMPT, EVIDENCE_PROMPT, LANGUAGE_PROMPT
@@ -245,7 +245,10 @@ class DebatrixJudge:
         phase: str,
         speech_content: str,
         target_id: Optional[str] = None,
-    ) -> TurnAnalysis:
+    ) -> Optional[TurnAnalysis]:
+        # 자유논박까지만 실시간 분석 — role_reversal/synthesis는 건너뜀
+        if phase not in ANALYZED_PHASES:
+            return None
         # 1. 컨텍스트 구성 — 현재 턴 summary 없이도 가능
         # speech_memory는 "이전 턴"들까지만 참조 (현재 턴 summary는 다음 턴용)
         ctx_msg = _build_context(
