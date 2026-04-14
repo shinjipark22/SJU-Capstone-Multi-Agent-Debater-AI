@@ -156,6 +156,44 @@ def _build_proposal_prompt(
 ### 반박 끝"""
 
 
+# ── 최적해 선언 프롬프트 (Round 3 전원 공통) ──────────────────────────────
+
+def _build_finalize_prompt(
+    topic: str,
+    original_stance: str,
+    perspective: str = "",
+    intensity: int = 3,
+) -> str:
+    """Round 3 최종 발언: 지금까지의 논의를 바탕으로 **각자 최적해 선언**.
+
+    AI 에이전트와 user 슬롯 모두 이 프롬프트로 동일하게 호출된다
+    (all_ai 벤치마크 모드 및 실제 user 모드 공통).
+    """
+    stance_kr = "찬성" if original_stance == "PRO" else "반대"
+    perspective_block = f"\n[너의 고유 관점] {perspective}\n" if perspective else ""
+    negotiation = _INTENSITY_NEGOTIATION.get(intensity, _INTENSITY_NEGOTIATION[3])
+
+    return f"""[5단계: 최적해 회의 — 마지막 라운드 최적해 선언]
+'{topic}'에 대해 지금까지의 토론과 2라운드 동안의 합의 논의를 종합하여, **네가 생각하는 최적해를 확정하여 선언하라**.
+
+너는 원래 {stance_kr} 입장이었다.
+{perspective_block}
+[너의 협상 태도]
+{negotiation}
+
+[최적해 선언 지시]
+- 새 쟁점을 꺼내지 말고, 앞선 2라운드에서 논의된 **타협안·조건·우려를 종합**해 결론 문장으로 압축하라
+- 반드시 **"우리의 최적해는 ~입니다"** 형식으로 시작하고, "이는 ~조건과 ~보완을 전제로 합니다" 식의 전제도 1~2개 덧붙여라
+- 2~3문장. 합니다체. 핵심 결론에 **강조**
+- 소제목/번호/목록 금지
+
+반드시 아래 형식으로만 출력:
+
+### 반박 시작
+우리의 최적해는 ~입니다. 이는 ~조건과 ~보완을 전제로 합니다. (2~3문장)
+### 반박 끝"""
+
+
 # ── 멀티턴 메시지 체인 구축 (종합 회의) ───────────────────────────────────
 
 def _build_synthesis_chain(
@@ -318,7 +356,11 @@ def synthesis_node(state: DebateState) -> DebateState:
 # ── 회의 응답 노드 (사용자 발언 후 AI 반응) ──────────────────────────────
 
 def synthesis_discuss_node(state: DebateState) -> DebateState:
-    """사용자의 최적해 의견에 대해 모든 AI 에이전트가 반응한다."""
+    """사용자의 최적해 의견에 대해 모든 AI 에이전트가 반응한다.
+
+    Round 3(synthesis_user_turns >= 2)에는 모든 에이전트가 최적해를 선언한다
+    (user와 동일 프롬프트 사용 — UserProxy·에이전트 동등성).
+    """
     _opening_mod._used_doc_ids = set()
 
     topic = state["topic"]
@@ -328,11 +370,15 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
     speaking_order = state["speaking_order"]
     stance_nums = build_agent_stance_nums(state["agents"], speaking_order)
 
+    # Round 3 여부: user가 2턴 완료한 상태 → 이번 AI 발언이 마지막 라운드
+    is_final_round = state.get("synthesis_user_turns", 0) >= 2
+
     # 사용자 최근 발언
     user_messages = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "synthesis"]
     user_latest = user_messages[-1]["content"] if user_messages else ""
 
-    print(f"\n[5단계: 최적해 회의] AI 응답 생성 중...\n")
+    phase_label = "최적해 선언 (Round 3)" if is_final_round else "AI 응답 생성"
+    print(f"\n[5단계: 최적해 회의] {phase_label} 중...\n")
 
     agent_idx = 0
     this_round_speeches: List[str] = []  # 이번 라운드에서 다른 에이전트가 한 말 수집
@@ -364,16 +410,23 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
         # 전체 토론 히스토리 + 종합 회의 체인
         from src.graph.llm import build_debate_chain
         debate_chain = build_debate_chain(history, speaker_id)
-        prompt = (
-            f"[너의 고유 관점 — 반드시 이 관점에서만 발언하라] {perspective}\n\n"
-            f"[너의 협상 태도] {negotiation}\n"
-            f"{already_said}\n"
-            f"사용자가 방금 '{user_latest[:100]}...'라고 말했다.\n\n"
-            f"위에서 이미 언급된 내용과 완전히 다른 관점에서 구체적 조건이나 미해결 쟁점을 제기하라. "
-            f"'동의합니다'/'좋은 의견입니다'/'좋은 출발점'으로 시작하지 마라. "
-            f"대화하듯이 자연스럽게. 1~2문장.\n\n"
-            f"### 반박 시작\n### 반박 끝"
-        )
+
+        if is_final_round:
+            # Round 3: 최적해 선언 (user와 동일 프롬프트)
+            prompt = _build_finalize_prompt(topic, agent["stance"], perspective=perspective, intensity=intensity)
+            if already_said:
+                prompt += already_said
+        else:
+            prompt = (
+                f"[너의 고유 관점 — 반드시 이 관점에서만 발언하라] {perspective}\n\n"
+                f"[너의 협상 태도] {negotiation}\n"
+                f"{already_said}\n"
+                f"사용자가 방금 '{user_latest[:100]}...'라고 말했다.\n\n"
+                f"위에서 이미 언급된 내용과 완전히 다른 관점에서 구체적 조건이나 미해결 쟁점을 제기하라. "
+                f"'동의합니다'/'좋은 의견입니다'/'좋은 출발점'으로 시작하지 마라. "
+                f"대화하듯이 자연스럽게. 1~2문장.\n\n"
+                f"### 반박 시작\n### 반박 끝"
+            )
         speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, debate_chain, topic)
         this_round_speeches.append(speech[:80])  # 다음 에이전트가 참고할 수 있도록 수집
 
