@@ -101,55 +101,57 @@ def evaluate_single_answer(
 
 
 def analyze_user_before_after(
-    pre_answer: str,
-    post_answer: str,
+    pre_pro: str,
+    pre_con: str,
+    post_pro: str,
+    post_con: str,
     *,
     topic: str,
     llm_fn: Optional[Callable[[str, str], str]] = None,
 ) -> Dict[str, Any]:
-    pre_eval = evaluate_single_answer(
-        pre_answer,
-        topic=topic,
-        phase_label="토론 전 답변",
-        llm_fn=llm_fn,
-    )
-    post_eval = evaluate_single_answer(
-        post_answer,
-        topic=topic,
-        phase_label="토론 후 답변",
-        llm_fn=llm_fn,
-    )
+    pre_pro_eval  = evaluate_single_answer(pre_pro,  topic=topic, phase_label="토론 전 찬성 답변", llm_fn=llm_fn)
+    pre_con_eval  = evaluate_single_answer(pre_con,  topic=topic, phase_label="토론 전 반대 답변", llm_fn=llm_fn)
+    post_pro_eval = evaluate_single_answer(post_pro, topic=topic, phase_label="토론 후 찬성 답변", llm_fn=llm_fn)
+    post_con_eval = evaluate_single_answer(post_con, topic=topic, phase_label="토론 후 반대 답변", llm_fn=llm_fn)
 
-    result = {
+    return {
         "topic": topic,
         "metrics": METRICS,
-        "pre": pre_eval,
-        "post": post_eval,
+        "pro": {
+            "pre": pre_pro_eval,
+            "post": post_pro_eval,
+            "delta_100": round(post_pro_eval["average_100"] - pre_pro_eval["average_100"], 1),
+        },
+        "con": {
+            "pre": pre_con_eval,
+            "post": post_con_eval,
+            "delta_100": round(post_con_eval["average_100"] - pre_con_eval["average_100"], 1),
+        },
     }
-    result["delta_100"] = round(post_eval["average_100"] - pre_eval["average_100"], 1)
-    return result
 
 
 def print_evaluation_report(result: Dict[str, Any]) -> None:
     print(f"주제: {result['topic']}")
-    print()
-    for phase_key, phase_title in [("pre", "토론 전"), ("post", "토론 후")]:
-        phase = result[phase_key]
-        print(f"[{phase_title} 평가]")
-        for metric in METRICS:
-            item = phase["scores"][metric["key"]]
-            print(f"- {metric['label']}: {item['score']}점 | {item['reason']}")
-        print(f"- 평균(5점 만점): {phase['average_5']}")
-        print(f"- 환산 점수(100점 만점): {phase['average_100']}점")
-        if phase["overall_summary"]:
-            print(f"- 요약: {phase['overall_summary']}")
-        print()
 
-    print(
-        f"[최종 비교] 토론 전 {result['pre']['average_100']}점 → "
-        f"토론 후 {result['post']['average_100']}점 "
-        f"(변화량 {result['delta_100']:+.1f}점)"
-    )
+    for side_key, side_label in [("pro", "찬성"), ("con", "반대")]:
+        side = result[side_key]
+        print(f"\n{'='*40}")
+        print(f"[{side_label}]")
+        for phase_key, phase_title in [("pre", "토론 전"), ("post", "토론 후")]:
+            phase = side[phase_key]
+            print(f"\n  [{phase_title}]")
+            for metric in METRICS:
+                item = phase["scores"][metric["key"]]
+                print(f"  - {metric['label']}: {item['score']}점 | {item['reason']}")
+            print(f"  - 평균(5점 만점): {phase['average_5']}")
+            print(f"  - 환산 점수(100점 만점): {phase['average_100']}점")
+            if phase["overall_summary"]:
+                print(f"  - 요약: {phase['overall_summary']}")
+        print(
+            f"\n  [변화량] 토론 전 {side['pre']['average_100']}점 → "
+            f"토론 후 {side['post']['average_100']}점 "
+            f"({side['delta_100']:+.1f}점)"
+        )
 
 
 def save_result_json(
