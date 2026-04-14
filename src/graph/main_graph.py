@@ -6,7 +6,7 @@ main_graph.py — LangGraph 메인 토론 그래프
 
 [그래프 흐름]
     ai_opening → user_opening → ai_rebuttal → user_rebuttal
-    → ai_free_rebuttal ↔ user_free_rebuttal (루프)
+    → ai_free_rebuttal → user_free_rebuttal_defense → user_free_rebuttal_attack (루프)
     → ai_free_final
     → ai_role_reversal → user_role_reversal
     → ai_synthesis ↔ user_synthesis (루프)
@@ -218,21 +218,20 @@ def ai_free_rebuttal_node(state: DebateState) -> dict:
     }
 
 
-def user_free_rebuttal_node(state: DebateState) -> dict:
-    """사용자 자유논박 — 총 6턴 구조:
-    1회차: 답변 + 공격 (interrupt 2회)
-    2회차(최종): 답변만 (interrupt 1회, 공격·AI 응답 없음)
+def user_free_rebuttal_defense_node(state: DebateState) -> dict:
+    """사용자 자유논박 — 답변 단계 (interrupt 1회).
+
+    한 노드 안 interrupt 2회 패턴이 LangGraph 재실행 시 `graph_state.next`를
+    빈 리스트로 보고하는 이슈가 있어 답변/공격 노드를 분리.
+    카운터 증가는 attack 노드에서 일괄 수행한다.
     """
     selected_id = state.get("selected_opponent_id", "agent_1")
-    current_turns = state.get("free_rebuttal_user_turns", 0)
-    is_final = (current_turns >= 1)  # 1회차 완료 후면 이번이 최종 2회차
 
     user_defense = interrupt("상대 공격에 대한 답변을 입력하세요")
 
     history = list(state["debate_history"])
     current_turn = state["current_turn"]
 
-    # 답변 기록
     history.append(DebateEntry(
         turn=current_turn,
         speaker_id="user",
@@ -243,7 +242,25 @@ def user_free_rebuttal_node(state: DebateState) -> dict:
     ))
     current_turn += 1
 
-    # 최종 턴이 아니면 공격 턴도 받음
+    return {
+        "debate_history": history,
+        "current_turn": current_turn,
+    }
+
+
+def user_free_rebuttal_attack_node(state: DebateState) -> dict:
+    """사용자 자유논박 — 공격 단계 (interrupt 1회, 최종 턴이면 스킵).
+
+    1회차: 공격 입력 받음 + 카운터 +1 (0→1).
+    2회차(최종, `free_rebuttal_user_turns >= 1`): 공격 스킵 + 카운터 +1 (1→2).
+    """
+    selected_id = state.get("selected_opponent_id", "agent_1")
+    current_turns = state.get("free_rebuttal_user_turns", 0)
+    is_final = (current_turns >= 1)
+
+    history = list(state["debate_history"])
+    current_turn = state["current_turn"]
+
     if not is_final:
         user_attack = interrupt("상대 논거를 공격하세요")
         history.append(DebateEntry(
@@ -256,12 +273,10 @@ def user_free_rebuttal_node(state: DebateState) -> dict:
         ))
         current_turn += 1
 
-    new_user_turns = state.get("free_rebuttal_user_turns", 0) + 1
-
     return {
         "debate_history": history,
         "current_turn": current_turn,
-        "free_rebuttal_user_turns": new_user_turns,
+        "free_rebuttal_user_turns": current_turns + 1,
     }
 
 
@@ -406,7 +421,8 @@ def build_debate_graph():
     graph.add_node("ai_rebuttal", ai_rebuttal_node)
     graph.add_node("user_rebuttal", user_rebuttal_node)
     graph.add_node("ai_free_rebuttal", ai_free_rebuttal_node)
-    graph.add_node("user_free_rebuttal", user_free_rebuttal_node)
+    graph.add_node("user_free_rebuttal_defense", user_free_rebuttal_defense_node)
+    graph.add_node("user_free_rebuttal_attack", user_free_rebuttal_attack_node)
     graph.add_node("ai_role_reversal", ai_role_reversal_node)
     graph.add_node("user_role_reversal", user_role_reversal_node)
     graph.add_node("ai_synthesis", ai_synthesis_node)
@@ -420,16 +436,19 @@ def build_debate_graph():
     graph.add_edge("ai_rebuttal", "user_rebuttal")
     graph.add_edge("user_rebuttal", "ai_free_rebuttal")
 
-    # 자유논박: AI 발언 후 → 사용자 턴 or 역할반전
+    # 자유논박: AI 발언 후 → 사용자 답변 턴 or 역할반전
     graph.add_conditional_edges("ai_free_rebuttal", route_after_ai_free, {
-        "to_user": "user_free_rebuttal",
+        "to_user": "user_free_rebuttal_defense",
         "end_free": "ai_role_reversal",
     })
 
-    # 사용자 자유논박 후 → continue면 AI 자유논박, done(6턴 완료)이면 바로 역할반전
-    graph.add_conditional_edges("user_free_rebuttal", route_free_rebuttal, {
+    # 답변 → 공격 (공격 노드가 최종 턴이면 interrupt 없이 바로 카운터만 증가)
+    graph.add_edge("user_free_rebuttal_defense", "user_free_rebuttal_attack")
+
+    # 사용자 자유논박 후 → continue면 AI 자유논박, done(2라운드 완료)이면 바로 역할반전
+    graph.add_conditional_edges("user_free_rebuttal_attack", route_free_rebuttal, {
         "continue": "ai_free_rebuttal",
-        "done": "ai_role_reversal",  # user의 최종 방어 후 AI 응답 없이 역할반전으로
+        "done": "ai_role_reversal",  # user의 최종 답변 후 AI 응답 없이 역할반전으로
     })
 
     # 역할반전 → 종합

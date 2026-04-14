@@ -61,11 +61,19 @@ def _extract_new_entries(prev_history: list, cur_history: list) -> list:
     return cur_history[prev_len:]
 
 
+_WAITING_ALIAS = {
+    # 내부 노드 분할이 API 계약에 노출되지 않도록 통합 이름으로 매핑
+    "user_free_rebuttal_defense": "user_free_rebuttal",
+    "user_free_rebuttal_attack": "user_free_rebuttal",
+}
+
+
 def _get_waiting_info(config: dict) -> tuple:
     """현재 그래프 상태에서 waiting_for, is_finished를 추출한다."""
     graph_state = debate_graph.get_state(config)
     if graph_state and graph_state.next:
-        return graph_state.next[0], False
+        raw = graph_state.next[0]
+        return _WAITING_ALIAS.get(raw, raw), False
     return "", True
 
 
