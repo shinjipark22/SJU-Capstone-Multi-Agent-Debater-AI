@@ -34,11 +34,38 @@ _tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY", ""))
 @tool
 def search_web(query: str) -> str:
     """웹에서 최신 뉴스 및 정보를 검색합니다. 반박에 통계나 사실 확인이 필요할 때 사용하세요."""
+    # 환경변수 SEARCH_CACHE_LOOKUP=0 이면 캐시 조회 비활성 (순수 Tavily + 저장만)
+    _lookup_enabled = os.environ.get("SEARCH_CACHE_LOOKUP", "1").strip() not in ("0", "false", "False", "")
+
+    # 컨텍스트에서 이미 사용된(중복 금지) URL 가져오기
     try:
+        from src.graph.vector_store import get_excluded_urls, mark_urls_used
+        excluded = get_excluded_urls()
+    except Exception:
+        excluded = set()
+        mark_urls_used = None
+
+    # 1) Pinecone 의미 캐시 조회 — hit 시 Tavily 호출 없이 반환
+    if _lookup_enabled:
+        try:
+            from src.graph.vector_store import semantic_cache_lookup, format_cached_results
+            cached = semantic_cache_lookup(query)
+            if cached:
+                logger.info("[search_web] 캐시 hit (top=%.3f, %d건, 중복제외=%d)",
+                            cached[0]["score"], len(cached), len(excluded))
+                if mark_urls_used:
+                    mark_urls_used(r.get("url", "") for r in cached)
+                return format_cached_results(cached)
+        except Exception as e:
+            logger.warning("[search_web] 캐시 조회 실패, Tavily로 폴백: %s", e)
+
+    # 2) 캐시 miss 또는 lookup 비활성 → Tavily 호출
+    try:
+        from src.graph.vector_store import upsert_search_results
         results = _tavily_client.search(
             query,
-            max_results=3,
-            search_depth="basic",
+            max_results=5,  # 필터링 감안해 여유 있게
+            search_depth="advanced",
             exclude_domains=[
                 "blog.naver.com", "m.blog.naver.com",
                 "tistory.com", "brunch.co.kr",
@@ -47,9 +74,20 @@ def search_web(query: str) -> str:
             ],
         )
         items = results.get("results", [])
+        # 이미 사용된 URL 제외
+        items = [r for r in items if r.get("url") not in excluded][:3]
         if not items:
             return "[검색 결과] 관련 결과를 찾을 수 없습니다."
-        # 제목은 제외, 본문(content)만 모델에 전달
+        # 3) Pinecone 저장 (SEARCH_CACHE_SAVE=0 이면 skip)
+        _save_enabled = os.environ.get("SEARCH_CACHE_SAVE", "1").strip() not in ("0", "false", "False", "")
+        if _save_enabled:
+            try:
+                upsert_search_results(query, items)
+            except Exception as e:
+                logger.warning("[search_web] 캐시 저장 실패: %s", e)
+        # 사용된 URL 누적 (다음 검색에서 중복 제외)
+        if mark_urls_used:
+            mark_urls_used(r.get("url", "") for r in items)
         return "[검색 결과]\n" + "\n".join(
             f"- {r['content'][:300]}" for r in items
         )

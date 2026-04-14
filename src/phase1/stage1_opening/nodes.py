@@ -270,6 +270,34 @@ def _postprocess_speech(text: str) -> str:
     ]
     for pat, rep in _FORMAL_MAP:
         text = re.sub(pat, rep, text)
+    # 소제목 마커 정규화 — 다양한 변형을 모두 "### "로 통일
+    # (1) 줄 앞 공백 + # 변형 정규화 (leading whitespace 허용, # 개수·간격·반복 변형 모두)
+    text = re.sub(
+        r'^[ \t]*(?:#+[ \t]*)+(?=[가-힣A-Za-z0-9])',
+        '### ',
+        text,
+        flags=re.MULTILINE,
+    )
+    # (2) 볼드로 감싼 헤딩 (**### 논거 1**) 정리 → ### 논거 1
+    text = re.sub(
+        r'^\s*\*{1,3}\s*(###\s*[^*\n]+?)\s*\*{1,3}\s*$',
+        r'\1',
+        text,
+        flags=re.MULTILINE,
+    )
+    # (3) # 마커 완전 누락 — "자기소개/논거 N/결론/입장 표명" 으로 시작하는 줄에 ### 자동 추가
+    _HEADING_RE = re.compile(
+        r'^\s*(자기소개[가-힣\s]*?|입장\s*표명|논거\s*\[?\s*\d+\s*\]?|결론)\s*(?:[:：]|$)',
+    )
+    _fixed_lines = []
+    for _ln in text.split('\n'):
+        _s = _ln.lstrip()
+        if not _s.startswith('###') and _HEADING_RE.match(_ln):
+            _fixed_lines.append('### ' + _s)
+        else:
+            _fixed_lines.append(_ln)
+    text = '\n'.join(_fixed_lines)
+
     # 연속 중복 줄/문장 제거 (모델이 같은 내용을 두 번 찍는 경우)
     _lines = text.split('\n')
     _dedup = []
@@ -567,6 +595,13 @@ def _validate_citation_search(speech: str, tool_calls_log: List[Dict]) -> Tuple[
 
 def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
     """tool calling으로 입론 생성. 모델이 수치 필요 시 search_web 호출."""
+    # 진영별 URL 중복 제외 컨텍스트 설정
+    try:
+        from src.graph.vector_store import set_current_stance
+        set_current_stance(agent.get("stance"))
+    except Exception:
+        pass
+
     messages = [
         SystemMessage(content=agent["system_prompt"]),
         HumanMessage(content=prompt),

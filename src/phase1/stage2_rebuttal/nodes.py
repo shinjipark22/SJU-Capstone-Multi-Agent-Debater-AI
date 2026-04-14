@@ -272,6 +272,12 @@ def _generate_rebuttal_speech(
     """반박 생성. 전체 토론 히스토리를 메시지 체인으로 참조."""
     from src.graph.llm import build_debate_chain
     from src.phase0.persona_factory import INTENSITY_PROFILES
+    # 진영별 URL 중복 제외 컨텍스트
+    try:
+        from src.graph.vector_store import set_current_stance
+        set_current_stance(stance)
+    except Exception:
+        pass
 
     stance_kr = "찬성" if stance == "PRO" else "반대"
     intensity = agent.get("intensity", 3)
