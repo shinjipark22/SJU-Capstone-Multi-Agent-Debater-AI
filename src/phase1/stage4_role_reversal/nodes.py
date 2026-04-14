@@ -94,9 +94,10 @@ def _build_role_reversal_prompt(
 - 논거 2개, 각 3줄 이내
 - 핵심 문장에 **강조** 사용
 
-[인용 규칙]
-- 논증과 주장은 너의 지식을 바탕으로 자유롭게 구성하라
-- 통계·수치·최신 데이터가 필요하면 search_web 도구로 검색하여 인용하라
+[인용 규칙 — 절대 준수]
+- 구체적 수치·%·금액·연도별 통계·특정 기관/보고서명을 쓰려면 **먼저 search_web을 호출**하고, 검색 결과에 나타난 것만 인용하라
+- 검색하지 않은 수치·기관명은 단 하나도 쓰지 마라. 머릿속 지식에서 떠오른 수치는 쓰지 마라
+- 수치가 확실하지 않으면 일반화 표현으로 대체하라
 - 존재하지 않는 연구나 기관을 지어내지 마라
 
 [형식]
@@ -134,7 +135,8 @@ def _generate_role_reversal(agent: Dict, prompt: str) -> Tuple[str, str, List[Di
         messages.append(response)
         for tc in response.tool_calls:
             if tc.get("name") == "search_web":
-                result = search_web.invoke(tc.get("args", {}))
+                from src.graph.llm import safe_search_invoke
+                result = safe_search_invoke(tc.get("args", {}))
                 result = _truncate_tool_result(str(result))
                 tc_log.append({"name": "search_web", "args": tc.get("args", {}), "result": result})
                 messages.append(ToolMessage(content=result, tool_call_id=tc.get("id", "")))

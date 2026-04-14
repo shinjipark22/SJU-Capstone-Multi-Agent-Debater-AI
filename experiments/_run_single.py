@@ -20,6 +20,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, List, Tuple
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -40,103 +41,170 @@ def _load_topic(topic_id: str) -> dict:
 
 
 class UserProxy:
-    """테스트 대상 모델이 user 역할도 수행하는 프록시.
+    """'user' 슬롯도 타 AI 에이전트와 **완전히 동일한 조건**으로 수행.
 
-    기존 엔진은 'user' speaker_id를 기대하므로,
-    동일 모델로 user 발언을 생성하여 주입한다.
+    - system_prompt: persona_factory로 생성 (다른 에이전트와 동일 규칙·도구)
+    - 각 스테이지별 발언 생성은 해당 stage 모듈의 _build_*_prompt + _generate_*
+      함수를 그대로 호출한다. 별도 축약된 프롬프트를 쓰지 않는다.
+    - focus_area는 stage1의 _get_focus_area로 에이전트와 동일 방식으로 할당.
     """
 
-    def __init__(self, topic: dict, stance: str):
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import HumanMessage, SystemMessage
-
-        self._ChatOpenAI = ChatOpenAI
-        self._HumanMessage = HumanMessage
-        self._SystemMessage = SystemMessage
-
-        self.llm = ChatOpenAI(
-            model=os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-32B-Instruct-AWQ"),
-            base_url=os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1"),
-            api_key=os.environ.get("LLM_API_KEY", "fake"),
-            temperature=0,
-            max_tokens=1024,
-        )
+    def __init__(
+        self,
+        topic: dict,
+        stance: str,
+        intensity: int = 3,
+        topic_id: str = "",
+    ):
+        from src.phase0.persona_factory import _build_system_prompt
+        from src.phase1.stage1_opening.nodes import _get_focus_area
 
         stance_kr = "찬성" if stance == "PRO" else "반대"
-        my_claim = topic.get("pro", "") if stance == "PRO" else topic.get("con", "")
-        opp_claim = topic.get("con", "") if stance == "PRO" else topic.get("pro", "")
-
-        self.system = (
-            f"너는 토론 참가자다. {stance_kr} 입장에서 토론한다.\n"
-            f"논제: {topic['title']}\n"
-            f"너의 주장: {my_claim}\n"
-            f"상대 주장(반박 대상): {opp_claim}\n\n"
-            f"반드시 한국어 합니다체로 작성하라. 핵심 주장에 **강조** 표시하라.\n"
-            f"자료를 인용할 때는 search_web으로 검색한 결과만 사용하라."
+        system_prompt = _build_system_prompt(
+            agent_id="user", stance=stance, intensity=intensity,
+            title=topic["title"], pro=topic.get("pro", ""),
+            con=topic.get("con", ""),
+            description=topic.get("description_long"),
         )
 
-    def generate(self, prompt: str, max_tokens: int = 1024) -> str:
-        """user 역할의 발언을 생성한다."""
-        messages = [
-            self._SystemMessage(content=self.system),
-            self._HumanMessage(content=prompt),
-        ]
-        response = self.llm.invoke(messages)
-        return response.content if isinstance(response.content, str) else str(response.content)
+        self.topic = topic
+        self.topic_id = topic_id
+        self.stance = stance
+        self.stance_kr = stance_kr
+        self.intensity = intensity
+        self.focus_area = _get_focus_area(stance, topic_id=topic_id)
 
-    def opening(self, ai_openings: str) -> str:
-        return self.generate(f"""상대 AI들의 입론:
-{ai_openings[:600]}
+        # 다른 에이전트와 동일한 AgentSnapshot 형태
+        self.agent: dict = {
+            "agent_id": "user",
+            "stance": stance,
+            "intensity": intensity,
+            "role_description": f"{stance_kr} | 강경도 {intensity}",
+            "system_prompt": system_prompt,
+            "focus_area": self.focus_area,
+        }
 
-위를 읽고 입론을 작성하라.
-
-### 자기소개와 입장 표명
-(1~2문장)
-### 논거 1: 소제목
-(3~5줄, 구체적 사례·수치 포함)
-### 논거 2: 소제목
-(3~5줄, 구체적 사례·수치 포함)
-### 결론
-(1~2문장)""")
-
-    def rebuttal(self, ai_attack: str) -> str:
-        return self.generate(
-            f"상대의 공격:\n{ai_attack[:400]}\n\n"
-            f"위 공격에서 가장 약한 논거 1개를 골라 3~4문장으로 반박하라.",
-            max_tokens=512,
+    # ── 스테이지별 발언 생성 (타 에이전트와 동일 경로) ────────────────────
+    def opening(self, display: str = "찬성1") -> Tuple[str, List[Dict]]:
+        """stage1_opening의 _build_opening_prompt + _generate_opening 사용."""
+        from src.phase1.stage1_opening.nodes import _build_opening_prompt, _generate_opening
+        prompt = _build_opening_prompt(
+            self.topic["title"], self.stance, display, self.focus_area,
         )
+        text, _raw, tc_log = _generate_opening(self.agent, prompt)
+        return text, tc_log
 
-    def free_defense(self, ai_attack: str) -> str:
-        return self.generate(
-            f"상대의 공격:\n{ai_attack[:300]}\n\n1~2문장으로 방어하라.",
-            max_tokens=256,
+    def chained_rebuttal(
+        self, target_speech: str, target_display: str, history: list,
+    ) -> Tuple[str, List[Dict]]:
+        """stage2_rebuttal의 동일 경로로 반박 생성."""
+        from src.phase1.stage2_rebuttal.nodes import (
+            _build_rebuttal_prompt, _generate_rebuttal_speech, _pre_search_rebuttal,
         )
-
-    def free_attack(self) -> str:
-        return self.generate("상대의 논거에서 아직 공격하지 않은 약점을 1~2문장으로 공격하라.", max_tokens=256)
-
-    def role_reversal(self, reversed_stance_kr: str) -> str:
-        return self.generate(f"""[역할 반전] 이제 {reversed_stance_kr} 입장에서 주장하라.
-
-### 논거 1: 소제목
-(3~4문장)
-### 논거 2: 소제목
-(3~4문장)
-### 결론
-(1~2문장)""", max_tokens=512)
-
-    def synthesis(self, ai_opinions: str) -> str:
-        return self.generate(
-            f"AI 에이전트들의 의견:\n{ai_opinions[:400]}\n\n"
-            f"위에 반응하며 최적해를 향한 제안을 1~2문장으로 하라.",
-            max_tokens=256,
+        from src.graph.llm import build_debate_chain
+        search_results, _pre_tc = _pre_search_rebuttal(self.topic["title"], target_speech)
+        prompt = _build_rebuttal_prompt(
+            target_speech, target_display, self.stance_kr,
+            search_results=search_results,
         )
-
-    def synthesis_final(self) -> str:
-        return self.generate(
-            "지금까지의 토론을 종합하여 '우리의 최적해'를 2~3문장으로 확정하라.",
-            max_tokens=256,
+        chain = build_debate_chain(history, "user")
+        text, _raw, tc_log = _generate_rebuttal_speech(
+            self.agent, prompt, target_display, self.stance, chain,
         )
+        return text, _pre_tc + tc_log
+
+    def free_defense_attack(
+        self, opp_attack: str, opp_opening: str, my_opening: str, history: list,
+    ) -> Tuple[str, str, List[Dict]]:
+        """stage3_free_rebuttal: 방어 + 공격 한 세트 (타 에이전트 턴과 동일)."""
+        from src.phase1.stage3_free_rebuttal.nodes import (
+            _build_defense_prompt, _build_attack_prompt, _generate_with_chain,
+            _pick_one_argument,
+        )
+        from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
+        from src.graph.llm import build_debate_chain
+        from langchain_core.messages import SystemMessage
+
+        def _chain():
+            msgs = [SystemMessage(content=self.agent["system_prompt"])]
+            msgs.extend(build_debate_chain(history, "user"))
+            return msgs
+
+        all_tc: List[Dict] = []
+
+        # 방어
+        defense_text = ""
+        def_tc: List[Dict] = []
+        if opp_attack:
+            def_sr, def_pre_tc = _pre_search_rebuttal(self.topic["title"], opp_attack)
+            all_tc.extend(def_pre_tc)
+            dprompt = _build_defense_prompt(opp_attack, my_opening, search_results=def_sr)
+            defense_text, _r, def_tc = _generate_with_chain(_chain(), dprompt)
+            all_tc.extend(def_tc)
+
+        # 공격
+        target = _pick_one_argument(opp_opening) if opp_opening else ""
+        atk_sr, atk_pre_tc = _pre_search_rebuttal(self.topic["title"], target) if target else ("", [])
+        all_tc.extend(atk_pre_tc)
+        aprompt = _build_attack_prompt(target, search_results=atk_sr, opp_opening=opp_opening)
+        attack_text, _r2, att_tc = _generate_with_chain(_chain(), aprompt)
+        all_tc.extend(att_tc)
+        return defense_text, attack_text, all_tc
+
+    def role_reversal(
+        self, reversed_stance: str, opponent_openings: str,
+    ) -> Tuple[str, List[Dict]]:
+        """stage4_role_reversal의 동일 경로."""
+        from src.phase1.stage4_role_reversal.nodes import (
+            _build_role_reversal_prompt, _generate_role_reversal,
+        )
+        from src.phase1.stage1_opening.nodes import _pre_search
+        # 반전 입장의 focus로 사전 검색
+        search_results, pre_tc = _pre_search(self.topic["title"], reversed_stance, self.topic_id)
+        prompt = _build_role_reversal_prompt(
+            self.topic["title"], reversed_stance, "찬성1" if reversed_stance == "PRO" else "반대1",
+            search_results, opponent_openings,
+        )
+        # 반전된 입장의 agent 스냅샷 (system prompt만 재생성)
+        from src.phase0.persona_factory import _build_system_prompt
+        rr_agent = {
+            **self.agent,
+            "stance": reversed_stance,
+            "system_prompt": _build_system_prompt(
+                agent_id="user", stance=reversed_stance, intensity=self.intensity,
+                title=self.topic["title"], pro=self.topic.get("pro", ""),
+                con=self.topic.get("con", ""),
+                description=self.topic.get("description_long"),
+            ),
+        }
+        text, _raw, tc_log = _generate_role_reversal(rr_agent, prompt)
+        return text, pre_tc + tc_log
+
+    def synthesis_proposal(self, history: list) -> Tuple[str, List[Dict]]:
+        """stage5_synthesis의 동일 경로."""
+        from src.phase1.stage5_synthesis.nodes import _build_proposal_prompt, _build_synthesis_chain
+        from src.phase1.stage3_free_rebuttal.nodes import _generate_with_chain
+        prompt = _build_proposal_prompt(
+            self.topic["title"], self.stance, perspective=self.focus_area, intensity=self.intensity,
+        )
+        chain = _build_synthesis_chain(self.agent, history, "user")
+        text, _raw, tc_log = _generate_with_chain(chain, prompt)
+        return text, tc_log
+
+    def synthesis_final(self, history: list) -> Tuple[str, List[Dict]]:
+        """마지막 종합 — 합의된 최적해를 명시적으로 확정."""
+        from src.phase1.stage5_synthesis.nodes import _build_synthesis_chain
+        from src.phase1.stage3_free_rebuttal.nodes import _generate_with_chain
+        prompt = (
+            "지금까지의 토론과 회의를 종합하여 **양측이 합의할 수 있는 최적해**를 2~3문장으로 "
+            "확정하여 선언하세요. 새 쟁점을 추가하지 말고, 앞서 논의된 타협안·조건을 종합해 "
+            "구체적 결론 문장으로 표현하세요. "
+            "형식: '우리의 최적해는 ~입니다. 이는 ~조건과 ~보완을 전제로 합니다.' 처럼 "
+            "명시적으로 '최적해'라는 단어를 포함하세요. 한국어 합니다체."
+        )
+        chain = _build_synthesis_chain(self.agent, history, "user")
+        text, _raw, tc_log = _generate_with_chain(chain, prompt)
+        return text, tc_log
 
 
 def run_experiment(
@@ -182,23 +250,23 @@ def run_experiment(
         user_intensity=3, agents=snapshots, topic_id=topic_dict["id"],
     )
 
-    # user 프록시 — 동일 모델이 user 역할 수행
-    proxy = UserProxy(topic_dict, user_stance)
-    logger.info("실험 시작: %s / %s (전원 AI)", topic_id, debate_format)
+    # user도 동일 조건의 에이전트로 수행 (시스템 프롬프트·focus_area·도구 동일)
+    proxy = UserProxy(topic_dict, user_stance, intensity=3, topic_id=topic_dict["id"])
+    # user의 표시명 (찬성N / 반대N) — 같은 진영 에이전트 수 + 1
+    _same_stance_count = sum(1 for a in snapshots if a["stance"] == user_stance)
+    user_display = f"{'찬성' if user_stance == 'PRO' else '반대'}{_same_stance_count + 1}"
+    logger.info("실험 시작: %s / %s (전원 AI, user=%s)", topic_id, debate_format, user_display)
 
     # ── 1단계: 입론 ──────────────────────────────────────────────────
     state = opening_arguments_node(state)
     state = dict(state)
 
-    ai_openings = "\n---\n".join(
-        e["content"][:300] for e in state["debate_history"] if e["phase"] == "opening"
-    )
-    user_opening = proxy.opening(ai_openings)
+    user_opening, user_tc = proxy.opening(display=user_display)
     user_turn = len([e for e in state["debate_history"] if e["phase"] == "opening"])
     state["debate_history"].append(DebateEntry(
         turn=user_turn, speaker_id="user", stance=user_stance,
         phase="opening", content=user_opening, target_id=None,
-        tool_calls_log=[], json_raw="",
+        tool_calls_log=user_tc, json_raw="",
     ))
     state["debate_history"].sort(key=lambda e: e["turn"])
     state["phase"] = "chained_rebuttal"
@@ -208,23 +276,24 @@ def run_experiment(
     state = dict(state)
 
     attacker_id = None
-    for e in reversed(state["debate_history"]):
-        if e["phase"] == "chained_rebuttal" and e.get("target_id") == "user":
-            attacker_id = e["speaker_id"]
-            break
-    target_id = attacker_id or "agent_1"
-
     ai_attack = ""
     for e in reversed(state["debate_history"]):
         if e["phase"] == "chained_rebuttal" and e.get("target_id") == "user":
+            attacker_id = e["speaker_id"]
             ai_attack = e["content"]
             break
+    target_id = attacker_id or "agent_1"
+    attacker_snap = next((a for a in snapshots if a["agent_id"] == target_id), None)
+    target_display = attacker_snap["role_description"].split("|")[0].strip() if attacker_snap else target_id
 
-    user_rebuttal = proxy.rebuttal(ai_attack)
+    user_rebuttal, user_tc = proxy.chained_rebuttal(
+        target_speech=ai_attack, target_display=target_display,
+        history=state["debate_history"],
+    )
     state["debate_history"].append(DebateEntry(
         turn=state["current_turn"], speaker_id="user", stance=user_stance,
         phase="chained_rebuttal", content=user_rebuttal, target_id=target_id,
-        tool_calls_log=[], json_raw="",
+        tool_calls_log=user_tc, json_raw="",
     ))
     state["current_turn"] += 1
     state["phase"] = "free_rebuttal"
@@ -235,39 +304,75 @@ def run_experiment(
     if opponent:
         state["selected_opponent_id"] = opponent["agent_id"]
 
-    state = free_rebuttal_node(state)
+    # user의 자기 입론 (자유 논박 내 방어 근거용)
+    my_opening = next(
+        (e["content"] for e in state["debate_history"]
+         if e["phase"] == "opening" and e["speaker_id"] == "user"),
+        "",
+    )
+    # 상대 입론 (공격 대상)
+    opp_opening = next(
+        (e["content"] for e in state["debate_history"]
+         if e["phase"] == "opening" and e["speaker_id"] == state.get("selected_opponent_id")),
+        "",
+    )
+
+    # 자유논박 총 6턴: AI 공격(1) + user 방어+공격(2) + AI 방어+공격(2) + user 방어 최종(1)
+    state = free_rebuttal_node(state)  # AI 초기 공격 (1턴)
     state = dict(state)
 
-    for turn_idx in range(2):
-        agent_entries = [
-            e for e in state["debate_history"]
-            if e["speaker_id"] == state.get("selected_opponent_id")
-            and e["phase"] == "free_rebuttal"
-        ]
-        last_agent = agent_entries[-1]["content"] if agent_entries else ""
+    # 라운드 1: user 방어 + 공격, 이어서 AI 방어 + 공격
+    agent_entries = [
+        e for e in state["debate_history"]
+        if e["speaker_id"] == state.get("selected_opponent_id")
+        and e["phase"] == "free_rebuttal"
+    ]
+    last_agent = agent_entries[-1]["content"] if agent_entries else ""
 
-        user_defense = proxy.free_defense(last_agent)
-        state["debate_history"].append(DebateEntry(
-            turn=state["current_turn"], speaker_id="user", stance=user_stance,
-            phase="free_rebuttal", content=user_defense,
-            target_id=state.get("selected_opponent_id"),
-            tool_calls_log=[], json_raw="",
-        ))
-        state["current_turn"] += 1
+    user_defense, user_attack, user_tc = proxy.free_defense_attack(
+        opp_attack=last_agent, opp_opening=opp_opening,
+        my_opening=my_opening, history=state["debate_history"],
+    )
+    state["debate_history"].append(DebateEntry(
+        turn=state["current_turn"], speaker_id="user", stance=user_stance,
+        phase="free_rebuttal", content=user_defense,
+        target_id=state.get("selected_opponent_id"),
+        tool_calls_log=user_tc[: len(user_tc)//2 or len(user_tc)], json_raw="",
+    ))
+    state["current_turn"] += 1
+    state["debate_history"].append(DebateEntry(
+        turn=state["current_turn"], speaker_id="user", stance=user_stance,
+        phase="free_rebuttal", content=user_attack,
+        target_id=state.get("selected_opponent_id"),
+        tool_calls_log=user_tc[len(user_tc)//2:], json_raw="",
+    ))
+    state["current_turn"] += 1
+    state["free_rebuttal_user_turns"] = 1
 
-        user_attack = proxy.free_attack()
-        state["debate_history"].append(DebateEntry(
-            turn=state["current_turn"], speaker_id="user", stance=user_stance,
-            phase="free_rebuttal", content=user_attack,
-            target_id=state.get("selected_opponent_id"),
-            tool_calls_log=[], json_raw="",
-        ))
-        state["current_turn"] += 1
-        state["free_rebuttal_user_turns"] = turn_idx + 1
+    state = free_rebuttal_node(state)  # AI 방어+공격 (2턴)
+    state = dict(state)
+    logger.info("[3단계] 자유논박 1라운드 완료")
 
-        state = free_rebuttal_node(state)
-        state = dict(state)
-        logger.info("[3단계] 자유논박 턴 %d/2", turn_idx + 1)
+    # 라운드 2 (최종): user 방어만 (1턴), AI 응답 없음
+    agent_entries = [
+        e for e in state["debate_history"]
+        if e["speaker_id"] == state.get("selected_opponent_id")
+        and e["phase"] == "free_rebuttal"
+    ]
+    last_agent = agent_entries[-1]["content"] if agent_entries else ""
+    user_final_defense, _user_atk_discard, user_tc = proxy.free_defense_attack(
+        opp_attack=last_agent, opp_opening=opp_opening,
+        my_opening=my_opening, history=state["debate_history"],
+    )
+    state["debate_history"].append(DebateEntry(
+        turn=state["current_turn"], speaker_id="user", stance=user_stance,
+        phase="free_rebuttal", content=user_final_defense,
+        target_id=state.get("selected_opponent_id"),
+        tool_calls_log=user_tc[: len(user_tc)//2 or len(user_tc)], json_raw="",
+    ))
+    state["current_turn"] += 1
+    state["free_rebuttal_user_turns"] = 2
+    logger.info("[3단계] 자유논박 최종 방어 완료 (총 6턴)")
 
     state["phase"] = "role_reversal"
 
@@ -276,13 +381,19 @@ def run_experiment(
     state = dict(state)
 
     reversed_stance = "CON" if user_stance == "PRO" else "PRO"
-    reversed_kr = "반대" if user_stance == "PRO" else "찬성"
-    user_rr = proxy.role_reversal(reversed_kr)
+    # 반전된 입장의 기존 입론들
+    opp_openings_text = "\n---\n".join(
+        e["content"][:300] for e in state["debate_history"]
+        if e["phase"] == "opening" and e["stance"] == reversed_stance
+    )
+    user_rr, user_tc = proxy.role_reversal(
+        reversed_stance=reversed_stance, opponent_openings=opp_openings_text,
+    )
     state["debate_history"].append(DebateEntry(
         turn=state["current_turn"], speaker_id="user",
         stance=reversed_stance, phase="role_reversal",
         content=user_rr, target_id=None,
-        tool_calls_log=[], json_raw="",
+        tool_calls_log=user_tc, json_raw="",
     ))
     state["current_turn"] += 1
     state["phase"] = "synthesis"
@@ -292,18 +403,12 @@ def run_experiment(
     state = dict(state)
 
     for syn_idx in range(2):
-        ai_opinions = "\n".join(
-            f"[{e['speaker_id']}] {e['content'][:100]}"
-            for e in state["debate_history"]
-            if e["phase"] == "synthesis" and e["speaker_id"] != "user"
-        )[-500:]
-
-        user_syn = proxy.synthesis(ai_opinions)
+        user_syn, user_tc = proxy.synthesis_proposal(history=state["debate_history"])
         state["debate_history"].append(DebateEntry(
             turn=state["current_turn"], speaker_id="user",
             stance=user_stance, phase="synthesis",
             content=user_syn, target_id=None,
-            tool_calls_log=[], json_raw="",
+            tool_calls_log=user_tc, json_raw="",
         ))
         state["current_turn"] += 1
         state["synthesis_user_turns"] = syn_idx + 1
@@ -312,12 +417,12 @@ def run_experiment(
         state = dict(state)
         logger.info("[5단계] 종합 턴 %d/2", syn_idx + 1)
 
-    user_final = proxy.synthesis_final()
+    user_final, user_tc = proxy.synthesis_final(history=state["debate_history"])
     state["debate_history"].append(DebateEntry(
         turn=state["current_turn"], speaker_id="user",
         stance=user_stance, phase="synthesis",
         content=user_final, target_id=None,
-        tool_calls_log=[], json_raw="",
+        tool_calls_log=user_tc, json_raw="",
     ))
     state["synthesis_draft"] = user_final
     state["is_finished"] = True

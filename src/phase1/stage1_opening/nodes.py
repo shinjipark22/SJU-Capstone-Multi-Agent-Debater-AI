@@ -243,6 +243,48 @@ def _postprocess_speech(text: str) -> str:
     text = re.sub(r'\*{2,}\s*\*{2,}', '', text)
     # 다중 공백 정리
     text = re.sub(r' {2,}', ' ', text)
+    # 평서체 → 격식체 rule-based 치환 (문장 끝 특정 패턴만)
+    _FORMAL_MAP = [
+        # 긴 패턴부터 먼저 치환 (겹침 방지)
+        (r'것이었다([\.,!?])', r'것이었습니다\1'),
+        (r'것이다([\.,!?])', r'것입니다\1'),
+        (r'할\s*수\s*있다([\.,!?])', r'할 수 있습니다\1'),
+        (r'할\s*수\s*없다([\.,!?])', r'할 수 없습니다\1'),
+        (r'있었다([\.,!?])', r'있었습니다\1'),
+        (r'없었다([\.,!?])', r'없었습니다\1'),
+        (r'이었다([\.,!?])', r'이었습니다\1'),
+        (r'하였다([\.,!?])', r'하였습니다\1'),
+        (r'되었다([\.,!?])', r'되었습니다\1'),
+        # 기본 패턴
+        (r'([^가-힣ㅏ-ㅣ])이다([\.,!?])', r'\1입니다\2'),
+        (r'한다([\.,!?])', r'합니다\1'),
+        (r'된다([\.,!?])', r'됩니다\1'),
+        (r'있다([\.,!?])', r'있습니다\1'),
+        (r'없다([\.,!?])', r'없습니다\1'),
+        (r'했다([\.,!?])', r'했습니다\1'),
+        (r'됐다([\.,!?])', r'됐습니다\1'),
+        (r'였다([\.,!?])', r'였습니다\1'),
+        (r'봤다([\.,!?])', r'봤습니다\1'),
+        (r'왔다([\.,!?])', r'왔습니다\1'),
+        (r'갔다([\.,!?])', r'갔습니다\1'),
+    ]
+    for pat, rep in _FORMAL_MAP:
+        text = re.sub(pat, rep, text)
+    # 연속 중복 줄/문장 제거 (모델이 같은 내용을 두 번 찍는 경우)
+    _lines = text.split('\n')
+    _dedup = []
+    _prev_norm = ""
+    for _ln in _lines:
+        _norm = re.sub(r'\s+', ' ', _ln).strip()
+        # 짧은 줄은 정상 허용, 10자 이상 내용 줄이 직전과 80% 이상 유사하면 스킵
+        if _norm and len(_norm) >= 10 and _prev_norm and len(_prev_norm) >= 10:
+            # 직전 줄이 이번 줄의 prefix 이거나 그 반대면 중복 간주
+            if _norm.startswith(_prev_norm[:30]) or _prev_norm.startswith(_norm[:30]):
+                continue
+        _dedup.append(_ln)
+        if _norm:
+            _prev_norm = _norm
+    text = '\n'.join(_dedup)
     # '자기소개와 입장 표명' 중복 텍스트 제거 (소제목 아닌 본문의 동일 텍스트)
     text = re.sub(r'^자기소개와 입장 표명\s*\n', '', text, flags=re.MULTILINE)
     text = re.sub(r'^자기소개와 입장 표명\s*$', '', text, flags=re.MULTILINE)
@@ -327,6 +369,8 @@ def validate_quality(speech: str, min_chars: int = 20) -> Tuple[bool, str]:
     sentences = [s.strip() for s in re.split(r'[.!?]\s+', speech) if len(s.strip()) > 30]
     if len(sentences) != len(set(sentences)):
         return False, "문장 반복"
+
+    # 8. 격식체 검증은 _postprocess_speech의 rule-based 치환으로 대체함 (탈락 없이 자동 교정)
 
     return True, "OK"
 
@@ -418,9 +462,11 @@ def _pre_search(topic: str, stance: str, topic_id: str = "") -> Tuple[str, List[
         stance_kr = "찬성 근거 통계" if stance == "PRO" else "반대 근거 문제점 통계"
         query = f"{topic_short} {stance_kr}"
 
-    tool_calls_log.append({"name": "search_web", "args": {"query": query}})
-    web_result = search_web.invoke({"query": query})
-    return _truncate_tool_result(web_result), tool_calls_log
+    from src.graph.llm import safe_search_invoke
+    web_result = safe_search_invoke({"query": query})
+    result = _truncate_tool_result(web_result)
+    tool_calls_log.append({"name": "search_web", "args": {"query": query}, "result": result})
+    return result, tool_calls_log
 
 
 def _build_opening_prompt(
@@ -437,13 +483,14 @@ def _build_opening_prompt(
 {focus_block}
 [구조]
 - "{agent_name}"이라고 자기소개
-- 논거 2개, 각 3~5줄. 구체적 사례·데이터·국가 비교를 반드시 포함하라
+- 논거 2개, 각 3~5줄. 논리적 추론과 사례·근거를 엮어 설득력 있게 구성하라
 - 핵심 문장에 **강조** 사용
-- 일반론 금지. "~은 문제입니다" 수준의 막연한 주장 대신, 구체적 사례와 수치를 들어 설득하라
+- 막연한 주장 금지. "~은 문제입니다" 수준의 추상적 진술 대신, 구체적 사례·맥락·인과를 풀어 설득하라
 
-[인용 규칙]
-- 논증과 주장은 너의 지식을 바탕으로 자유롭게 구성하라
-- 통계·수치·최신 데이터가 필요하면 search_web 도구로 검색하여 인용하라
+[인용 규칙 — 절대 준수]
+- 구체적 수치·%·금액·연도별 통계·특정 기관/보고서명을 쓰려면 **먼저 search_web을 호출**하고, 검색 결과에 나타난 것만 인용하라
+- 검색하지 않은 수치·기관명은 단 하나도 쓰지 마라. 머릿속 지식에서 떠오른 수치는 쓰지 마라
+- 수치가 확실하지 않으면 "상당수", "대체로", "최근" 같은 일반화 표현으로 대체하라
 - 존재하지 않는 연구나 기관을 지어내지 마라
 
 [형식]
@@ -462,6 +509,58 @@ def _build_opening_prompt(
 ### 결론
 (결론)
 ### 답변 끝"""
+
+
+# ── 인용-검색 일치 검증 (구조적 강제) ────────────────────────────────────────
+
+_CITATION_PATTERNS = [
+    # 수치·%·금액 (연도·세기 등 일반 숫자는 제외)
+    re.compile(r'\d+(?:\.\d+)?\s*%'),                        # 3.5%, 20%
+    re.compile(r'\d+(?:,\d+)*\s*(?:조|억|만)\s*(?:달러|원)?'),  # 39조 달러
+    re.compile(r'\$\s*\d+(?:,\d+)*(?:\.\d+)?\s*(?:조|억|만|억만|trillion|billion|million)?'),
+    re.compile(r'\d+(?:\.\d+)?\s*(?:p|%p|%포인트|퍼센트\s*포인트)'),  # 0.5%p
+    re.compile(r'\d+(?:\.\d+)?\s*(?:배|명|만명|억명|대)'),     # 300만명, 2배
+    # 기관명·보고서 (한국어 고유명)
+    re.compile(r'(?:옥스포드\s*이코노믹스|IMF|OECD|EBRD|IHS\s*Markit|World\s*Bank|WB|IEA|UN)'),
+    re.compile(r'(?:국회예산정책처|국가안보전략연구원|한국은행|KDI|KOTRA)'),
+    # 연도+구체 사건 (예: "2020년 솔레이마니 사건")
+    re.compile(r'\b(?:19|20)\d{2}\s*년\s*(?:[가-힣A-Za-z0-9]+(?:\s*사건|\s*공격|\s*제재|\s*사태|\s*협정|\s*조약|\s*회담))'),
+]
+
+
+def _has_specific_citation(text: str) -> List[str]:
+    """구체적 수치·기관명·연도사건 인용을 추출한다. 검증 필요 인용이 있을 때만 리스트 반환."""
+    found: List[str] = []
+    for pat in _CITATION_PATTERNS:
+        for m in pat.findall(text):
+            s = m if isinstance(m, str) else " ".join(m)
+            if s and s not in found:
+                found.append(s)
+    return found
+
+
+def _validate_citation_search(speech: str, tool_calls_log: List[Dict]) -> Tuple[bool, str]:
+    """구체 인용이 있는데 search_web 호출이 0이면 실패. 재생성 힌트 반환.
+
+    Returns:
+        (ok, feedback_msg)
+        - ok=True: 통과 (인용 없음 or 인용 있고 검색도 있음)
+        - ok=False: 실패 — feedback_msg를 재생성 프롬프트로 전달
+    """
+    citations = _has_specific_citation(speech)
+    searches = [tc for tc in (tool_calls_log or []) if tc.get("name") == "search_web"]
+    if citations and not searches:
+        cited_examples = ", ".join(citations[:4])
+        msg = (
+            f"방금 발언에 구체적 수치/기관명이 포함되어 있는데 search_web을 호출하지 않았습니다. "
+            f"(감지된 인용: {cited_examples})\n"
+            f"두 가지 선택 중 하나를 반드시 하세요:\n"
+            f"  (A) search_web을 **지금 호출**해서 그 수치·기관을 검증한 뒤, 검색 결과에 나온 내용만 인용해서 재작성하세요.\n"
+            f"  (B) 구체 수치·기관명을 모두 빼고 '상당수', '대체로', '최근', '많은 경우' 같은 **일반화 표현**으로 논리 중심 발언을 재작성하세요.\n"
+            f"반드시 전체 발언을 다시 작성하세요."
+        )
+        return False, msg
+    return True, ""
 
 
 # ── 입론 생성 (사전 검색 + 단일 LLM 호출) ───────────────────────────────────
@@ -485,7 +584,15 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
             tool_args = tc.get("args", {})
             tool_id = tc.get("id", "")
             if tool_name in _TOOL_MAP:
-                result = _TOOL_MAP[tool_name].invoke(tool_args)
+                from src.graph.llm import safe_search_invoke
+                if tool_name == "search_web":
+                    result = safe_search_invoke(tool_args)
+                else:
+                    try:
+                        result = _TOOL_MAP[tool_name].invoke(tool_args)
+                    except Exception as _e:
+                        logger.warning("[tool %s] 실패: %s", tool_name, _e)
+                        result = f"[{tool_name} 실패] {_e}"
                 result = _truncate_tool_result(str(result))
                 tool_calls_log.append({"name": tool_name, "args": tool_args, "result": result})
                 messages.append(ToolMessage(content=result, tool_call_id=tool_id))
@@ -511,6 +618,32 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
         messages.append(AIMessage(content=raw))
         messages.append(HumanMessage(content=f'{retry_hint}\n\n### 답변 시작\n### 자기소개와 입장 표명\n(자기소개)\n### 논거 1: 소제목\n(논거)\n### 논거 2: 소제목\n(논거)\n### 결론\n(결론)\n### 답변 끝'))
         retry: AIMessage = _invoke_with_retry(_llm, messages, label="opening_retry")
+        raw = retry.content if isinstance(retry.content, str) else str(retry.content)
+        speech = _postprocess_speech(_extract_delimited_text(raw))
+
+    # 구조적 강제: 구체 수치·기관명 인용이 있는데 search_web을 호출 안 했으면 재생성
+    for attempt in range(2):
+        cite_ok, cite_feedback = _validate_citation_search(speech, tool_calls_log)
+        if cite_ok:
+            break
+        logger.warning("[opening] 인용-검색 불일치 감지, 재시도 %d/2", attempt + 1)
+        messages.append(AIMessage(content=raw))
+        messages.append(HumanMessage(content=cite_feedback))
+        retry: AIMessage = _invoke_with_retry(_llm_with_tools, messages, label="opening_cite_retry")
+        # tool call 처리 (재시도 중에도 검색 가능)
+        if hasattr(retry, "tool_calls") and retry.tool_calls:
+            messages.append(retry)
+            for tc in retry.tool_calls:
+                tool_name = tc.get("name", "")
+                tool_args = tc.get("args", {})
+                tool_id = tc.get("id", "")
+                if tool_name in _TOOL_MAP:
+                    result = _TOOL_MAP[tool_name].invoke(tool_args)
+                    result = _truncate_tool_result(str(result))
+                    tool_calls_log.append({"name": tool_name, "args": tool_args, "result": result})
+                    messages.append(ToolMessage(content=result, tool_call_id=tool_id))
+                    logger.info("[opening] retry tool call: %s(%s)", tool_name, tool_args)
+            retry = _invoke_with_retry(_llm, messages, label="opening_cite_retry_final")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
 
@@ -545,10 +678,9 @@ def opening_arguments_node(state: DebateState) -> DebateState:
 
         print(f"  [{display}] 입론 생성 중...")
 
-        # 1. focus area 할당 (검색 쿼리를 논증 방향으로 활용)
-        focus_area = _get_focus_area(
-            agent["stance"],
-            topic_id=state.get("topic_id", ""),
+        # 1. focus area — persona의 각도명을 우선 사용, 없으면 검색쿼리 rotation
+        focus_area = agent.get("focus_area") or _get_focus_area(
+            agent["stance"], topic_id=state.get("topic_id", ""),
         )
         if focus_area:
             print(f"    [focus] {focus_area}")

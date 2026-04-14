@@ -49,11 +49,40 @@ def search_web(query: str) -> str:
         items = results.get("results", [])
         if not items:
             return "[검색 결과] 관련 결과를 찾을 수 없습니다."
+        # 제목은 제외, 본문(content)만 모델에 전달
         return "[검색 결과]\n" + "\n".join(
-            f"- {r['title']}: {r['content'][:200]}" for r in items
+            f"- {r['content'][:300]}" for r in items
         )
     except Exception as e:
         return f"[검색 오류] {e}"
+
+
+def _normalize_tool_args(args) -> dict:
+    """모델이 중첩 구조({'arguments': {'query': X}})로 인자를 생성해도 평탄화한다."""
+    if not isinstance(args, dict):
+        return {"query": str(args)}
+    # 중첩된 'arguments' 키만 있는 경우 풀기
+    if "arguments" in args and isinstance(args["arguments"], dict) and "query" not in args:
+        args = args["arguments"]
+    # query 키 없으면 첫 문자열 값으로 대체
+    if "query" not in args:
+        for v in args.values():
+            if isinstance(v, str) and v.strip():
+                return {"query": v}
+        return {"query": ""}
+    return args
+
+
+def safe_search_invoke(args) -> str:
+    """search_web 호출 안전 래퍼. 인자 구조 정규화 + 예외 포착."""
+    try:
+        normalized = _normalize_tool_args(args)
+        if not normalized.get("query", "").strip():
+            return "[검색 실패] 빈 쿼리"
+        return search_web.invoke(normalized)
+    except Exception as e:
+        logger.warning("[safe_search_invoke] 실패: %s (args=%r)", e, args)
+        return f"[검색 실패] {e}"
 
 
 # ── LLM 클라이언트 ────────────────────────────────────────────────────────
@@ -118,7 +147,7 @@ def invoke_with_tools(messages: list, *, label: str = "llm") -> tuple:
     if response.tool_calls:
         for tc in response.tool_calls:
             tool_calls_log.append({"name": tc["name"], "args": tc["args"]})
-            result = search_web.invoke(tc["args"])
+            result = safe_search_invoke(tc["args"])
             tool_calls_log[-1]["result"] = result[:200]
 
             messages.append(response)

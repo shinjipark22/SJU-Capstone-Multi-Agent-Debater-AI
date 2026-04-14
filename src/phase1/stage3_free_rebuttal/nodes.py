@@ -158,7 +158,8 @@ def _generate_with_chain(
         messages.append(response)
         for tc in response.tool_calls:
             if tc.get("name") == "search_web":
-                result = search_web.invoke(tc.get("args", {}))
+                from src.graph.llm import safe_search_invoke
+                result = safe_search_invoke(tc.get("args", {}))
                 result = _truncate_tool_result(str(result))
                 tc_log.append({"name": "search_web", "args": tc.get("args", {}), "result": result})
                 messages.append(_ToolMessage(content=result, tool_call_id=tc.get("id", "")))
@@ -214,7 +215,7 @@ def _build_attack_prompt(
 - 총 3~4문장 이내. 절대 5문장을 넘기지 마라
 - 핵심 주장에 **강조** 표시
 - 직전 2턴에서 사용한 핵심 논지를 반복하지 마라. 새로운 공격 축을 제시하라
-- 수치를 지어내지 마라
+- 구체적 수치·기관명을 쓰려면 참고 자료에 있는 것만 인용. 참고 자료에 없으면 수치 없이 논리로 공격하라. 머릿속 수치는 쓰지 마라
 
 반드시 아래 형식으로만 출력:
 
@@ -251,7 +252,7 @@ def _build_defense_prompt(
 - 반드시 합니다체
 - 총 3~4문장 이내. 절대 5문장을 넘기지 마라
 - 핵심 주장에 **강조** 표시
-- 수치를 지어내지 마라
+- 구체적 수치·기관명을 쓰려면 참고 자료에 있는 것만 인용. 없으면 수치 없이 논리로 방어하라. 머릿속 수치는 쓰지 마라
 - 직전 2턴에서 사용한 논지를 반복하지 마라
 
 반드시 아래 형식으로만 출력:
@@ -330,7 +331,13 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
     if not is_first_turn and user_latest_attack:
         print(f"  [Step 1 - 답변] 사용자 공격에 방어{' (최종 답변)' if final_turn else ''}\n")
 
-        defense_prompt = _build_defense_prompt(user_latest_attack, my_opening)
+        # Pre-search: 사용자 공격 내용 기반 검색 (stage2 패턴)
+        from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
+        def_search_results, def_pre_tc = _pre_search_rebuttal(state["topic"], user_latest_attack)
+        tool_calls_log.extend(def_pre_tc)
+        defense_prompt = _build_defense_prompt(
+            user_latest_attack, my_opening, search_results=def_search_results,
+        )
         defense, raw_def, tc_def = _generate_with_chain(list(chain), defense_prompt)
         tool_calls_log.extend(tc_def)
         speeches.append(("답변", defense, raw_def))
@@ -350,9 +357,19 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
             tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
             print(f"  [약점 분석] {weakness[:60]}\n")
 
+        # Pre-search: 공격 대상 논거 기반 검색 (stage2 패턴)
+        from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
+        atk_search_results, atk_pre_tc = _pre_search_rebuttal(state["topic"], target_argument)
+        tool_calls_log.extend(atk_pre_tc)
+
         weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
         prev_hint = f"\n[이전 공격 — 아래 내용은 이미 사용했으니 반복 금지. 완전히 다른 관점으로 공격하라]\n{prev_attacks_text}\n" if prev_attacks_text else ""
-        attack_prompt = _build_attack_prompt(target_argument, weakness_hint + prev_hint, opp_opening)
+        ref_block = atk_search_results if atk_search_results else ""
+        attack_prompt = _build_attack_prompt(
+            target_argument,
+            search_results=(ref_block + weakness_hint + prev_hint),
+            opp_opening=opp_opening,
+        )
         # 답변이 있으면 그 결과를 체인에 추가한 뒤 공격
         attack_chain = list(chain)
         if speeches:

@@ -150,19 +150,56 @@ def _extract_rebuttal_text(content: str) -> str:
 # ── 반박 프롬프트 ────────────────────────────────────────────────────────────
 
 def _generate_search_query(topic: str, target_argument: str) -> str:
-    """상대 논거에서 핵심 키워드를 추출해 반박 검색 쿼리를 생성한다."""
-    # 볼드/마크다운 제거
+    """LLM이 CoT(약점 → 근거 유형 → 쿼리) 추론 후 Google 스타일 검색 쿼리를 생성한다."""
+    import json as _json
+
+    prompt = f"""당신은 토론 참가자입니다. 상대 논거를 약화시킬 근거를 Google에서 찾으려 합니다.
+
+[주제] {topic}
+[반박할 논거] {target_argument[:400]}
+
+아래 3단계로 **순서대로** 생각한 뒤 JSON으로만 출력하세요:
+
+1. weakness: 상대 논거의 가장 약한 부분은 무엇인가? (1문장, 한국어)
+2. evidence_type: 그 약점을 공격하려면 어떤 근거가 필요한가?
+   - "통계/수치" | "역사적 반례" | "권위 기관 반대 입장" | "부작용 사례" 중 하나 선택 (1문장, 한국어)
+3. query: 그 근거를 Google에서 찾을 **한국어 키워드 3~6개**. 명사 중심. 질문형 금지.
+   - **반드시 한국어로만** 작성 (영어·중국어·일본어 금지). 고유명사(IMF, GDP 등)는 예외.
+   - "반박", "근거" 같은 일반어 금지. 구체 키워드만.
+
+반드시 아래 JSON 형식으로만 출력:
+{{
+  "weakness": "...",
+  "evidence_type": "...",
+  "query": "..."
+}}"""
+    try:
+        resp = _invoke_with_retry(
+            _analysis_llm,
+            [HumanMessage(content=prompt)],
+            label="search_query_cot",
+        )
+        raw = resp.content if isinstance(resp.content, str) else str(resp.content)
+        # JSON 블록 추출
+        m = re.search(r'\{.*?"query".*?\}', raw, re.DOTALL)
+        if m:
+            parsed = _json.loads(m.group(0))
+            q = str(parsed.get("query", "")).strip().replace('"', '')
+            # 중국어/일본어 포함 시 fallback (한국어 쿼리 강제)
+            if re.search(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]', q):
+                logger.warning("[search_query_cot] 비-한국어 쿼리 감지, fallback: %s", q)
+                raise ValueError("non-Korean query")
+            if q and len(q) >= 3:
+                return q[:80]
+    except Exception as e:
+        logger.warning("[search_query_cot] 실패, fallback: %s", e)
+
+    # Fallback — LLM 실패 시 regex 기반 간단 쿼리
     clean = re.sub(r'\*{1,2}', '', target_argument)
-    # 핵심 주장 추출
     key = _extract_key_claim(clean)
-    # 한국어 명사구만 추출 (조사/어미 제거는 하지 않고 길이로 자름)
     key = re.sub(r'[^\w가-힣\s]', '', key).strip()
-    # 너무 길면 앞부분만
-    words = key.split()
-    if len(words) > 5:
-        words = words[:5]
-    query = ' '.join(words) + ' 반박 근거'
-    return query[:40]
+    words = key.split()[:5]
+    return (' '.join(words) or topic)[:60]
 
 
 def _pre_search_rebuttal(topic: str, target_argument: str) -> Tuple[str, List[Dict]]:
@@ -170,9 +207,10 @@ def _pre_search_rebuttal(topic: str, target_argument: str) -> Tuple[str, List[Di
     tool_calls_log: List[Dict] = []
 
     query = _generate_search_query(topic, target_argument)
-    tool_calls_log.append({"name": "search_web", "args": {"query": query}})
-    web_result = search_web.invoke({"query": query})
+    from src.graph.llm import safe_search_invoke
+    web_result = safe_search_invoke({"query": query})
     result = _truncate_tool_result(web_result)
+    tool_calls_log.append({"name": "search_web", "args": {"query": query}, "result": result})
 
     return result, tool_calls_log
 
@@ -262,7 +300,8 @@ def _generate_rebuttal_speech(
             tool_args = tc.get("args", {})
             tool_id = tc.get("id", "")
             if tool_name == "search_web":
-                result = search_web.invoke(tool_args)
+                from src.graph.llm import safe_search_invoke
+                result = safe_search_invoke(tool_args)
                 result = _truncate_tool_result(str(result))
                 tool_calls_log.append({"name": tool_name, "args": tool_args, "result": result})
                 messages.append(ToolMessage(content=result, tool_call_id=tool_id))

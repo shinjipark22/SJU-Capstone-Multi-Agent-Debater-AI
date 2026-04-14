@@ -80,7 +80,12 @@ MODELS: Dict[str, ModelConfig] = {
         tensor_parallel=2,  # FP16 28GB → 1장 안됨
         extra_vllm_args={"is_cot": True, "max_tokens_multiplier": 2},
     ),
-    # Qwen-2.5-7B: 실험 제외 (vLLM hang 문제)
+    # ── 소형 ──
+    "Qwen-2.5-7B-Instruct": ModelConfig(
+        model_id="Qwen-2.5-7B-Instruct",
+        model_name="Qwen/Qwen2.5-7B-Instruct",
+        tensor_parallel=2,  # 다른 모델과 동일 조건 (TP=2, max_len=16384)
+    ),
 }
 
 # ── 실험 조합 ───────────────────────────────────────────────────────────────

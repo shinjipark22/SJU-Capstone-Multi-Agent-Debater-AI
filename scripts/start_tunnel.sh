@@ -10,4 +10,5 @@ echo "[Cloudflare Tunnel] http://localhost:$PORT → https://xxx.trycloudflare.c
 echo "  생성된 URL을 Spring Boot application.yml에 설정하세요"
 echo ""
 
-cloudflared tunnel --url "http://localhost:$PORT"
+CLOUDFLARED="${CLOUDFLARED:-$(which cloudflared 2>/dev/null || echo "$HOME/bin/cloudflared")}"
+"$CLOUDFLARED" tunnel --url "http://localhost:$PORT"

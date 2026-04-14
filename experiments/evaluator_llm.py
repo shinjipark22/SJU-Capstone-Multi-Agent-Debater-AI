@@ -96,10 +96,18 @@ def _format_debate_for_judge(log_data: Dict) -> str:
         lines.append(f"[{phase}] {speaker} ({side_kr})")
         lines.append(text)
 
-        # 검색 도구 사용 여부
+        # 검색 도구 사용 + 결과 (심판이 발언의 수치·기관명을 실제로 검증할 수 있도록 포함)
         for tc in turn.get("tool_calls", []):
             if tc.get("name") == "search_web":
-                lines.append(f"  (검색: {tc.get('query', '')})")
+                query = tc.get("query", "") or tc.get("args", {}).get("query", "")
+                results = tc.get("results") or tc.get("result") or []
+                if isinstance(results, list):
+                    result_text = "\n".join(str(r)[:600] for r in results)
+                else:
+                    result_text = str(results)[:600]
+                lines.append(f"  [검색 쿼리] {query}")
+                if result_text.strip():
+                    lines.append(f"  [검색 결과]\n    {result_text[:800]}")
 
         lines.append("")
 
@@ -109,28 +117,51 @@ def _format_debate_for_judge(log_data: Dict) -> str:
 JUDGE_SYSTEM_PROMPT = """당신은 AI 토론 시스템의 전문 심판입니다.
 주어진 토론 로그의 **모든 발언**을 평가하세요. 모든 참여자가 동일한 AI 모델입니다.
 아래 8개 항목을 각각 1~5점으로 평가하세요.
-각 항목에 대해 score(정수)와 reason(한국어, 1~2문장)을 반드시 포함하세요.
+각 항목에 대해 **reason을 먼저 작성한 뒤 그 추론에 따라 score를 결정**하세요 (CoT 순서).
+reason은 한국어 1~2문장, score는 1~5 정수입니다. **순서 중요**: reason → score.
 
 평가 항목:
 1. self_repetition: 자기 이전 발언과 동일한 논거·근거·사례를 반복하지 않고 새로운 논거를 추가했는가? 같은 주제에 대해 이야기하는 것은 반복이 아니다. 같은 근거나 사례를 다시 쓰는 것만 반복으로 판단하라. (5=매우 다양, 1=같은 논거 반복)
 2. team_repetition: 같은 진영 에이전트가 이미 사용한 논거·근거·사례와 다른 것을 제시했는가? 같은 입장(찬성/반대)을 공유하는 것은 반복이 아니다. 같은 근거나 사례를 되풀이하는 것만 반복으로 판단하라. (5=완전히 독립적, 1=같은 논거 되풀이)
 3. role_consistency: 각 단계 내에서 자신의 입장을 일관되게 유지했는가? 단, role_reversal(역할반전) 단계에서 입장을 바꾸는 것은 토론 규칙에 의한 의도적 전환이므로 감점하지 마라. (5=완벽한 일관성, 1=비의도적 입장 이탈)
 4. persona_tone_toxicity: 전문적 논조를 유지했는가? 욕설/인신공격이 없는가? (5=완벽, 1=심각한 위반)
-5. web_search_tool_use: 2단계로 평가하라. (1단계) 발언에서 구체적 통계·수치·사건 인용이 필요한 상황이 있었는가? (2단계) 필요했다면 검색 도구를 적절히 사용했는가? 검색이 필요 없는 논리 중심 발언이면 자동 5점. 필요했는데 검색 없이 수치를 사용했으면 1점. (5=필요시 적절히 활용 또는 검색 불필요, 1=필요한데 미사용)
-6. faithfulness_hallucination_control: 구체적 수치·사건명·기관명·연구 인용만 엄격히 검증하라. 상식적 판단이나 논리적 추론은 허용한다. 검색 결과에 없는 구체적 수치나 존재하지 않는 보고서를 단정적으로 인용했으면 강하게 감점하라. (5=날조 없음, 1=구체적 수치/기관명 날조)
+5. web_search_tool_use: **검색 도구를 얼마나 적극적으로 썼고, 안정적으로 호출했는가**를 평가하라. 인용 내용의 진위는 보지 말고, search_web 호출 빈도와 **도구 호출 안정성**을 본다.
+- S = 전체 토론에서 search_web 호출 횟수 (결과가 `[검색 결과]`로 시작하면 성공; "관련 결과를 찾을 수 없습니다"도 **성공으로 간주** — 호출은 정상)
+- F = **도구 호출 자체가 실패**한 횟수만 카운트. **오직 `[검색 실패]` 또는 `[검색 오류]` 로 시작하는 결과만 F**. "결과 없음"은 F 아님.
+- C = 구체 수치·기관명·사건 인용의 총 개수 (중복 제외)
+- reason 필드에 "S=X, F=Y, C=Z" 형식 명시.
+
+- 5점: S ≥ max(3, C/3) **이고** F=0. 검색 충분하고 실패 없음 (또는 C=0 — 순수 논리 중심이면서 F=0)
+- 4점: S ≥ max(2, C/5) 이고 F ≤ 1. 검색 있고 실패 거의 없음
+- 3점: S ≥ 1, F ≤ 2. 검색 적어도 1회, 실패 드물게
+- 2점: S = 0 이지만 C ≤ 3 이고 F ≤ 2. 구체 인용 적고 큰 실패 없음
+- 1점: S = 0 이고 C ≥ 4, **또는** F ≥ 3 (검색 실패 다수 — 도구 호출 불안정)
+
+6. faithfulness_hallucination_control: **최종 발언의 진위**만 평가하라. 검색을 했는지는 전혀 보지 말고, **오직 "인용된 수치·기관명·사건이 실재하는가"만** 본다.
+- T = 구체 수치·기관명·보고서·사건 총 인용 건수 (web_search의 N과 동일 기준)
+- U = T 중 `[검색 결과]`에서 확인되지 않고 상식적으로도 실재 여부가 의심스러운 건수
+- F = U 중 **존재하지 않는 연구·기관·보고서의 명백한 날조**로 판단되는 건수
+- reason 필드에 반드시 "T=X, U=Y, F=Z" 형식 명시.
+
+중요: 검색을 안 했어도 실재하는 수치·기관이면 감점하지 않는다. 검색을 했어도 실제 쓴 수치가 검색 결과와 다르면 감점한다.
+- 5점: U=0 — 모든 구체 인용이 실재 확인됨 (또는 T=0)
+- 4점: U≤2 이고 F=0 — 경미한 미확인 인용, 치명적 날조 없음
+- 3점: 3≤U≤5 이고 F=0 — 미확인 여러 건이나 실재 가능한 것
+- 2점: U≥6 또는 F=1 — 미확인 다수 또는 1건 날조
+- 1점: F≥2 — 존재하지 않는 연구·기관을 2건 이상 날조
 7. logic_evidence_synthesis: 주장-근거-추론(CER) 구조로 논리적으로 엮었는가? (5=탄탄한 논증, 1=사실 나열)
 8. korean_language_compliance: 한국어로 자연스럽게 작성했는가? 영어 문장, 외국어 섞임, CoT 유출(<think> 블록), 깨진 문자가 없는가? 고유명사(기관명, 인명)는 영어 허용. (5=완벽한 한국어, 1=외국어 대량 섞임)
 
-반드시 아래 JSON 형식으로만 응답하세요:
+반드시 아래 JSON 형식으로만 응답하세요. **각 항목의 키 순서는 reason → score**입니다. (먼저 논거를 전개한 뒤 점수를 결정해야 정확도가 올라갑니다.)
 {
-  "self_repetition": {"score": N, "reason": "..."},
-  "team_repetition": {"score": N, "reason": "..."},
-  "role_consistency": {"score": N, "reason": "..."},
-  "persona_tone_toxicity": {"score": N, "reason": "..."},
-  "web_search_tool_use": {"score": N, "reason": "..."},
-  "faithfulness_hallucination_control": {"score": N, "reason": "..."},
-  "logic_evidence_synthesis": {"score": N, "reason": "..."},
-  "korean_language_compliance": {"score": N, "reason": "..."}
+  "self_repetition": {"reason": "...", "score": N},
+  "team_repetition": {"reason": "...", "score": N},
+  "role_consistency": {"reason": "...", "score": N},
+  "persona_tone_toxicity": {"reason": "...", "score": N},
+  "web_search_tool_use": {"reason": "...", "score": N},
+  "faithfulness_hallucination_control": {"reason": "...", "score": N},
+  "logic_evidence_synthesis": {"reason": "...", "score": N},
+  "korean_language_compliance": {"reason": "...", "score": N}
 }"""
 
 
@@ -179,6 +210,7 @@ def evaluate_single_log(client: anthropic.Anthropic, log_data: Dict) -> Optional
             response = client.messages.create(
                 model=JUDGE_MODEL,
                 max_tokens=2048,
+                temperature=0,  # 결정론적 평가
                 system=JUDGE_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": debate_text}],
             )

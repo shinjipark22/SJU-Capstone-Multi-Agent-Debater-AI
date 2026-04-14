@@ -4,9 +4,11 @@ state.py — LangGraph State 설계 및 초기화 유틸리티
 구성적 논쟁(Constructive Controversy) 기반 토론 워크플로우의 공유 상태를 정의한다.
 
 [발언 순서 원칙]
-    - 사용자는 항상 자신의 진영(PRO/CON) 마지막에 배치된다.
-    - 입론·자유 논박 발언 순서: PRO1 → CON1 → PRO2 → CON2 → ... (교차 배치)
-    - 연쇄 논박은 (PRO_i, CON_i) 쌍 기반으로 자동 생성된다.
+    - 사용자는 항상 모든 발언자 중 **가장 마지막**에 배치된다.
+    - 입론·자유 논박 발언 순서: 상대 진영 → 같은 진영 → 상대 → 같은 → ... → 사용자 마지막
+      · 사용자 PRO: CON → PRO → CON → PRO → ... → user(PRO)
+      · 사용자 CON: PRO → CON → PRO → CON → ... → user(CON)
+    - 연쇄 논박은 (PRO_i, CON_i) 쌍 기반으로 자동 생성되며, 사용자가 포함된 쌍이 마지막 라운드에 배치된다.
 
 [Phase 1] 1~4단계
     1단계 입론        (opening)          : PRO1 → CON1 → PRO2 → CON2 → ... (교차)
@@ -117,7 +119,7 @@ class DebateState(TypedDict):
 
     [발언 순서 제어]
         speaking_order        : 현재 단계의 발언 순서 (speaker_id 리스트)
-                                1단계·3단계 공용 (PRO1,CON1,PRO2,CON2,... 교차)
+                                1단계·3단계 공용 (상대 진영 → 같은 진영 교차, 사용자 항상 마지막)
         current_speaker_index : speaking_order 내 현재 위치
         current_turn          : 전체 누적 발언 번호
 
@@ -166,7 +168,7 @@ class DebateState(TypedDict):
 
     # 자유 논박 (3단계) — 1:1 핑퐁
     selected_opponent_id: Optional[str]  # 사용자가 선택한 상대 에이전트 ID
-    free_rebuttal_user_turns: int  # 사용자 답변+공격 세트 수 (0→1→2, 2 도달 시 종료)
+    free_rebuttal_user_turns: int  # 사용자 자유논박 라운드 (0→1→2). 1=답변+공격, 2=최종 답변만. 2 도달 시 역할반전
 
     # 역할 반전 (4단계)
     role_reversed: bool
@@ -205,25 +207,41 @@ def _build_stance_lists(
     return pro_ids, con_ids
 
 
-def _build_interleaved_order(pro_ids: List[str], con_ids: List[str]) -> List[str]:
-    """PRO/CON 교차 발언 순서를 생성한다: PRO1, CON1, PRO2, CON2, ...
+def _build_interleaved_order(
+    agents: List[AgentSnapshot],
+    user_stance: Literal["PRO", "CON"],
+) -> List[str]:
+    """발언 순서를 생성한다: 상대 진영 → 같은 진영 교차, 사용자는 맨 마지막.
 
-    진영 간 인원수가 다를 경우 남는 쪽을 뒤에 이어 붙인다.
+    - 사용자 PRO:  CON1 → PRO1 → CON2 → PRO2 → ... → user
+    - 사용자 CON:  PRO1 → CON1 → PRO2 → CON2 → ... → user
+
+    진영 간 AI 인원수가 다를 경우 남는 쪽을 뒤에 이어 붙이고, 사용자는 항상 맨 끝.
 
     Args:
-        pro_ids : PRO 발언자 ID 리스트
-        con_ids : CON 발언자 ID 리스트
+        agents      : AI 에이전트 스냅샷 리스트 (사용자 제외)
+        user_stance : 사용자 진영
 
     Returns:
-        교차 배치된 speaker_id 리스트
+        speaker_id 리스트 (마지막 요소는 항상 "user")
     """
+    pro_ids = [a["agent_id"] for a in agents if a["stance"] == "PRO"]
+    con_ids = [a["agent_id"] for a in agents if a["stance"] == "CON"]
+
+    if user_stance == "PRO":
+        opposite, own = con_ids, pro_ids
+    else:
+        opposite, own = pro_ids, con_ids
+
     order: List[str] = []
-    for pro, con in zip(pro_ids, con_ids):
-        order.append(pro)
-        order.append(con)
-    # 인원수 불균형 시 남는 쪽 추가
-    order.extend(pro_ids[len(con_ids):])
-    order.extend(con_ids[len(pro_ids):])
+    for opp, ow in zip(opposite, own):
+        order.append(opp)
+        order.append(ow)
+    # 남는 쪽 뒤에 추가
+    order.extend(opposite[len(own):])
+    order.extend(own[len(opposite):])
+    # 사용자는 항상 맨 마지막
+    order.append("user")
     return order
 
 
@@ -284,8 +302,8 @@ def build_initial_state(
 ) -> DebateState:
     """Phase 0 초기화 시 LangGraph에 주입할 기본 State를 생성한다.
 
-    사용자는 자신의 진영 마지막에 배치되며, 입론 순서는 PRO/CON 교차로 구성된다.
-    인원수와 사용자 진영에 관계없이 동일한 로직이 적용된다.
+    사용자는 모든 발언자 중 맨 마지막에 배치되며, 입론 순서는 상대 진영 → 같은 진영 교차.
+    포맷(1:1/2:2/3:3)과 사용자 진영(PRO/CON)에 관계없이 동일한 로직이 적용된다.
 
     Args:
         topic         : 토론 주제
@@ -297,8 +315,7 @@ def build_initial_state(
     Returns:
         초기화된 DebateState
     """
-    pro_ids, con_ids = _build_stance_lists(agents, user_stance)
-    speaking_order = _build_interleaved_order(pro_ids, con_ids)
+    speaking_order = _build_interleaved_order(agents, user_stance)
 
     return DebateState(
         topic=topic, # 입력받은 주제
@@ -316,7 +333,7 @@ def build_initial_state(
         rebuttal_pairs=None,       # 2단계 진입 시 build_chained_rebuttal_pairs()로 생성
         current_rebuttal_round=0, # 라운드 시작 전, 기본은 0
         selected_opponent_id=None, # 3단계 진입 시 사용자가 선택
-        free_rebuttal_user_turns=0, # 자유논박 사용자 턴 수 (최대 2)
+        free_rebuttal_user_turns=0, # 자유논박 사용자 라운드 (최대 2, 2회차는 답변만)
         role_reversed=False, # 역할 반전 아직 시작 안 함
         synthesis_draft=None,      # 5단계 진입 전까지 None
         synthesis_user_turns=0, # 종합 회의 사용자 턴 수 (최대 2)

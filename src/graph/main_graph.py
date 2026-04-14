@@ -219,11 +219,15 @@ def ai_free_rebuttal_node(state: DebateState) -> dict:
 
 
 def user_free_rebuttal_node(state: DebateState) -> dict:
-    """사용자 자유논박 답변+공격 — interrupt 2회 (답변, 공격)."""
+    """사용자 자유논박 — 총 6턴 구조:
+    1회차: 답변 + 공격 (interrupt 2회)
+    2회차(최종): 답변만 (interrupt 1회, 공격·AI 응답 없음)
+    """
     selected_id = state.get("selected_opponent_id", "agent_1")
+    current_turns = state.get("free_rebuttal_user_turns", 0)
+    is_final = (current_turns >= 1)  # 1회차 완료 후면 이번이 최종 2회차
 
     user_defense = interrupt("상대 공격에 대한 답변을 입력하세요")
-    user_attack = interrupt("상대 논거를 공격하세요")
 
     history = list(state["debate_history"])
     current_turn = state["current_turn"]
@@ -239,16 +243,18 @@ def user_free_rebuttal_node(state: DebateState) -> dict:
     ))
     current_turn += 1
 
-    # 공격 기록
-    history.append(DebateEntry(
-        turn=current_turn,
-        speaker_id="user",
-        stance=state["user_stance"],
-        phase="free_rebuttal",
-        content=user_attack,
-        target_id=selected_id,
-    ))
-    current_turn += 1
+    # 최종 턴이 아니면 공격 턴도 받음
+    if not is_final:
+        user_attack = interrupt("상대 논거를 공격하세요")
+        history.append(DebateEntry(
+            turn=current_turn,
+            speaker_id="user",
+            stance=state["user_stance"],
+            phase="free_rebuttal",
+            content=user_attack,
+            target_id=selected_id,
+        ))
+        current_turn += 1
 
     new_user_turns = state.get("free_rebuttal_user_turns", 0) + 1
 
@@ -420,10 +426,10 @@ def build_debate_graph():
         "end_free": "ai_role_reversal",
     })
 
-    # 사용자 자유논박 후 → AI 자유논박 (루프)
+    # 사용자 자유논박 후 → continue면 AI 자유논박, done(6턴 완료)이면 바로 역할반전
     graph.add_conditional_edges("user_free_rebuttal", route_free_rebuttal, {
         "continue": "ai_free_rebuttal",
-        "done": "ai_free_rebuttal",  # 마지막 답변 생성 후 route_after_ai_free에서 역할반전으로
+        "done": "ai_role_reversal",  # user의 최종 방어 후 AI 응답 없이 역할반전으로
     })
 
     # 역할반전 → 종합
