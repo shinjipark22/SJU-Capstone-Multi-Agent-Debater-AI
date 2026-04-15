@@ -1,0 +1,3 @@
+model_id,n_experiments,avg_format_score,avg_llm_mean,avg_final_score,avg_self_repetition,avg_team_repetition,avg_role_consistency,avg_persona_tone_toxicity,avg_web_search_tool_use,avg_faithfulness_hallucination_control,avg_logic_evidence_synthesis,avg_korean_language_compliance
+Qwen-2.5-32B-Instruct,48,98.4,4.76,4.78,4.52,4.44,5.0,5.0,4.98,4.38,4.77,5.0
+Qwen-2.5-7B-Instruct,48,74.9,3.15,3.24,2.31,2.6,4.46,4.88,1.54,1.77,3.65,3.96

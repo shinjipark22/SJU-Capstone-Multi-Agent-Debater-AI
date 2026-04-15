@@ -1,0 +1,713 @@
+{
+  "topic_id": "econ_001",
+  "topic": "이란 전쟁 경제 충격의 책임은 이란의 지정학적 도발이 아닌 미국의 과도한 중동 개입에 있다",
+  "category": "",
+  "user_stance": "PRO",
+  "debate_format": "3:3",
+  "model_name": "gpt-5.4",
+  "experiment_mode": "all_ai",
+  "intensity_preset": "3v3_balanced",
+  "agent_intensities": [
+    3,
+    3,
+    3,
+    3,
+    3
+  ],
+  "created_at": "2026-04-15T23:25:11.846479",
+  "duration_seconds": 547.1,
+  "is_finished": true,
+  "turns": [
+    {
+      "turn_id": 0,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n반대1입니다. 저는 이 논제에 반대하며, **이란 전쟁 경제 충격의 1차 책임은 미국의 개입이 아니라 이란의 지정학적 도발에 있습니다**라고 주장합니다. 특히 호르무즈 해협 봉쇄 위험은 단순한 외교 갈등이 아니라, 이란이 직접 세계 에너지와 해상 물류의 급소를 압박함으로써 경제 충격을 유발하는 구조라는 점에서 책임의 방향이 분명합니다.\n\n### 논거 1: 호르무즈 해협은 이란이 직접 흔들 수 있는 세계 경제의 급소입니다\n미국의 중동 개입이 존재하더라도, 실제로 시장을 즉각 공포에 빠뜨리는 직접 변수는 호르무즈 해협을 둘러싼 이란의 봉쇄 위협과 해상 긴장 고조입니다. 관련 분석에 따르면 EIA는 호르무즈 해협을 세계에서 가장 중요한 원유 수송 병목지점 가운데 하나로 설명하며, 최근에도 전 세계 액화천연가스 거래의 상당 부분이 이 해협을 통과한다고 제시합니다. \n즉, **이란이 이 해협을 위협하는 순간 충격은 미국의 ‘존재’ 때문이 아니라 이란의 ‘행동 가능성’ 때문에 발생합니다**. 경제 충격의 책임을 따질 때는 구조적 배경보다 가격 급등과 공급 불안을 실제로 촉발하는 행위 주체를 봐야 하며, 그 점에서 이란의 지정학적 도발 책임이 더 직접적입니다.\n\n### 논거 2: 실제 해상 위협은 운임·보험·우회 비용을 통해 곧바로 경제 충격으로 번집니다\n최근 Reuters 보도 관련 분석를 보면, 이란과 연계된 세력의 선박 공격 이후 홍해 항로의 전쟁 위험 보험료가 뛰고, 주요 해운사들이 항로를 포기한 채 더 길고 비싼 우회 운항을 선택한 사례가 확인됩니다. 이는 중동 해역의 군사적 위협이 단지 외교적 수사에 그치지 않고, 물류비 상승과 공급 지연으로 곧바로 연결된다는 점을 보여줍니다. \n따라서 호르무즈 해협에서도 같은 방식의 위협이 제기되면 시장은 선제적으로 유가, 보험료, 운송비를 올려 반응하게 됩니다. **경제 충격은 미국이 중동에 개입했다는 추상적 사실보다, 이란이 해상 chokepoint를 무기화한다는 구체적 신호에서 발생합니다**. 책임은 긴장을 자산화하고 통로를 인질화하는 행위자에게 돌아가야 합니다.\n\n### 결론\n정리하면, 호르무즈 해협은 세계 에너지와 물류의 핵심 통로이며, 이를 위협할 수 있는 직접 행위자는 이란입니다. 미국의 중동 개입을 배경 요인으로 말할 수는 있어도, **전쟁 경제 충격을 실제로 점화하는 직접 원인은 이란의 지정학적 도발과 봉쇄 위협입니다**. 그러므로 이 논제는 성립하지 않으며, 책임의 핵심은 미국이 아니라 이란에 있습니다.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "Hormuz Strait closure risk Iran attacks shipping oil LNG chokepoint IEA EIA Reuters 2024 2025",
+          "results": [
+            "[검색 결과]\n- The Strait of Hormuz, located between Oman and Iran, connects the Persian Gulf with the Gulf of Oman and the Arabian Sea. The strait is deep enough and wide enough to handle the world's largest crude oil tankers, and it is one of the world's most important oil chokepoints. Large volumes of oil flow \n- EIA (2025), “About one-fifth of global liquefied natural gas trade flows through the Strait of Hormuz,” U.S. Energy Information Administration, \n\nIEA (2025), “Gas 2025 – Summary,” International Energy Agency, \n\nWorld Bank (2025), Commodity Markets Outlook, October 2025 Edition, World Bank Group, Was\n- The Strait of Hormuz is one of the world’s most concentrated energy choke points. It is the narrow sea passage linking the Persian Gulf to the open sea, so a huge share of Gulf oil and\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Reuters Iran Hormuz Strait shipping attacks economic impact oil prices recent analysis 2024 2025",
+          "results": [
+            "[검색 결과]\n- The Iran war has damaged ‌Gulf energy production, frozen exports, and boosted oil prices by about 50% in the world's worst energy shock,\n- Potential effects on oil prices include: Immediate Price Surge: A closure would disrupt a substantial portion of global oil supplies, leading to\n- LONDON, April 6 (Reuters) - The Strait of Hormuz's closure and the resulting surge in global oil prices have handed financial windfalls to"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "EIA Hormuz Strait most important oil transit chokepoint LNG source official",
+          "results": [
+            "[검색 결과]\n- Source: U.S. Energy Information Administration, based on Short-Term Energy Outlook (June 2019), ClipperData, Saudi Aramco bond prospectus, Saudi Aramco annual reports, Saudi Ports Authority, International Group of Liquefied Natural Gas Importers, and U.N. Conference on Trade and Development  \nNote: \n- Data source: U.S. Energy Information Administration, Short-Term Energy Outlook, and U.S. Energy Information Administration analysis based on Vortexa tanker tracking and FACTS Global Energy  \nNote: World maritime oil trade excludes intra-country volumes except those volumes that transit the Strait of\n- This report analyzes seven chokepoints, disruptions to which could add thousands of miles of transit in alternative routes and affect oil and natural gas prices. The world’s most impor\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "AP Reuters Iranian-backed attacks Red Sea shipping insurance costs rerouting economic impact 2024 official",
+          "results": [
+            "[검색 결과]\n- Advertisement · Scroll to continue\n\nWar risk rates have hovered around the 0.3% level in the Gulf for many months. Rates in the Red Sea area spiked to 1% in 2024 after Iran-backed Houthis launched attacks on commercial ships which they said were in solidarity with Palestinians fighting Israel in Gaz\n- and speed boats as of late January 2024. As a result, major shipping companies have stopped using the Red Sea—through which almost 15 percent of global seaborne trade passes—and have rerouted to take longer and costlier journeys around Southern Africa instead. The situation has resulted in heightene\n- such as these could complicate efforts to timely and   \n geopolitical conflict often takes place in relatively narrow   \n accurately assess the trade and economic effects of the   \n ge\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 1,
+      "speaker": "agent_4",
+      "side": "PRO",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n찬성1입니다. 저는 **이란 전쟁 경제 충격의 1차 책임은 이란의 지정학적 도발이 아니라, 미국의 과도한 중동 개입이 만든 구조적 불안정에 있습니다**라는 입장을 밝힙니다. 이라크와 아프가니스탄 전쟁의 교훈은 분명합니다. 외부 강대국이 군사력으로 질서를 재편하려 할수록 지역의 균형은 무너지고, 그 누적된 불안이 결국 에너지·물류·금융 전반의 경제 충격으로 되돌아옵니다.\n\n### 논거 1: 이라크 전쟁은 충격의 원인이 ‘도발’보다 ‘개입의 구조화’에 있음을 보여줍니다\nBrown University의 Costs of War 자료는 미국의 이라크·시리아 전쟁 비용이 막대한 재정 부담과 대규모 인명 피해를 낳았다고 제시합니다. 중요한 점은 단순한 전비 규모가 아니라, 미국의 침공이 기존 국가 질서를 해체하고 점령 저항, 종파 갈등, 극단주의 확산을 연쇄적으로 촉발했다는 점입니다. 관련 분석에서도 미국의 이라크 침공이 반점령 정서를 키우고, 이후 Islamic State의 부상 같은 장기 불안을 낳았다고 확인됩니다. **즉 오늘의 전쟁 경제 충격은 이란의 단발적 행동만으로 설명되지 않으며, 미국이 이라크에서 만든 권력 공백과 안보 불신의 누적 결과로 보는 것이 더 정확합니다**.\n\n### 논거 2: 아프가니스탄 전쟁은 미국식 장기 개입이 안정이 아니라 취약성을 남긴다는 교훈을 줍니다\n아프가니스탄에서도 미국은 장기간 막대한 군사력과 자원을 투입했지만, 관련 분석에 따르면 외부 지원에 의존한 국가 체제는 미군이 빠지자 급속히 붕괴했습니다. 이는 미국의 개입이 자생적 안정 기반을 만든 것이 아니라, 외부 군사력에 기대는 취약한 질서를 연장했을 뿐임을 보여줍니다. 이런 방식의 개입은 중동 전체에 “미국이 개입하면 단기 억제는 가능해도 장기 안정은 보장되지 않는다”는 신호를 남기고, 각 지역 행위자들이 더 공격적으로 안보를 자구화하게 만듭니다. **따라서 전쟁이 경제를 흔드는 근본 원인은 이란의 행동 자체보다, 미국의 반복적 개입이 지역 전체를 상시적 위기 구조로 바꾸어 놓았다는 데 있습니다**.\n\n### 결론\n이라크의 교훈은 침공이 질서를 무너뜨리고 더 큰 불안을 낳는다는 점이며, 아프가니스탄의 교훈은 장기 개입이 지속 가능한 평화를 만들지 못한다는 점입니다. 그렇다면 이란 전쟁 경제 충격의 책임을 오직 이란의 도발에만 돌리는 것은 결과만 보고 원인을 외면하는 해석입니다. **경제 충격의 더 근본적 책임은 중동을 반복적으로 군사화하고 불안정을 구조화한 미국의 과도한 개입에 있습니다**.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "Iraq war costs Brown University Costs of War project economic consequences Middle East intervention source",
+          "results": [
+            "[검색 결과]\n- Political scientist and Costs of War co-founder Neta Crawford (Professor, University of Oxford) calculates the total costs of the war in Iraq and Syria, which are expected to exceed half a million human lives and $2.89 trillion. This budgetary figure includes costs to date, estimated at about $1.79 \n- The cost of the post-9/11 wars in Iraq, Afghanistan, Pakistan, Syria, and elsewhere totals about $8 trillion. This does not include future interest costs on borrowing for the wars.\n 38 million people have been displaced by the post-9/11 wars in Afghanistan, Pakistan, Iraq, Syria, Libya, Yemen, Somal\n- Even as the U.S. exits Afghanistan, Costs of War estimates show that Americans are far from done paying the bill on the war on terror, which continues across multiple continents. The c\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Afghanistan war costs Brown University Costs of War project economic consequences intervention source",
+          "results": [
+            "[검색 결과]\n- August 9, 2022\n\nEconomist and Costs of War Director of Programs Heidi Peltier (Senior Research Associate, Brown University) examined how over the 20-year period of the U.S. intervention in Afghanistan, the U.S. Department of Defense paid various companies about $108 billion in contracts for work per\n- According to the US Air Force [PDF%20APPROVED%20Dec%202019%20APS%20Data.pdf)], from 2013 to 2019 it conducted nearly 70,000 manned strike aircraft sorties over Afghanistan and dropped nearly 27,000 bombs from manned and remotely piloted aircraft.\n\nAn Afghan National Army soldier keeps watch at a che"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Iraq war destabilization rise of ISIS US invasion source Council on Foreign Relations",
+          "results": [
+            "[검색 결과]\n- The impact of the current conflict and acts of terrorism on civilians remains severe and extensive. Since January 2014, acts of violence have killed or wounded tens of thousands of civilians and have displaced over 3 million Iraqis. \n\nThe U.S. invasion of Iraq prompted the development of anti-occupa\n- The war led to an estimated 150,000 to over a million deaths, including over 100,000 civilians, with most occurring during the post-invasion insurgency and civil war. The war had lasting geopolitical effects, including the emergence of the extremist Islamic State, whose rise led to the 2013–17 War i\n- Underlying sectarian tensions in Iraq among Sunni and Shiite groups, as well as tensions between Kurdish groups in the north and the government in Baghdad, exacerbated the fight to dis\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Afghanistan withdrawal collapse lessons prolonged US intervention source",
+          "results": [
+            "[검색 결과]\n- objectives over long -term political and social development. The collapse of \n\nthe Afghan government in 2021 serves as a stark reminder of the \n\nlimitations of externally driven nation -building efforts, particularly in \n\ncomplex and deeply divided societies. Future interventions must prioritize \n\nl\n- Why did all this happen? It was the failure of a 20-year campaign. It wasn't lack of resources. The Afghan state and military were dependent on the US and allied military presence. They quickly collapsed when the US and allied military left. We had not achieved an inclusive political settlement that\n- Vietnam in 1975 following many years of intense military and political involvement. As such, although multiple lessons should be learned from the Afghanistan withdrawal, it is essentia\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 2,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n반대2입니다. 저는 이 논제에 반대하며, **이란 전쟁 경제 충격의 1차적 책임은 미국의 개입이 아니라 이란의 지정학적 도발, 특히 핵개발과 그에 따른 제재 유발에 있습니다**고 주장합니다.\n\n### 논거 1: 핵개발이 제재를 불러와 경제 충격의 출발점을 만들었습니다\n이란의 경제 충격은 외부가 먼저 전쟁을 확대한 결과라기보다, 이란이 핵개발을 지속하며 국제사회의 제재와 경계심을 스스로 증폭시킨 데서 출발합니다. 최근 공개된 IAEA 관련 보도에서는 이란이 고농축 우라늄을 상당량 보유한 것으로 전해졌고, 이는 단순한 방어가 아니라 주변국과 시장에 지속적인 위협 신호를 주는 행동으로 읽힙니다. \n이처럼 핵개발이 심화되면 금융, 무역, 투자 전반에서 제재가 강화되고, 기업들은 중동 리스크를 반영해 거래를 축소하거나 회피하게 됩니다. **즉 경제 충격의 직접 원인은 미국의 존재 자체가 아니라, 제재를 자초할 정도로 위험 수위를 끌어올린 이란의 선택입니다**.\n\n### 논거 2: 이란의 연계 도발이 해상 물류와 에너지 불안을 확대했습니다\n이란 문제는 핵개발에 그치지 않고, 역내 무장세력과 연결된 해상 위협으로 이어지며 전쟁 경제 충격을 실물경제로 전이시킵니다. 최근 보도들에서는 이란과 연계된 세력이 상선 항로를 위협하면서 주요 해상 통로의 운송비와 보험 부담이 커지고, 기업들이 우회 항로를 택하는 상황이 반복된다고 전해집니다. \n이 경우 원유와 원자재 가격 불안, 공급 지연, 물류비 상승이 연쇄적으로 발생하며 세계 경제가 흔들리게 됩니다. **따라서 시장이 충격을 받는 이유는 미국이 중동에 개입해서가 아니라, 이란이 핵개발과 연계 도발로 지정학적 위험을 실제 비용으로 바꾸고 있기 때문입니다**.\n\n### 결론\n상대 측은 미국의 중동 개입을 원인으로 돌리지만, 경제 충격의 인과를 따져 보면 먼저 위험을 만든 쪽은 이란입니다. 핵개발은 제재를 불렀고, 연계 도발은 물류와 에너지 시장의 불안을 키웠습니다. **결국 이란 전쟁 경제 충격의 책임은 미국의 과도한 개입이 아니라, 국제 제재와 시장 불안을 자초한 이란의 지정학적 도발에 있습니다**.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "IAEA Iran uranium enrichment 60% Reuters June 2024 sanctions economy oil shipping Hormuz nuclear program",
+          "results": [
+            "[검색 결과]\n- 1.   Iran’s Enriched Uranium:Iran possessed 440.9 kilograms of uranium enriched up to 60 percent before the start of the Israel-Iran War on June 12, according to an unreleased International Atomic Energy Agency (IAEA) report obtained by the Associated Press. Iran has enough 60 percent enriched urani\n- views, with some expressing support for the elimination of Iran's enrichment capability.60 In May 14, 2025, letters to President Trump, 52 Senators and 177 Representatives argued against \"any deal that allows Iran to retain any enrichment capability.\"61 For his part, the Iranian foreign minister has\n- , and June 2025 ( INFCIRC/1297 ) letter s from Iran to the IAEA contain similar language .\")\n\nOn June 5, 2024, the IAEA Board of Governors adopted a resolution calling on Iran to take \n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "UN Security Council Resolution 2231 Iran nuclear deal sanctions snapback Reuters background 2024",
+          "results": [
+            "[검색 결과]\n- Council Implementing Decision (CFSP) 2025/1971 of 29 September 2025 implementing Decision 2010/413/CFSP concerning restrictive measures against Iran\n   Iran’s nuclear agreement (background information)\n   Timeline - Sanctions targeting Iran's nuclear proliferation activities (background information)\n- UN Security Council Resolution 2231 (2015), which the council adopted on July 20, 2015, implements the Joint Comprehensive Plan of Action (JCPOA) and contains other provisions concerning Iran's nuclear program, Tehran's development of missiles, and arms transfers to and from Iran. In August 2020, th\n- According to UNSCR 2231's provisions, Termination Day will occur on October 18, 2025. Accordingly, on that day, sanctions imposed pursuant to UNSCR 2231 are terminated and the Security\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Reuters Iran seized ships Red Sea attacks Houthis linked Iran shipping costs oil prices 2024",
+          "results": [
+            "[검색 결과]\n- #### Iran\n\nReuters, citing unnamed Iranian sources and \"a security official close to Iran\", has claimed that Iranian personnel are in Yemen, working with Hezbollah militants. Their role involves directing and overseeing Houthi attacks on commercial shipping. The sources also stated that Iran has esc\n- The Red Sea and its two entrances—the Suez Canal and Bab el Mandeb—also account for nine to 12 percent of global trade and 25 to 30 percent of global container trade, which includes energy supplies, grain, electronics, and more. Shipping firms previously responded to Houthi attacks by routing ships \n- The Red Sea and its two entrances—the Suez Canal and Bab el Mandeb—also account for nine to 12 percent of global trade and 25 to 30 percent of global container trade, which includes en\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "World Bank Iran economy sanctions inflation currency Reuters 2024",
+          "results": [
+            "[검색 결과]\n- By 2024, growth slowed to roughly 3.7%, and estimates for 2025 from the IMF and the World Bank suggest a near-stagnant rate of just 0.3% to 0.6%. This recent deceleration is attributed to intensified sanctions, chronic inflation (averaging near 40%), and severe energy shortages that have hampered in\n- Contrary to ‘experts’ expectations, this shock not only did not stabilise the exchange market, but it continued with growing intensity, and in February 2025, the exchange rate reached more than 94,000 tomans with the likely prospect of exceeding 100,000 tomans in the Iranian new year starting on Mar\n- Recent Economic and Policy Developments 9 High consumer price inflation has been a chronic economic challenge in Iran, with annual inflation rates averaging above 20 percent in the las\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 3,
+      "speaker": "agent_5",
+      "side": "PRO",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n찬성2입니다. 저는 이란 전쟁의 경제 충격 책임이 이란의 지정학적 도발 자체보다 **미국의 과도한 중동 개입에서 더 직접적으로 발생합니다**는 입장을 분명히 밝힙니다.\n\n### 논거 1: 개입이 분쟁을 국지전이 아닌 구조적 불안정으로 증폭합니다\n미국 중동 개입 비판 전문가들은 반복적으로, 외부 군사개입이 단기 억지보다 장기 불안정을 키운다고 지적합니다. 관련 분석에서도 미국의 개입, 특히 Iraq 전쟁의 후속 효과가 여러 봉기를 급속히 군사화시키고 다중 분쟁의 확산을 가능하게 했다는 전문가 평가가 확인됩니다. \n이는 단순히 한 국가의 도발을 응징하는 수준이 아니라, 지역 전체를 상시적 긴장 상태로 바꾸는 방식의 개입이었음을 보여줍니다. **경제 충격은 개별 도발 한 번보다, 미국이 중동을 계속 군사화하며 위험을 누적시킨 구조에서 더 크게 발생합니다**. \n즉 시장이 반응하는 대상은 이란의 단발 행동만이 아니라, 미국이 언제든 개입을 확대할 수 있다는 예측 불가능성 자체이며, 바로 그 점이 에너지·물류·금융 불안을 증폭합니다.\n\n### 논거 2: 미국 개입은 외교적 완충장치를 약화시켜 충격을 장기화합니다\n미국의 과도한 개입은 군사력 의존을 강화하는 반면, 분쟁을 흡수할 외교적 완충장치는 약화시킵니다. 관련 분석에서도 미국 정책이 지역 안보와 안정에 위협이 된다고 보는 인식이 광범위하다는 점이 드러나며, 이는 미국이 질서 제공자라기보다 긴장 증폭자로 받아들여지고 있음을 시사합니다. \n이처럼 미국이 중재자보다 당사자처럼 행동하면, 충돌은 더 쉽게 확전되고 더 오래 지속됩니다. **전쟁의 경제 충격은 전투 그 자체보다도, 사태를 조기에 봉합할 외교 공간이 사라질 때 훨씬 커집니다**. \n따라서 책임의 핵심은 이란의 행위만 떼어내는 데 있지 않고, 그 행위를 지역적 경제 재난으로 비화시키는 미국의 개입 방식에 있다고 보아야 합니다.\n\n### 결론\n결국 이란의 행동이 계기일 수는 있어도, 그것이 세계적 경제 충격으로 증폭되는 결정적 조건은 미국의 과도한 중동 개입입니다. **분쟁의 범위를 넓히고, 군사화를 심화하며, 외교적 출구를 약화시키는 쪽이 더 큰 책임을 집니다**. 따라서 본 논제의 책임 소재는 이란의 지정학적 도발보다 미국의 과도한 중동 개입에 있다고 판단해야 합니다.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "미국 중동 개입 비판 전문가 의견 Foreign Affairs Quincy Institute Cato Institute Iraq war oil prices Middle East intervention economic shock",
+          "results": [
+            "[검색 결과]\n- It is worth mentioning that many of these tactics may have been introduced to the region, or at least influenced, by U.S. interventions, particularly the Iraq War. As Waleed Hazbun argues, the aftermath of that war “enabled the rapid militarization of several uprisings and the outbreak of multiple c\n- America’s increasing appetite for aggression alarmed many in the region. In a survey of 40,000 individuals across 15 Middle Eastern countries, 77 percent of respondents said US policies threaten regional security and stability. Even more, 84 percent, felt that Israeli policies endanger the region; m\n- 41. World Bank Group, “Signs of Improvement in the Economic Outlook for the Middle East, North Africa, Afghanistan, and Pakistan Region,” Oct. 7, 2025,. This study predicts that the ec\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "전문가 미국 중동 개입이 중동 불안정 악화 경제 충격 초래 의견 Reuters AP Brookings Chomsky Mearsheimer Middle East intervention instability oil shipping",
+          "results": [
+            "[검색 결과]\n- ### Economic development\n\nYemen’s economy has collapsed in recent years. It was already the poorest country in the Arab world prior to the uprising of 2011, at which time levels of development were comparable to those in the Gaza Strip. War has made the situation worse; external intervention is, her\n- in implementation.22 Nevertheless, the traditional model of WAHAB 131 foreign assistance persists, not only from the United States but also more broadly from wealthier countries and the United Nations, and it continues to distort the economies of certain countries, much as oil does. [...] informal e\n- 최영준 경희대 무역학과 교수.\n\n최영준 경희대 무역학과 교수도 이번 전쟁이 한국 경제에 상당한 충격을 줄 것으로 내다봤다. 특히 원유 공급 차질이 가장 직접적인 영향을 미칠 것이라는 분석이다. 그의 말이다.  \n    \n  “중동에서 전쟁이 일어나면 가장 크게 타격을 받는 것이 원유 공급입니다. 한국은 원유를 전량 수입에 의존하\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "US Middle East intervention criticism experts economic shock Strait of Hormuz intervention escalation Reuters Foreign Policy Council on Foreign Relations",
+          "results": [
+            "[검색 결과]\n- ## Top of the Agenda\n\nThe Iran war’s ramifications for the world economy are in focus after a week of heightened attacks on energy infrastructure. The World Trade Organization (WTO) said yesterday that if oil and gas prices remain high for the rest of the year, it could reduce the forecasted 2026 gr\n- # How the Iran War Ignited a Geoeconomic Firestorm\n\nSix CFR fellows assess the geoeconomic fallout of the war in Iran, and they analyze the challenges that the United States and the world will have to navigate as the conflict enters its third week.\n\nA worker operates valves at the Rumaila oil field,\n- that U.S. President Donald Trump’s administration has declined attempts by U.S. allies in the Middle East to begin diplomatic efforts to end the war; Iran has also rejected a ceasefire\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 4,
+      "speaker": "agent_3",
+      "side": "CON",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n반대3입니다. 저는 이 논제에 반대하며, **이란 전쟁 경제 충격의 1차적 책임은 미국의 개입이 아니라 이란의 지정학적 도발에 있습니다**고 주장합니다. 국제 원유 시장은 군사 개입 그 자체보다도 해협 봉쇄 위협, 선박 공격, 대리세력 동원처럼 공급망의 핵심 통로를 직접 흔드는 행위에 더 민감하게 반응합니다. 따라서 경제 충격의 직접 원인을 따질 때는, 누가 시장의 병목지점을 실제로 불안정하게 만들었는지를 봐야 합니다.\n\n### 논거 1: 호르무즈 해협 위협은 이란이 직접 만든 공급 충격입니다\n관련 분석에 따르면 호르무즈 해협은 세계 석유 이동의 상당 부분이 지나는 핵심 통로이며, 이 구간이 흔들리면 우회와 비축만으로는 충격을 완전히 흡수하기 어렵습니다. 이런 구조에서 이란이 해협 봉쇄를 시사하거나 유조선 항행을 위협하면, 시장은 실제 차질이 발생하기 전부터 위험 프리미엄을 가격에 반영하게 됩니다. **즉 국제 유가를 밀어 올리는 직접 자극은 미국의 존재 자체가 아니라, 이란이 에너지 수송의 급소를 협상 수단으로 사용하는 행동입니다**. 미국 개입론은 배경 설명은 될 수 있어도, 원유 시장을 즉각 흔드는 촉발 요인까지 대신 설명하지는 못합니다.\n\n### 논거 2: 이란 연계 해상 불안정은 원유 시장뿐 아니라 물류비까지 동시 충격합니다\n관련 분석에 따르면 최근 홍해 항로 불안으로 수에즈 운하 통과 물동량이 크게 줄고, 다수 선박이 희망봉 우회에 나서면서 운송 시간과 비용이 함께 상승했습니다. 이처럼 이란과 연계된 무장세력의 해상 공격은 단순한 지역 분쟁이 아니라, 에너지와 해상 물류를 동시에 압박하는 복합 충격으로 번집니다. **원유 시장은 공급량만이 아니라 운송 안정성으로도 가격이 결정되므로, 이란 측 도발은 세계 경제에 이중의 비용을 전가 합니다**. 따라서 전쟁 경제 충격의 책임을 미국 개입으로만 돌리는 것은, 실제 시장 메커니즘에서 작동한 직접 인과를 흐리는 주장입니다.\n\n### 결론\n정리하면, 국제 원유 시장의 충격은 추상적인 반미 정서나 미국의 지역 관여만으로 발생하지 않습니다. 시장을 흔든 것은 해협과 항로라는 실물 공급망의 병목을 이란이 반복적으로 위협하고 불안정하게 만든 행위입니다. 그러므로 **이란 전쟁 경제 충격의 책임은 미국의 과도한 중동 개입이 아니라, 이란의 지정학적 도발에 있습니다**고 결론내립니다.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "IEA Hormuz Strait oil market disruption Iran attacks shipping report Reuters June 2024",
+          "results": [
+            "[검색 결과]\n- Iran continues to halt almost all shipping through the Strait of Hormuz, the chokepoint that carries about 20% of global oil and liquefied natural gas supplies. With Hormuz effectively blocked, Gulf exporters are shifting flows to pipelines that bypass the strait.\n\nShipments through these alternativ\n- on inflation and broader economic conditions, would be a function of the size and duration of an actual supply disruption; the ability to reroute oil exports from the region; and the ability of spare production capacity, emergency response measures, and commercial inventories elsewhere to compensate\n- The conflict is also having a significant impact on global product markets, with export flows through the Strait at a near standstill. Gulf producers exported 3.3 mb/d of refined produ\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "World Bank Middle East conflict oil prices Iran Israel attacks Reuters 2024 report",
+          "results": [
+            "[검색 결과]\n- Smoke billows from Jebel Ali port after an Iranian attack, following United States and Israel strikes on Iran, United Arab Emirates, March 1, 2026. REUTERS/Amr Alfiky\n\nSmoke billows from Jebel Ali port in Dubai after an Iranian attack. Image: REUTERS/Amr Alfiky\n\n## 2. Trump's tariffs ruled illegal\n\n\n- Reuters\n\n29.8K views\n\n · \n\nSeptember 22, 2025\n\nImage 23: Video thumbnail 0:54\n\n[]( [...] efforts to censor critical media. The owners of dozens of ABC-affiliated local TV networks said they would not carry the show until Kimmel apologized to Kirk’s family. #jimmykimmel #charliekirk #shooting #trump \n- 1 hour agoWilliams CEO says PA-NY Constitution natgas pipe could be online as soon as 2027 Image 2: Reuters logo  \n   2 hours agoBusiness categoryFrench finance ministry trims growth o\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "EIA Strait of Hormuz percentage global oil trade 2023 Reuters",
+          "results": [
+            "[검색 결과]\n- Data from the U.S. Energy Information Adminisration (EIA) shows that oil flows through the Strait of Hormuz averaged 20.1 million barrels per day in Q1 2025, with crude oil accounting for around 14.2 million of those barrels. Over a third (5.4 millions barrels per day) were travelling towards China,\n- During calendar year 2024, approximately 20 million barrels per day of oil (crude oil and petroleum products) moved through the Strait of Hormuz.12 These volumes represented approximately 27% of global maritime oil trade and roughly 20% of world petroleum liquids consumption in 2024.13 [...] The Str\n- In 1H25, total oil flows through the strait averaged 20.9 million b/d, or the equivalent of about 20% of global petroleum liquids consumption, and one-quarter of total global maritime \n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "UNCTAD Red Sea shipping disruptions Iran-backed Houthis oil market Reuters 2024",
+          "results": [
+            "[검색 결과]\n- By the first half of February 2024, container tonnage crossing the Canal fell by 82 per cent (figure 2). \n\nFigure 2  Shift in container ship routes from the Suez Canal to the Cape of Good Hope   \n\n> Source: Marine Benchmark.\n> Note: Container ships of 13500 TEU (twenty foot equivalent unites) and ab\n- These disruptions are extending shipping routes, straining supply chains and raising costs, with profound impacts on food security, energy supplies and the global economy, as over 80% of world trade volume is carried by sea.\n\nVulnerable economies, especially small island developing States and least \n- In other shipping markets, more oil tankers are now also rerouting through the Cape of Good Hope. The number of specialized car-carrying ships using the Red Sea dropped by more than ha\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 5,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n찬성3입니다. 저는 **이란 전쟁 경제 충격의 1차 책임은 이란의 지정학적 도발이 아니라, 미국의 과도한 중동 개입에 있습니다**라는 입장을 분명히 지지합니다. 경제 충격은 단순히 어느 한 사건의 발화점만으로 생기지 않으며, 장기간 누적된 군사개입이 시장의 불안, 재정 부담, 에너지 경로의 상시적 긴장을 구조화할 때 훨씬 크게 증폭됩니다.\n\n### 논거 1: 미국의 장기 군사개입이 전쟁 비용을 누적시켜 경제 충격의 구조를 만들었습니다\nBrown University의 Costs of War 프로젝트와 미국 의회조사국(Congressional Research Service) 관련 자료들은 미국의 중동 전쟁이 단발적 대응이 아니라, 장기간 막대한 재정지출과 후속 부담을 낳는 구조였음을 보여줍니다. 이는 전쟁이 발생할 때마다 시장이 단순히 이란의 행동만이 아니라, **미국이 다시 대규모 개입으로 확전할 가능성 자체를 비용으로 가격에 반영한다는 뜻입니다**. \n즉 경제 충격의 핵심은 이란의 개별 도발보다, 미국이 중동에서 군사행동을 상시적 정책수단으로 사용해 온 결과 형성된 ‘확전 프리미엄’입니다. **전쟁 비용을 반복적으로 키운 행위자가 미국이라면, 그 경제적 후폭풍의 더 큰 책임 역시 미국의 과도한 개입에 있습니다**.\n\n### 논거 2: 미국의 개입은 지역 분쟁을 세계 경제 충격으로 연결하는 통로를 확대했습니다\nIMF와 World Bank가 다루는 최근 중동 분쟁 관련 분석들은, 이 지역의 군사 충돌이 에너지 가격, 해상 운송, 교역 경로를 통해 세계 성장에 하방 압력을 준다는 점을 보여줍니다. 그런데 이런 충격이 세계 경제로 번지는 이유는 단순한 지역 충돌 자체보다, 미국이 중동 안보 질서에 깊이 개입해 분쟁의 범위를 넓히고, 시장이 이를 국제 공급망 위기로 해석하도록 만들기 때문입니다. \n다시 말해 이란의 행동이 불씨일 수는 있어도, **그 불씨가 세계 경제를 흔드는 대형 화재로 번지는 배경은 미국의 과잉 개입이 만든 군사적 연결망과 긴장 구조입니다**. 따라서 책임의 중심은 도발의 존재 여부가 아니라, 그 도발이 전 지구적 경제 충격으로 증폭되도록 만든 미국의 개입 방식에 있습니다.\n\n### 결론\n결국 전쟁 경제 충격의 책임을 따질 때는 누가 먼저 긴장을 만들었는가만 볼 것이 아니라, 누가 그 긴장을 반복적 전쟁비용과 세계 시장 불안으로 증폭시켰는가를 봐야 합니다. 미국의 장기적이고 과도한 중동 개입은 재정 부담을 누적시키고, 확전 가능성을 상시화하며, 지역 분쟁을 세계 경제 충격으로 전환해 왔습니다. **따라서 이란 전쟁 경제 충격의 본질적 책임은 이란의 지정학적 도발이 아니라 미국의 과도한 중동 개입에 있습니다**.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "Brown University Costs of War Middle East wars GDP economic impact oil prices U.S. economy study",
+          "results": [
+            "[검색 결과]\n- We know that wars are costly. Having extricated ourselves from protracted Middle East conflicts just three years ago, we have clear reference points which are not reassuring. The Costs of War Project at Brown University’s Watson Institute estimates that from late 2001 through FY2022, the U.S. spent \n- Skip to Main Content\n\nBrown University\n\nBrown University \n\n# Costs of War\n\nSearch   Menu\n\nCosts of War\n\n# Costs of War\n\nPromoting research and public awareness of the human, economic, social, and environmental costs of U.S. war\n\n# Costs of War\n\nPromoting research and public awareness of the human, e\n- Operation Midnight Hammer, the June 2025 Iran strikes, alone cost an estimated $2.04 billion to $2.26 billion, according to the Costs of War Project. The regional operations—Yemen, sus\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "IMF Middle East conflict economic impact oil prices regional GDP report war spillovers",
+          "results": [
+            "[검색 결과]\n- Advertisement · Scroll to continue\n\nSaudi Arabia, the world's top oil exporter and the Arab world's biggest economy, is now expected to see growth of 3.1% in 2026, 1.4 percentage ​points lower than a January ​estimate. The kingdom, however, ⁠is expected to be less severely affected by the war than i\n- (Year-over-year percent change)   \n\n> Sources: IMF, World Economic Outlook database; and IMF staff calculations. Note: Data labels in the figure use International Organization for Standardization (ISO) country codes. EM&MI = emerging market and middle-income economy; MENA = Middle East and North Afr\n- Iran war will slow global economic growth, IMF chief says\n\nAlongside its “reference forecast,” the IMF published two downside scenarios which see significantly worse outcomes for globa\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "World Bank Middle East conflict economic impact trade shipping Red Sea Hormuz report",
+          "results": [
+            "[검색 결과]\n- MENA FCV ECONOMIC SERIES BRIEF Summary: The Red Sea crisis has emerged as a critical flashpoint of the conflict in the Middle East, upending global trade and maritime transport, port activity in the MENA region, and ecological balance of the Red Sea. By end-2024, about a year after the onset of the \n- 2) The red circle represents Hormuz, the yellow circle represents the Red Sea, and the blue circle represents the Asian route.\nSource: Marine Traffic • If Iran takes extreme actions, such as blocking the Strait of Hormuz, there are concerns about various complex side effects, including disruptions i\n- 14.   Ibid.\n\n15.   Ibid.\n\n16.   IEA, “Strait of Hormuz: Factsheet.”\n\n17.   World Bank, “World Integrated Trade Solutions,” accessed March 17, 2026. Since 2025 data was not available fo\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Congressional Research Service Iraq Afghanistan war costs U.S. economy report",
+          "results": [
+            "[검색 결과]\n- Following 9/11, the United States launched new military endeavors on a number of fronts, including in Iraq. Estimates for the total costs of these efforts remain sharply politicized. Costs have consistently outpaced government predictions. In September 2002, White House economic adviser Lawrence B. \n- of post-9/11 operations in Afghanistan, Iraq, and elsewhere are by Amy Belasco of CRS,   \n based on (1) amounts appropriated by Congress in budget accounts designated to cover [...] as a share of Gross Domestic Product (GDP) during the peak year of each conflict and   \n of overall defense spending a\n- Operation Iraqi Freedom, and Operation Enduring Freedom,\" Congressional Research Service, RS22452, 19 February 2014, p. 6. 38 The peak number of troops deployed in Iraq was 170,000 sol\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 6,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "chained_rebuttal",
+      "text": "상대 측의 가장 약한 지점은 아프가니스탄 재건 실패를 근거로 곧바로 이란 전쟁 경제 충격의 책임을 미국에 돌리는 일반화입니다. 아프가니스탄은 국가재건의 실패 사례일 수는 있지만, 그것이 곧바로 호르무즈 해협 위협, 해상 항로 불안, 제재 유발 같은 **이란의 직접적 지정학적 행동 책임을 지워 주지는 못합니다**. 즉 상대 측은 장기 개입의 한계를 말했을 뿐, 실제 시장 충격을 촉발한 행위자가 왜 미국이고 이란이 아닌지에 대한 직접 인과를 입증하지 못했습니다. **아프가니스탄의 붕괴 경험이 왜 이란의 현재 도발 책임보다 더 직접적인 경제 충격의 원인인지, 그 연결고리를 하나로 명확히 설명할 수 있습니까?**",
+      "target_id": "agent_4",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "아프가니스탄의 국가재건 실패를 곧바로 이란 전쟁 경제 충격의 책임 문제로 일반화해 인과관계를 비약하고 있다."
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 7,
+      "speaker": "agent_4",
+      "side": "PRO",
+      "phase": "chained_rebuttal",
+      "text": "상대 측의 가장 약한 지점은 경제 충격의 원인을 호르무즈 해협 봉쇄 위협이라는 **즉각적 현상**으로만 축소하고, 왜 그런 위협이 반복적으로 시장의 공포로 전환되는지에 대한 구조적 원인을 의도적으로 지운다는 점입니다. **시장이 두려워하는 것은 이란의 단독 행동 그 자체가 아니라, 미국의 과도한 중동 개입이 이미 지역을 상시적 군사 대치 상태로 만들어 작은 위협도 곧바로 확전 위험으로 읽히게 만든 구조입니다**. 따라서 직접 변수만 붙잡아 이란 책임으로 단정하는 논리는 발화점만 보고, 그 발화점이 세계 경제 충격으로 증폭되는 배경을 설명하지 못합니다. 그렇다면 왜 같은 해협 위협이 단순한 지역 분쟁이 아니라 세계적 가격 충격으로 번지는지, 미국의 군사개입이 만든 상시적 확전 구조를 빼고 어떻게 설명하겠습니까?",
+      "target_id": "agent_1",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "시장 충격의 ‘직접 변수’를 이란의 봉쇄 위협으로만 좁혀, 왜 그런 위협이 반복적으로 현실화되는지에 대한 미국의 군사개입·긴장 증폭의 구조적 원인을 의도적으로 배제한다."
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 8,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "chained_rebuttal",
+      "text": "가장 약한 부분은 “미국이 언제든 개입을 확대할 수 있다는 예측 불가능성 자체가 시장을 흔든다”는 대목입니다. 이 주장은 미국 개입의 일반적 부담을 말할 뿐, **이번 경제 충격에서 실제로 가격과 물류 불안을 촉발한 직접 행위자가 왜 이란의 현재 도발이 아니라 미국인지 전혀 입증하지 못합니다**. 시장은 추상적 가능성보다 해협 위협, 선박 공격, 제재 유발처럼 공급망을 바로 흔드는 신호에 반응하는데, 상대는 그 직접 인과를 구조론으로 덮고 있을 뿐입니다. 그렇다면 미국의 “개입 가능성”이라는 배경 변수와 이란의 “실제 도발” 가운데, 이번 충격을 먼저 점화한 행위가 왜 미국이라고 단정할 수 있습니까?",
+      "target_id": "agent_5",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "미국 개입이 장기 불안을 키웠다는 일반론은 제시했지만, 이번 이란발 경제 충격의 직접적 책임이 왜 이란의 현재 도발보다 미국에 더 큰지에 대한 인과 연결이 비어 있다."
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 9,
+      "speaker": "agent_5",
+      "side": "PRO",
+      "phase": "chained_rebuttal",
+      "text": "가장 약한 부분은 **해상 물류·에너지 불안의 원인을 이란 연계 도발 하나로 곧바로 확정하는 인과 비약**입니다. 그 주장은 선박 위협과 비용 상승이라는 현상만 말할 뿐, 왜 그 위험이 지역적 사건을 넘어 세계 경제 충격으로 증폭되는지, 다시 말해 누가 중동을 상시적 군사 긴장 지대로 만들어 시장이 작은 충돌도 대형 확전으로 해석하게 했는지는 설명하지 못합니다. **미국의 과도한 중동 개입이 만든 상시적 개입 구조와 군사화가 없었다면, 동일한 해상 위협이 지금처럼 곧바로 글로벌 가격·물류 충격으로 번졌다고 어떻게 단정하십니까?**",
+      "target_id": "agent_2",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "해상 물류·에너지 불안의 직접 원인을 이란 연계 도발로 단정할 뿐, 왜 그 긴장이 미국의 중동 개입 없이도 동일하게 발생·확대됐는지는 입증하지 못한다."
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 10,
+      "speaker": "agent_3",
+      "side": "CON",
+      "phase": "chained_rebuttal",
+      "text": "가장 약한 논거는 미국의 장기 군사개입 비용이 곧바로 이번 경제 충격의 원인이라는 주장입니다. Brown University나 미국 의회조사국 자료가 보여주는 것은 미국 전쟁의 누적 비용일 뿐이며, **그 비용 자체가 이번 시장 충격을 먼저 점화한 행위자가 미국이라는 증거는 전혀 아닙니다**. 경제 충격의 책임은 과거에 돈을 많이 쓴 쪽이 아니라 현재 공급망과 안보 리스크를 실제로 자극한 행위자에게 물어야 하는데, 상대는 그 직접 인과를 입증하지 못하고 구조론으로 대체하고 있습니다. 그렇다면 미국의 과거 개입 비용이 아니라 이란의 현재 도발보다 미국이 이번 충격의 더 직접적 원인이라는 점을 무엇으로 증명하시겠습니까?",
+      "target_id": "user",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "미국의 장기개입이 비용을 키웠다는 사실만으로 이번 경제 충격의 직접 원인이 이란의 도발보다 미국의 개입 기대라는 인과를 입증하진 못한다."
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 11,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "chained_rebuttal",
+      "text": "상대 측의 가장 약한 논거는 **“현재 공급망을 자극한 행위자만이 책임의 기준”이라는 지나치게 협소한 인과 기준**입니다. 참고 자료에서도 이번 충격은 단순한 국지적 사건이 아니라 미국과 이란 간 전쟁이 38일간 이어지고, 호르무즈 해협 봉쇄로 전 세계 해상 원유 물동량의 20%가 흔들리며, 유가와 가스 가격이 전쟁 이전보다 50% 이상 급등한 구조적 확전으로 나타났습니다. 이는 시장이 이란의 단발 행동만이 아니라 미국의 군사개입이 결합된 **확전 구조 전체**를 가격에 반영했다는 뜻이므로, 직접 책임을 이란 하나로만 좁히는 귀하의 기준 자체가 현실을 설명하지 못합니다. 그렇다면 38일간의 미·이란 전쟁과 해협 봉쇄의 세계적 파급을 두고, 왜 미국의 개입이 만든 확전 책임은 지우고 이란의 즉각 행동만 책임으로 남기십니까?",
+      "target_id": "agent_3",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "국제에너지기구 호르무즈 해협 공급 차질 유가 급등 이란 공격",
+          "results": [
+            "[검색 결과]\n- # IEA 총장 \"에너지 위기, 1970년대 오일쇼크보다 심각\"\n\n송고2026-04-07 17:15\n\n송고 2026년04월07일 17시15분\n\n파티 비롤 국제에너지기구 사무총장은 호르무즈 해협 폐쇄로 두 차례 석유파동을 겪은 1970년대보다 더 심각한 에너지 위기가 발생했다고 주장했다.\n\nAFP통신에 따르면 비롤 총장은 7일 프랑스 일간 르피가로 인터뷰에서 \"1973년과 1979년, 2022년 위기를 전부 합친 것보다 심각하다\"며 \"세계는 이 정도 규모의 에너지 공급 차질을 겪어본 적이 없다\"고 말했다.\n\n1973년 제4차 중동전쟁\n- 최근 중동 지역에서 발발한 미국과 이란 간의 전쟁이 38일간 지속되면서 유럽 가계에 심각한 에너지 비용 부담을 안겨주고 있어요. 😥 이번 전쟁으로 중동의 주요 에너지 시설이 파괴되고, 전 세계 해상 원유 물동량의 20%를 차지하는 호르무즈 해협이 봉쇄되면서 국제 유가와 가스 가격이 전쟁 이전보다 50% 이상 급등한 상황이에요. 🚀 이러한 에너지 가격 급등은 유럽 가계의 연간 에너지 지출을 가구당 약 1900유로(약 330만원) 증가시킬 것으로 예상되며, 이는 유럽 가계 전체 지출의 12%를 넘어서는 규모랍니다. 💸  \n  \n이러한 \n- 이는 인플레이션과 경기 침체(스태그플레이션)로 이어져 유가와 원자재 가격 상승은 전 세계적으로 생산비용과 소비자물가를 끌어올려 인플레이션을 유발한다. 동시에 에너지 비용 부담과 공급망 차질로 기업 투자와 소비가 위축되며, 경기 침체가 심화될 수 있다. 이는 1970년대와 유사한 스태그플레이션 위험을 높일 수 있다. 이로 인해 중\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 12,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "free_rebuttal",
+      "text": "상대의 은 **미국의 중동 개입이 지역 분쟁을 세계 경제 충격으로 증폭시키는 주된 통로이므로 책임의 중심도 미국에 있다**는 것입니다. \n이 주장의 가장 치명적 약점은, 세계 경제 충격의 매개가 정말 미국의 개입인지 아니면 호르무즈 해협과 원유 공급망의 구조적 중요성 때문인지 **인과를 분리해 입증하지 못했다는 점**입니다. \n상대는 방금 미국 개입이 충격의 통로라고 말하면서도, 자신의 입론에서는 에너지 경로의 상시적 긴장이 충격을 키운다고 인정했습니다. 그렇다면 충격을 세계화하는 핵심은 미국의 존재가 아니라 원래부터 세계 경제의 병목인 해협과 공급망이며, 그 병목을 실제로 위협하는 이란의 도발 책임이 더 직접적입니다. 귀측은 세계 경제 충격의 주된 통로를 미국의 개입으로 보십니까, 아니면 미국이 없어도 작동하는 호르무즈 해협과 원유 공급망의 구조적 중요성으로 보십니까?",
+      "target_id": "user",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "세계 경제 충격의 주된 매개가 정말 미국의 개입인지, 아니면 호르무즈 해협·원유 공급 비중 같은 중동의 구조적 중요성 때문인지 인과를 분리해 입증하지 못했다."
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "호르무즈 해협 봉쇄 유가 급등 사례 이란 유조선 공격 세계 경제 충격 중동 분쟁 원유 공급 차질",
+          "results": [
+            "[검색 결과]\n- 이처럼 중동의 지정학적 긴장, 아시아 지역의 원유 수요 급증, 그리고 이에 따른 미국산 원유 수출 확대라는 복합적인 흐름은 단순히 하루 이틀의 사건이 아니라, 국제 에너지 시장의 공급망 변화와 경제적 파급 효과를 동반하는 중요한 맥락을 가지고 있어요. 💡 이러한 상황들을 종합적으로 이해하는 것이 현재의 유가 상황과 향후 시장 전망을 내다보는 데 도움이 될 거예요. [...] 현재 미국 원유 수출 증가는 중동발 물류 차질이라는 특정 상황에 기인한 측면이 강해요. 만약 중동 지역의 긴장이 빠르게 해소되고 호르무즈 해협 등의 항로가 안정\n- 2025-06-23 Economy Brief 미국 군사 개입 이후 시나리오 Economy Brief [경제] 박상현 2122-9196 shpark@imfnsec.com Check Point 금융시장의 가장 큰 관심은 미국의 군사 개입이 초래할 중동 리스크의 파장임: 유가 추가 급등이라는 최악 시나리오도 있지만 이번 핵 시설 공습이 오히려 중동 리스크 완화의 분수령 역할을 가능성도 열려 있음 당사는 최악의 시나리오보다 중동 리스크 완화 시나리오에 무게를 둠: 이란의 군사 대응능력 약화, 미국의 확전 자제 의지 및 무력 충돌 장기화시 \n- ​\n\n많은 사람들은 미국의 힘을 여전히 “원하면 언제든 질서를 회복할 수 있는 능력”으로 상상한다.\n\n​\n\n그러나 오늘의 미국은 더 이상 과거의 미국이 아니다. 세계 최강의 해군을 보유하고 있다는 사실과, 그 해군을 여러 전장에서 지속 가능하게 운용할 수 있다는 사실은 같은 말이 아니다. 군함은 바다 위에 떠 있지만, 그 군함을\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 13,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "free_rebuttal",
+      "text": "저는 세계 경제 충격의 주된 통로를 **호르무즈 해협의 물리적 중요성 자체가 아니라, 그 병목이 곧바로 전면전 위험으로 해석되도록 만든 미국의 과도한 중동 개입 구조**로 봅니다. \n상대의 허점은 해협의 구조적 중요성과 책임의 귀속을 혼동한다는 점이며, 병목이 중요하다는 사실만으로 그 병목을 세계적 공포의 진원지로 상시 군사화한 미국의 책임이 사라지지는 않습니다. \n참고 자료에서도 미국의 군사 개입 이후 시장의 최대 관심이 중동 리스크의 파장과 유가 추가 급등 시나리오에 집중되었다고 제시되는데, 이는 시장이 이란의 단독 행동보다 **미국 개입이 불러올 확전과 장기 충격**을 더 큰 가격 변수로 본다는 뜻입니다. \n따라서 병목은 조건일 뿐이고, 그 조건을 글로벌 인플레이션과 경기 침체 위험으로 증폭시키는 결정적 매개는 **미국의 과도한 개입**입니다.",
+      "target_id": "agent_1",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "호르무즈 해협 봉쇄 유가 급등 사례 이란 유조선 공격 세계 경제 영향 미국 비개입 중동 원유 공급망 충격",
+          "results": [
+            "[검색 결과]\n- 이는 인플레이션과 경기 침체(스태그플레이션)로 이어져 유가와 원자재 가격 상승은 전 세계적으로 생산비용과 소비자물가를 끌어올려 인플레이션을 유발한다. 동시에 에너지 비용 부담과 공급망 차질로 기업 투자와 소비가 위축되며, 경기 침체가 심화될 수 있다. 이는 1970년대와 유사한 스태그플레이션 위험을 높일 수 있다. 이로 인해 중앙은행들은 인플레이션 억제를 위해 금리를 올릴 수밖에 없고, 이는 경제 활동을 더욱 위축시키는 악순환을 만들 수 있다.\n\n금융시장 불안과 신흥국 충격으로 유가 급등과 글로벌 경기 불확실성은 증시 급락, 환율 \n- 2025-06-23 Economy Brief 미국 군사 개입 이후 시나리오 Economy Brief [경제] 박상현 2122-9196 shpark@imfnsec.com Check Point 금융시장의 가장 큰 관심은 미국의 군사 개입이 초래할 중동 리스크의 파장임: 유가 추가 급등이라는 최악 시나리오도 있지만 이번 핵 시설 공습이 오히려 중동 리스크 완화의 분수령 역할을 가능성도 열려 있음 당사는 최악의 시나리오보다 중동 리스크 완화 시나리오에 무게를 둠: 이란의 군사 대응능력 약화, 미국의 확전 자제 의지 및 무력 충돌 장기화시 \n- 이처럼 중동의 지정학적 긴장, 아시아 지역의 원유 수요 급증, 그리고 이에 따른 미국산 원유 수출 확대라는 복합적인 흐름은 단순히 하루 이틀의 사건이 아니라, 국제 에너지 시장의 공급망 변화와 경제적 파급 효과를 동반하는 중요한 맥락을 가지고 있어요. 💡 이러한 상황들을 종합적으로 이해하는 것이 현재의 유가 상황과 향후 시장 전\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 14,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "free_rebuttal",
+      "text": "상대의 은 **경제 충격은 미국의 개입이라는 배경보다 이란이 해상 병목을 무기화하는 직접 신호에서 발생하므로 책임도 이란에 있다**는 것입니다. \n이 주장의 가장 치명적 약점은, 그 직접 신호가 왜 지금처럼 시장에서 곧바로 전면적 위기로 해석되는지에 대한 선행 원인을 지운 채 결과만 책임으로 삼는다는 점입니다. \n참고 자료가 보여주듯 미국은 JCPOA 탈퇴와 제재 재개로 외교적 완충 장치를 무너뜨리고 해상 안보 압박까지 확대하며 갈등 구조 자체를 재형성했습니다. 따라서 귀측이 말하는 보험료 상승과 우회 비용 증가는 이란의 행동만으로 생긴 것이 아니라, **미국이 외교를 걷어차고 긴장을 상시화한 뒤 만들어 놓은 시장 불안 위에서 증폭된 결과**입니다.",
+      "target_id": "agent_1",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "호르무즈 해협 유조선 위기 미국 군사개입 유가, 솔레이마니 공습 이후 유가 변동, 미국 이란 제재 해운보험 상승, 중동 미군 증파 시장 불안",
+          "results": [
+            "[검색 결과]\n- • 그러나  2018 년 트럼프  1기 행정부의 일방적 탈퇴와 제재 재개로 외교적 완충 장치가 붕괴되었으며 , 이에 따라 양국 간 갈등 구조가 재형성됨 \n\n경제 제재 중심의 대이란 압박 체계 본격화 \n\n• 미국은  JCPOA  탈퇴 이후 대이란 경제 제재를 복원 , 금융 ·에너지 부문을 중심으로 제재 범위를 확대하며 이란의 외화 유입 ·원유 수출을 제한 \n\n• 동시에 역내 동맹국과의 공조를 강화하고 , 해상 안보 협력 및 제재 이행 압박을 병행하며 대이란 압박 수단을 다각화 \n\n핵무기 임계점 접근 가능성 증가 및 군사적 대응 압력 \n- ​\n\n많은 사람들은 미국의 힘을 여전히 “원하면 언제든 질서를 회복할 수 있는 능력”으로 상상한다.\n\n​\n\n그러나 오늘의 미국은 더 이상 과거의 미국이 아니다. 세계 최강의 해군을 보유하고 있다는 사실과, 그 해군을 여러 전장에서 지속 가능하게 운용할 수 있다는 사실은 같은 말이 아니다. 군함은 바다 위에 떠 있지만, 그 군함을 오래 움직이게 하는 것은 조선업이고, 보급망이며, 항만이고, 상선대이다. 다시 말해 해군력은 단지 국방의 문제가 아니라 산업의 문제이며, 패권은 단지 군사력의 이름이 아니라 그것을 뒷받침하는 경제 구조의 이\n- ​\n\n​\n\n> 美·이란 협상 재개 가능성 — 수일 내 2차 라운드 (WSJ)\n\n\n\n 이슬라마바드 협상 결렬에도 역내 국가들이 중재, 美·이란 재협상 테이블 복귀 추진\n 수일 내 2차 라운드 개최 가능성​\n 화요일 밤 발표된 2주 휴전 연장 위해 역내 정부들이 워싱턴과 협의 중\n 美 6대 요구 vs 이란 역제안\n\n  + 美: 농축\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 15,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "free_rebuttal",
+      "text": "아닙니다, **보험료 상승과 우회 비용의 1차 책임은 외교 환경이 아니라 실제로 항로와 해협을 위협해 위험을 현실화한 이란의 행동에 있습니다**. \n상대의 허점은 미국의 JCPOA 탈퇴를 갈등의 배경으로 제시하면서도, 그 배경이 어떻게 곧바로 선박 위협과 해상 병목의 무기화라는 **이란의 현재 행위 책임을 대체하는지**를 입증하지 못한다는 점입니다. \n오히려 참고 자료가 보여주듯 미국의 JCPOA 탈퇴 이후 갈등 구조가 재형성되고 제재가 복원되었음에도, 시장을 실제 비용으로 흔드는 것은 제재 그 자체보다 **이란이 호르무즈 해협 봉쇄 위험처럼 세계 에너지 급소를 압박하는 선택**입니다. \n따라서 경제 충격의 책임은 외교 완충 장치 붕괴라는 배경보다, 그 틈을 이용해 공급망을 직접 흔든 **이란의 지정학적 도발**에 더 직접적으로 귀속됩니다.",
+      "target_id": "user",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "미국 JCPOA 탈퇴 제재 재개 호르무즈 긴장 국제에너지기구 해운보험료",
+          "results": [
+            "[검색 결과]\n- 선언하고, 이란에 대한 경제 제재 복원계획을 발표함 - ‌ \u0007 미국 재무부는 품목, 분야별로 90일, 180일의 유예기간을 정하고, 제3국 금융기관 및 통화를 이용한 거래까지 함께 제한하는 ‘세컨더리 제재(Secondary Sanction)’를 적용함 Ⅱ. 미국 · 이란 간 갈등 전개과정 June 2020. No. 81 미국의 ‘이란 핵 합의(JCPOA)’ 탈퇴 이후 미·이란 갈등 분석 및 전망 3 [표 1] 미국 재무부 발표 제재 복원 사항 구분 제재복원 내용 요약 2018.8.6. 이후 (90일 유예) •‌ \u0007 미국달러 구매, \n- 34ⳇ The Office of Foreign Assets Control of the U.S. Department of the Treasury, “Secondary Sanctions Enforcement Announcement,” July 31, 2012, < -Kunlun-Bank-%28China%29-and-Elaf-Bank-in-%28Iraq%29> (Accessed October 5, 2023).\n35ⳇ JCPOA 채택 배경 및 과정, JCPOA의 주요 내용에 대해서는 도경옥 외, 󰡔비핵화 합의와 이행의 법‧ 제도적 문제: \n- • 그러나  2018 년 트럼프  1기 행정부의 일방적 탈퇴와 제재 재개로 외교적 완충 장치가 붕괴되었으며 , 이에 따라 양국 간 갈등 구조가 재형성됨 \n\n경제 제재 중심의 대이란 압박 체계 본격화 \n\n• 미국은  JCPOA  탈퇴 이후 대이란 경제 제재를 복원 , 금융 ·에너지 부문을 중심으로 제재 범위를 확대하며 이란의 외화\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "미국 개입이 시장 불안을 키웠다는 정황만 제시할 뿐, 이란의 실제 도발이 없었어도 같은 충격이 발생했을 것이라는 반사실적 입증이 없다."
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "호르무즈 해협 봉쇄 위협 유가 급등 이란 혁명수비대 유조선 피격 해운보험료 상승 사우디 석유시설 공격 국제유가",
+          "results": [
+            "[검색 결과]\n- #### 6.1.2. 이란(/edit/2026%EB%85%84%20%EC%97%90%EB%84%88%EC%A7%80%20%EC%9C%84%EA%B8%B0?section=23)\n\n 이란 혁명수비대가 배럴당 석유값 200달러를 감당해 보라고 협박하였다.#\n\n#### 6.1.3. 이스라엘(/edit/2026%EB%85%84%20%EC%97%90%EB%84%88%EC%A7%80%20%EC%9C%84%EA%B8%B0?section=24)\n\n#### 6.1.4. 중동 방위국(/edit/2026%EB%85%84%20%EC%97%90%EB%84%"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 16,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "free_rebuttal",
+      "text": "상대의 은 **호르무즈 해협의 물리적 중요성보다 미국의 과도한 중동 개입 구조가 그 병목을 전면전 공포로 해석하게 만들어 경제 충격의 주된 책임도 미국에 있다는 것**입니다. \n이 주장의 가장 치명적 약점은, 책임 판단의 기준을 실제 위협 행위가 아니라 시장의 해석 구조로 옮겨 놓음으로써 **이란의 명시적 위협과 선택을 책임의 중심에서 의도적으로 지운다는 점**입니다. \n참고 자료에서도 이란 혁명수비대가 고유가를 감당해 보라고 직접 협박한 만큼, 시장이 반응한 이유는 추상적 해석 구조보다 먼저 존재한 **이란의 노골적 위협 신호**입니다. 더구나 상대는 처음에는 장기 군사개입과 재정 부담을 말하다가 이제는 시장 심리 구조를 책임의 기준으로 바꾸고 있으므로, 자기 입론 내부에서도 책임 기준이 일관되지 않습니다. 귀측은 경제 충격의 주된 책임 기준을 실제로 봉쇄를 위협한 행위자에게 둡니까, 아니면 그 위협에 반응한 시장의 해석 구조에 둡니까?",
+      "target_id": "user",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "미국 JCPOA 탈퇴 제재 재개 호르무즈 긴장 국제에너지기구 해운보험료",
+          "results": [
+            "[검색 결과]\n- 선언하고, 이란에 대한 경제 제재 복원계획을 발표함 - ‌ \u0007 미국 재무부는 품목, 분야별로 90일, 180일의 유예기간을 정하고, 제3국 금융기관 및 통화를 이용한 거래까지 함께 제한하는 ‘세컨더리 제재(Secondary Sanction)’를 적용함 Ⅱ. 미국 · 이란 간 갈등 전개과정 June 2020. No. 81 미국의 ‘이란 핵 합의(JCPOA)’ 탈퇴 이후 미·이란 갈등 분석 및 전망 3 [표 1] 미국 재무부 발표 제재 복원 사항 구분 제재복원 내용 요약 2018.8.6. 이후 (90일 유예) •‌ \u0007 미국달러 구매, \n- 34ⳇ The Office of Foreign Assets Control of the U.S. Department of the Treasury, “Secondary Sanctions Enforcement Announcement,” July 31, 2012, < -Kunlun-Bank-%28China%29-and-Elaf-Bank-in-%28Iraq%29> (Accessed October 5, 2023).\n35ⳇ JCPOA 채택 배경 및 과정, JCPOA의 주요 내용에 대해서는 도경옥 외, 󰡔비핵화 합의와 이행의 법‧ 제도적 문제: \n- • 그러나  2018 년 트럼프  1기 행정부의 일방적 탈퇴와 제재 재개로 외교적 완충 장치가 붕괴되었으며 , 이에 따라 양국 간 갈등 구조가 재형성됨 \n\n경제 제재 중심의 대이란 압박 체계 본격화 \n\n• 미국은  JCPOA  탈퇴 이후 대이란 경제 제재를 복원 , 금융 ·에너지 부문을 중심으로 제재 범위를 확대하며 이란의 외화\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "미국 개입이 시장 불안을 키웠다는 정황만 제시할 뿐, 이란의 실제 도발이 없었어도 같은 충격이 발생했을 것이라는 반사실적 입증이 없다."
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "호르무즈 해협 봉쇄 위협 유가 급등 이란 혁명수비대 유조선 피격 해운보험료 상승 사우디 석유시설 공격 국제유가",
+          "results": [
+            "[검색 결과]\n- #### 6.1.2. 이란(/edit/2026%EB%85%84%20%EC%97%90%EB%84%88%EC%A7%80%20%EC%9C%84%EA%B8%B0?section=23)\n\n 이란 혁명수비대가 배럴당 석유값 200달러를 감당해 보라고 협박하였다.#\n\n#### 6.1.3. 이스라엘(/edit/2026%EB%85%84%20%EC%97%90%EB%84%88%EC%A7%80%20%EC%9C%84%EA%B8%B0?section=24)\n\n#### 6.1.4. 중동 방위국(/edit/2026%EB%85%84%20%EC%97%90%EB%84%"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 17,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "free_rebuttal",
+      "text": "저는 경제 충격의 주된 책임 기준을 **실제 위협을 세계 경제 재난으로 비화시키는 구조를 만든 행위자**, 곧 미국의 과도한 중동 개입에 둡니다. \n상대의 허점은 봉쇄 위협이라는 마지막 방아쇠만 책임으로 보고, 왜 그 방아쇠가 한 지역 분쟁이 아니라 세계 산업 전반의 붕괴 공포로 읽히는지에 대한 상위 원인을 의도적으로 삭제한다는 점입니다. \n참고 자료에서도 호르무즈 해협은 원유뿐 아니라 비료, 헬륨, 다양한 물자가 오가는 통로이며, 봉쇄를 유지하려면 미군 함정이 이란 해안에 밀착 작전해야 해 미국 측에도 극도로 위험하다고 제시됩니다. \n이는 **경제 충격의 본질이 이란의 한마디 협박 자체보다, 미국의 군사개입이 해협 전체를 전면전 공간으로 바꾸어 놓은 데 있다**는 점을 보여줍니다.",
+      "target_id": "agent_1",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "이란 혁명수비대 호르무즈 해협 봉쇄 위협 국제에너지기구 유가 급등 미국 에너지정보청 해협 병목",
+          "results": [
+            "[검색 결과]\n- 또 봉쇄를 유지하려면 미군 함정들이 이란 해안에 밀착해 작전을 수행해야 하는데 이는 미군에 매우 위험한 선택이라고 지적했습니다.  \n   \n 이란 테헤란대학교의 조흐레 카라즈미 교수도 이란은 미국과의 장기전에 대비한 준비를 마쳤으며 미국이 해협을 봉쇄할 경우 세계 경제가 붕괴될 수 있다고 우려했습니다.  \n   \n 호르무즈 해협은 원유뿐 아니라 비료, 헬륨, 그리고 다양한 물자가 오가는 곳이라며 세계 산업 전반이 위험에 처할 수 있다고 설명했습니다.  \n   \n 지금까지 국제부에서 YTN 김잔디입니다.  \n   \n YTN 김잔디 (\n- #### 6.1.2. 이란(/edit/2026%EB%85%84%20%EC%97%90%EB%84%88%EC%A7%80%20%EC%9C%84%EA%B8%B0?section=23)\n\n 이란 혁명수비대가 배럴당 석유값 200달러를 감당해 보라고 협박하였다.#\n\n#### 6.1.3. 이스라엘(/edit/2026%EB%85%84%20%EC%97%90%EB%84%88%EC%A7%80%20%EC%9C%84%EA%B8%B0?section=24)\n\n#### 6.1.4. 중동 방위국(/edit/2026%EB%85%84%20%EC%97%90%EB%84%\n- # IEA 총장 \"에너지 위기, 1970년대 오일쇼크보다 심각\"\n\n송고2026-04-07 17:15\n\n송고 2026년04월07일 17시15분\n\n파티 비롤 국제에너지기구 사무총장은 호르무즈 해협 폐쇄로 두 차례 석유파동을 겪은 1970년대보다 더 심각한 에너지 위기가 발생했다고 주장했다.\n\nAFP통신에 따르면 비롤 총장은 7일 프\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 18,
+      "speaker": "agent_1",
+      "side": "PRO",
+      "phase": "role_reversal",
+      "text": "### 논거 1: 개입이 국지 갈등을 구조적 불안으로 바꿉니다\n미국의 중동 군사개입은 스스로 질서를 관리하겠다고 나섰지만, 관련 분석에서도 이라크 침공 이후 권력 공백과 무장세력의 확산이 장기 불안정을 키웠다고 확인됩니다. **즉 경제 충격의 핵심 원인은 개별 도발 한 번이 아니라, 미국이 지역 질서를 외부에서 재편하려 하며 만든 구조적 불안정입니다.**\n\n### 논거 2: 경제 충격의 규모는 개입의 누적 효과에서 커집니다\nBrown University의 Costs of War 프로젝트는 미국의 이라크·시리아 전쟁 비용이 막대한 수준으로 누적되었다고 제시하며, 이는 군사개입이 단순 안보 대응을 넘어 재정·시장 불안을 장기화했음을 보여줍니다. 또한 관련 분석에서 중동 해상로와 에너지 인프라 교란 시 유가와 운송비, 보험료가 급등할 수 있다고 나타나는 만큼, **세계 경제를 흔드는 충격은 이란의 단발 행동보다 미국의 과도한 개입이 만든 상시 위기 구조에서 더 직접적으로 발생합니다.**\n\n### 결론\n따라서 이란 전쟁 경제 충격의 1차 책임은 이란의 지정학적 도발 자체가 아니라, 중동을 반복적으로 군사화하고 불안을 누적시킨 미국의 과도한 개입에 있다고 보아야 합니다. **발화점만 볼 것이 아니라 충격을 증폭시키는 구조를 봐야 하며, 그 구조를 만든 쪽이 미국입니다.**",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "미국 중동 군사개입 장기 불안정 경제 충격 분석 연구 기관 Iraq war regional instability economic impact US intervention",
+          "results": [
+            "[검색 결과]\n- The influence of US military actions on the stability of neighbouring regions is a complicated and diverse matter. Although establishing stability and advancing democracy is frequently the stated purpose of these interventions, the results have been uneven. Interventions have occasionally resulted i\n- region and its economic foundation.”2 U.S. officials were particularly concerned with Iraq’s efforts to nationalize its oilfields and with the alliance between the prime minister Abdul Karim Qasim and the communists. After Qasim withdrew Iraq from the Baghdad Pact in 1959 – which was an anti-communi\n- Since the U.S.-led invasion in 2003, Iraq has undergone a long period of instability, with armed groups like the self-proclaimed Islamic State taking advantage of the power vacuum left\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Costs of War Brown University Iraq war economic costs Middle East instability official",
+          "results": [
+            "[검색 결과]\n- Political scientist and Costs of War co-founder Neta Crawford (Professor, University of Oxford) calculates the total costs of the war in Iraq and Syria, which are expected to exceed half a million human lives and $2.89 trillion. This budgetary figure includes costs to date, estimated at about $1.79 \n- Even as the U.S. exits Afghanistan, Costs of War estimates show that Americans are far from done paying the bill on the war on terror, which continues across multiple continents. The cumulative cost of military intervention in the Iraq/Syria war zone has risen to $2.1 trillion since 9/11, and about \n- A grantee of Carnegie Corporation of New York, the Costs of War project uses research and a public website to facilitate debate about the costs of the post-9/11 wars in Iraq and Afghan\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "미국의 중동 개입이 에너지 시장 불안정 초래 분석 IMF World Bank oil shipping Middle East conflict",
+          "results": [
+            "[검색 결과]\n- The situation remains very uncertain, and shipping through the Strait of Hormuz is yet to normalize. Even after a resumption of regular shipping flows through the Strait, it will take time for global supplies of key commodities to move back towards their pre-conflict levels—and fuel and fertilizer p\n- But under a severe scenario, with lengthy disruption to shipping in and out of the Persian Gulf and more widespread damage to energy production and export infrastructure, the IMF warned that oil prices could leap to an average of $125 a barrel by next year, and that European and Asian natural gas pr\n- The war is also reshaping supply chains for non-energy and critical inputs. Rerouting tankers and container ships raises freight and insurance"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 19,
+      "speaker": "user",
+      "side": "CON",
+      "phase": "role_reversal",
+      "text": "### 논거 1: 해상 병목을 직접 흔든 주체의 책임입니다\n호르무즈 해협과 인근 항로의 경제 충격은 추상적인 개입 논쟁보다, **누가 실제로 선박 통항과 에너지 수송의 불안을 만들어냈는지**를 기준으로 책임을 따져야 합니다. \nReuters 보도에서도 이란의 해상 압박과 통항 위협이 시장의 핵심 병목을 직접 흔드는 변수로 다뤄졌으므로, **경제 충격의 직접 책임은 미국의 존재 자체보다 이란의 지정학적 도발에 있습니다**. \n\n### 논거 2: 위기의 출발점은 이란의 군사·핵 도발 확대입니다\nReuters가 전한 IAEA 관련 보도에서는 이란의 고농축 우라늄 축적이 국제사회의 중대한 우려 사안으로 제시됐고, 이는 제재·군사적 긴장·시장 불안을 연쇄적으로 키우는 출발점이 됩니다. \n또한 Reuters는 이란의 지원을 받는 세력이 홍해 해운을 교란해 광범위한 물류 불안을 일으켰다고 전했으므로, **미국 개입만을 원인으로 지목하는 것은 이란과 그 연계 세력의 능동적 불안정 조성을 지우는 주장입니다**. \n\n### 결론\n결국 전쟁 경제 충격은 미국이 중동에 있다는 사실만으로 발생한 것이 아니라, 이란이 핵 문제와 해상 위협, 대리세력 활용으로 시장의 급소를 반복적으로 자극했기 때문에 증폭된 것입니다. 따라서 **이란 전쟁 경제 충격의 1차 책임은 미국의 과도한 중동 개입이 아니라 이란의 지정학적 도발에 있습니다**.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "이란 호르무즈 해협 봉쇄 위험 분석",
+          "results": [
+            "[검색 결과]\n- 또 봉쇄를 유지하려면 미군 함정들이 이란 해안에 밀착해 작전을 수행해야 하는데 이는 미군에 매우 위험한 선택이라고 지적했습니다.  \n   \n 이란 테헤란대학교의 조흐레 카라즈미 교수도 이란은 미국과의 장기전에 대비한 준비를 마쳤으며 미국이 해협을 봉쇄할 경우 세계 경제가 붕괴될 수 있다고 우려했습니다.  \n   \n 호르무즈 해협은 원유뿐 아니라 비료, 헬륨, 그리고 다양한 물자가 오가는 곳이라며 세계 산업 전반이 위험에 처할 수 있다고 설명했습니다.  \n   \n 지금까지 국제부에서 YTN 김잔디입니다.  \n   \n YTN 김잔디 (\n- ​\n\n​\n\n> 美·이란 협상 재개 가능성 — 수일 내 2차 라운드 (WSJ)\n\n\n\n 이슬라마바드 협상 결렬에도 역내 국가들이 중재, 美·이란 재협상 테이블 복귀 추진\n 수일 내 2차 라운드 개최 가능성​\n 화요일 밤 발표된 2주 휴전 연장 위해 역내 정부들이 워싱턴과 협의 중\n 美 6대 요구 vs 이란 역제안\n\n  + 美: 농축 전면중단 / 시설 해체 / 고농축물질 반출 / 호르무즈 무통행료 개방 / 역내 평화협정 / 헤즈볼라·후티 지원 중단\n  + 이란: 제한적 농축 허용 또는 농축 우라늄 비축량 감축 제안 → 간극 못 좁힘\n 이\n- 미국, 이란 때리면…이란 정권붕괴·세계경제 충격 등 시나리오   \n외과수술식 체제전복…정권유지 묵인 '베네수엘라 모델'   \n군부정권·내전급 혼란…호르무즈 등 이란 보복옵션에도 촉각   \n   \n (서울=연합뉴스) 이도연 기자 = 미국의 대(對)이란 공격이 임박했다는 징후가 포착되는 가운데, 실제 공격이 일어나면 이후 이란 정권\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "IAEA Iran enriched uranium Reuters latest report site:reuters.com",
+          "results": [
+            "[검색 결과]\n- The IAEA estimates that Iran had 440.9 kg of uranium enriched to up to 60% before last year's Israeli-U.S. attacks - enough, if enriched\n- Iran has indicated it would turn over enriched uranium, White House says. Iran has indicated it ​would turn over its stocks of enriched uranium, White House\n- The report said the quantity of highly enriched uranium Iran has produced and stored is \"a matter of serious concern\". The IAEA has now lost so-"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Hormuz Strait attacks shipping Iran Reuters analysis latest site:reuters.com",
+          "results": [
+            "[검색 결과]\n- Blockade covers Iranian coastline, humanitarian shipments allowed with inspection · Tehran threatens retaliation after failed ceasefire talks,\n- Iran's grip ​on the ​oil bottleneck has seen at ⁠least one ​ship pay $2 mln to ​pass. Even if it charged a lower rate ​of $1 per barrel ​on\n- US military has said blockade would apply to ships going to or from Iran · 10,000 US troops involved in blockade · Blockade will not apply to"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Iran-backed Houthis Red Sea shipping attacks Reuters latest site:reuters.com",
+          "results": [
+            "[검색 결과]\n- Yemen's Houthis sank two cargo ships in the Red Sea this week, the first flare-up in seven months in the Iran-backed group's years-long campaign to choke\n- The Houthis have shown an ‌ability to strike ⁠targets far beyond Yemen and disrupt shipping lanes around the Arabian Peninsula and the Red Sea,\n- Heavily armed and ‌capable of striking Gulf neighbours, any involvement in the conflict by the Houthis could cause major disruption to maritime"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 20,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "미국의 개입 방식이 긴장을 키울 수 있다는 점은 수긍합니다. 다만 **책임 규정과 재발 방지는 분리**해서, 미국에는 군사개입 축소와 외교 복원 로드맵을, 이란에는 해협 위협 중단과 핵·대리세력 활동 검증 수용을 동시에 묶는 **상호 단계형 합의안**으로 가야 현실적으로 집행 가능합니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 21,
+      "speaker": "agent_4",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "미국의 군사개입 축소와 외교 복원 로드맵이 필요하다는 점은 수긍합니다. 다만 **가장 큰 피해자인 해협 연안 시민과 수입국 소비자들이 바로 체감할 수 있도록**, 미·이란이 단계형 합의와 함께 에너지·식량·의약품 해상통로를 상시 예외로 보장하는 민생 보호 조항을 의무화하면 양측 모두 재발 방지의 실익을 얻을 수 있습니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 22,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "**민생 해상통로를 상시 예외로 보장하자는 점은 수긍합니다.** 다만 5~10년 뒤에도 합의가 무너지지 않으려면 미·이란이 아니라 제3의 국제 감시체계가 해협 위협 중단, 보험료 급등, 통항 방해 여부를 정기 점검하고 위반 시 자동 복원되는 제재·보상 장치를 함께 넣어야 지속가능합니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 23,
+      "speaker": "agent_5",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "제3의 국제 감시체계로 합의 이행을 점검하자는 점은 수긍합니다. 다만 **흑해 곡물 협정이나 이란 핵합의처럼 위기 때마다 합의가 흔들린 전례를 보면**, 미·이란만이 아니라 해협 의존도가 큰 수입국과 중립 해운국이 함께 참여하는 **다자 보증기금과 분쟁 중재위원회**를 붙여 위반 시 자동 제재뿐 아니라 즉시 보험료 보전과 대체 운송 지원까지 작동하게 하면 양측 모두 더 수용 가능해집니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 24,
+      "speaker": "agent_3",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "**다자 보증기금과 중재위원회 구상은 수긍합니다.** 다만 근본 원인이 해협의 반복적 무기화에 있는 만큼, 양측이 수용할 타협안으로 해협 주변 일정 구역을 **상설 비무장 상업항로**로 지정하고 위반 시 군사 대응보다 자동 통항 제한 해제·국제 호송 전환이 먼저 작동하게 하면 확전과 경제 충격을 함께 줄일 수 있습니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 25,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "**상설 비무장 상업항로와 국제 호송 전환을 우선한다는 점은 수긍합니다.** 다만 미국의 과도한 군사개입이 반복될수록 역내 국내총생산(GDP)과 물류 충격이 증폭된다는 점을 함께 반영해, 항로 안전이 유지되는 기간만큼 미국의 역외 전력 전개를 단계적으로 자동 축소하고 그 이행 여부를 다자 보증기금 지원과 연동하면 양측 모두가 재발 방지의 실익을 확인할 수 있습니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 26,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "핵심은 누가 더 옳으냐보다 **누가 비용을 내고 몇 달 안에 집행하느냐**입니다. 상설 비무장 항로·국제 호송·미군 전개 축소를 묶으려면, 첫째 보험사와 재보험사가 위험등급을 어떤 기준으로 즉시 내릴지, 둘째 항로 위반 발생 시 누가 24시간 안에 선박 검색·증거 판정·보상 지급을 할지 운영 주체가 비어 있는데, 이 미해결 비용·집행 설계 없이는 합의문만 있고 시장은 안 믿습니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 27,
+      "speaker": "agent_4",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "가장 큰 피해자는 원유기업보다도 운임·식료품·전기요금 급등을 그대로 떠안는 해협 연안 저소득 가구와 에너지 수입국의 중소 제조업체들인데, 지금 안은 항로 안전에는 집중하면서도 **가격 급등분을 누가 흡수할지**는 비어 있습니다. 그래서 항로 합의와 별도로, 유가·보험료가 일정 수준을 넘으면 보증기금이 자동으로 필수 식량·의약품 수입국과 영세 화주에게 직접 보조를 집행하는 **민생 가격완충 장치**를 붙일지부터 정해야 실제 수혜자가 생깁니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 28,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "5~10년 관점에서 보면 비무장 항로·호송·전력 축소는 단기 진정 효과는 있어도, 해운사와 산유국이 “어차피 국제사회가 지켜준다”는 신호를 받아 **호르무즈 의존을 더 고착화하는 도덕적 해이**가 생길 수 있습니다. 그래서 합의안에는 안전조치뿐 아니라 10년간 원유·LNG·비료 수입선 다변화와 전략비축 확대를 의무화하는 **의존도 감축 조항**을 넣을지부터 따져야, 다음 위기 때 같은 충격이 반복되지 않습니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 29,
+      "speaker": "agent_5",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "국제 비교로 보면 말라카 해협은 단순 군사 호송보다 **연안국 공동순찰·정보공유센터(ReCAAP)·민간 선사 신고체계**를 묶어 해적 리스크를 낮췄고, 흑해 곡물 통로는 군사력보다 **중립국 검증 메커니즘**이 성패를 갈랐습니다. 미국 전력 축소는 확전 억제에 장점이 있지만 억지 공백 위험이 있고, 국제 호송은 단기 안전엔 강하지만 장기적으로 긴장을 고착할 수 있으니, 아직 안 나온 쟁점으로 **오만·인도 같은 비당사국이 실시간 선박위치·검색기록을 공동 관리하는 해협 정보검증센터를 어디에 두고 누가 데이터 조작 책임을 질지**부터 정해야 합니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 30,
+      "speaker": "agent_3",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "미군 전개를 자동 축소하는 장치는 확전 억제엔 유리하지만, 구조적 원인은 해협이 너무 많은 원유·가스·비료 결제를 **달러 기반 단기 현물시장**에 의존해 작은 군사 신호도 곧바로 세계 가격 급등으로 번지는 데 있다는 점을 놓치고 있습니다. 그래서 아직 안 다룬 쟁점은 항로 안전과 별도로, 위기 시 자동 발동되는 **장기공급계약·공동비축 방출·결제안정 스와프**를 누가 설계해 가격 패닉 자체를 끊을 것인가입니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 31,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "**위기 시 장기공급계약·공동비축 방출·결제안정 스와프로 가격 패닉을 끊자는 점은 수긍합니다.** 다만 미국의 과도한 중동 군사개입이 커질수록 역내 생산과 교역 위축이 누적된다는 관점을 반영해, 이 장치를 미국의 역외 전력 감축 일정과 연동하고 감축이 이행될 때만 보증기금이 보험료·민생 보조를 자동 확대하도록 설계하면 양측 모두가 안보와 시장안정을 함께 확보할 수 있습니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 32,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "미군 전력 감축과 금융 안전장치를 연동하면 정치적으로는 균형 있어 보이지만, 현실 집행은 미국 의회 승인·동맹국 방위공약·보험사 재산정까지 얽혀 **최소 수개월~수년**이 걸려 위기 초기에 작동하기 어렵습니다. 아직 안 다룬 쟁점은, 첫 72시간 안에 누가 어떤 법적 권한으로 공동비축 방출·선사 운임 상한·항만 우선접안 순서를 즉시 발동할지라는 **초기 실행 프로토콜**입니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 33,
+      "speaker": "agent_4",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "가장 큰 피해자는 국가가 아니라 **전력·비료·식품 가격 급등을 바로 떠안는 저소득 가구와 중소 농가**인데, 지금 논의는 유가와 안보 장치에 치우쳐 있어 정작 비료 원료·LPG·사료 운임이 튀면 누가 먼저 보호받는지가 빠져 있습니다. 그래서 아직 안 다룬 쟁점은, 위기 시 보증기금 지원 대상을 산유국·선사보다 앞서 **식량 수입국의 공공조달기관, 비료 수입업체, 병원 전력용 연료 구매자**로 자동 우선순위화할지 여부입니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 34,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "5~10년 뒤까지 보려면 전력 감축·비축 방출보다 더 큰 미해결 쟁점은, 이런 안전장치가 반복될수록 산유국과 수입국 모두 **평시 재고를 줄이고 위기 때 국제기금에 기대는 재고 축소 유인**이 생긴다는 점입니다. 그래서 합의안에는 지원 조건으로 국가·정유사별 최소 비축일수와 대체항로 투자 의무를 함께 넣고, 이를 어기면 다음 위기 때 보증기금 접근을 제한할지부터 정해야 부작용을 막을 수 있습니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 35,
+      "speaker": "agent_5",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "국제 비교로 보면 1980년대 걸프전기 유럽은 단순 비축보다 **수요감축 훈련과 연료전환 규칙**을 함께 돌려 가격 충격을 줄였고, 일본은 후쿠시마 이후 LNG 급등기에 **대형 수요처별 절전·대체연료 전환 계획**을 미리 의무화해 시장 패닉을 완화했습니다. 양쪽 안 모두 공급 측 안전장치에 치우쳐 있으니, 아직 안 나온 쟁점은 **비료공장·발전소·대형 화주가 위기 발동 7일 안에 얼마나 소비를 줄이거나 연료를 바꿀지 사전 의무계약을 넣을 것인가**입니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 36,
+      "speaker": "agent_3",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "미국 전력 감축 연동안은 확전 억제의 장점이 있지만, 반대 측이 말한 즉시 집행성과도 충돌하므로 **더 근본적인 미해결 쟁점은 호르무즈 통과 원유·LNG의 실소유주와 최종 구매계약 정보가 불투명해 위기 때 제재·보호·우선통항 대상을 신속히 가를 수 없다는 점**입니다. 그래서 항로·금융 장치보다 앞서, 평시부터 화물의 **실질소유자·최종도착지·제재노출도**를 등록하는 해협 거래투명성 레지스트리를 누가 운영하고 허위신고 시 어떤 자동 제재를 걸지부터 정해야 구조적 패닉이 줄어듭니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 37,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "우리의 **최적해**는 호르무즈 해협에 상설 비무장 상업항로를 두고, 오만·인도 등 비당사국이 참여하는 정보검증센터와 제3의 국제 감시체계 아래 국제 호송·선박 검색·증거 판정·보상 지급이 초기 실행 프로토콜에 따라 즉시 작동하며, 동시에 미국의 역외 전력 전개는 항로 안전 유지와 연동해 단계적으로 자동 축소하는 패키지입니다. 이는 다자 보증기금과 중재위원회가 보험료 보전, 필수 식량·의약품·비료·병원 연료 구매자 우선 지원, 공동비축 방출과 장기공급계약·결제안정 장치까지 자동 집행하는 조건과, 최소 비축일수·수입선 다변화·대체항로 투자·수요감축 의무 및 해협 거래투명성 레지스트리로 도덕적 해이와 시장 패닉을 막는 보완을 전제로 합니다.",
+      "target_id": null,
+      "tool_calls": []
+    }
+  ]
+}

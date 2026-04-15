@@ -1,0 +1,546 @@
+{
+  "topic_id": "tech_001",
+  "topic": "인공지능 발전은 인간 고용의 축소가 아닌 노동 시장의 재편이다",
+  "category": "",
+  "user_stance": "PRO",
+  "debate_format": "2:2",
+  "model_name": "gpt-5.4",
+  "experiment_mode": "all_ai",
+  "intensity_preset": "2v2_balanced",
+  "agent_intensities": [
+    3,
+    3,
+    3
+  ],
+  "created_at": "2026-04-15T21:51:09.033554",
+  "duration_seconds": 334.9,
+  "is_finished": true,
+  "turns": [
+    {
+      "turn_id": 0,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n반대1입니다. 저는 이 논제에 반대하며, 인공지능 발전은 단순한 노동 시장의 재편이 아니라 **인간 고용의 직접적인 축소**를 낳는다고 주장합니다. 특히 최근 빅테크와 플랫폼 기업들은 인공지능을 생산성 보조 수단이 아니라 감원과 채용 중단의 근거로 활용하고 있으며, 이는 일자리 이동이 아니라 일자리 자체의 소멸로 이어지고 있습니다.\n\n### 논거 1: 빅테크는 AI를 ‘보조’가 아니라 감원 명분으로 사용합니다\nReuters와 Business Insider 보도에 따르면 IBM은 인공지능으로 대체 가능한 일부 사무직 채용을 중단하고, 장기적으로 상당수 백오피스 기능이 AI로 대체될 수 있다고 밝혔습니다. 이는 기업이 AI를 도입한 뒤 기존 인력을 다른 부문으로 재배치하는 것이 아니라, **애초에 사람을 덜 뽑고 기존 직무를 없애는 방향**으로 움직인다는 뜻입니다. \n또한 BT 관련 Reuters 보도에서도 인공지능과 자동화가 추가적인 인력 감축을 심화시킬 수 있다는 취지가 확인됩니다. 즉, 기업 현장에서 AI는 새로운 일자리를 넓히는 기술이라기보다, 비용 절감을 위해 인간 노동을 직접 줄이는 수단으로 작동하고 있습니다.\n\n### 논거 2: 실제 현장에서는 ‘재편’보다 대체와 축소가 먼저 발생합니다\n최근 Duolingo는 AI 중심 운영 기조 속에서 외주 인력을 AI로 점진적으로 대체하겠다는 방향을 드러냈고, Klarna 역시 AI 고객응대 시스템이 대규모 인간 상담 인력의 업무를 대신할 수 있다고 강조했습니다. 이런 사례는 AI가 인간을 도와 더 고부가가치 업무로 이동시키는 이상적 재편보다, **반복적이고 표준화된 직무부터 사람을 밀어내는 현실적 축소**가 먼저 일어난다는 점을 보여줍니다. \n특히 고객응대, 번역, 사무지원처럼 진입장벽이 비교적 낮아 많은 사람이 종사하던 영역에서 대체가 빠르게 진행되면, 노동자는 곧바로 다른 양질의 일자리로 이동하지 못합니다. 따라서 이는 단순한 구조 변화가 아니라, 특정 계층의 고용 기회 자체를 줄이는 고용 축소로 보아야 합니다.\n\n### 결론\n상대는 이를 노동 시장의 재편이라고 말하지만, 실제 기업의 선택은 재교육과 재배치보다 감원, 채용 중단, 외주 대체에 더 가깝습니다. **재편이라면 사람의 이동 경로가 보여야 하지만, 지금 현장에서는 사람보다 일자리부터 사라지고 있습니다.** 그러므로 인공지능 발전은 인간 고용의 축소가 아니라고 볼 수 없으며, 오히려 고용 축소가 이미 현실에서 진행되고 있다고 판단해야 합니다.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "IBM AI hiring pause back office 7800 jobs source Reuters 2023",
+          "results": [
+            "[검색 결과]\n- .8%204.10001C12%203.90001%2012.4%203.90001%2012.7%204.10001Z'%20fill='%230066FF'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_4001_1792'%3e%3crect%20width='30'%20height='14'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e) [...] #### Related Topics\n\n#### Recent in Automation\n\nPhoto of Kia log\n- # IBM plans to replace 7,800 jobs with AI over time, pauses hiring certain positions\n\nIBM CEO Arvind Krishna says he could see 30% of back-office functions replaced by AI over 5 years.\n\nIBM Chief Executive Officer Arvind Krishna has revealed plans to pause hiring for about 7,800 positions that could\n- Save Saved    Read in app\n\nThis story is available exclusively to Business Insider subscribers. Become an Insider and start reading now. Have an account? .\n\n IBM will slow or suspend h\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Duolingo AI replacing contractors source 2024 Reuters",
+          "results": [
+            "[검색 결과]\n- Process Excellence Network\n\nProcess Excellence Network\n\n# Duolingo to swap contractors for AI as automation takes hold\n\n## Duolingo CEO says firm must shift with the times and slowly replace contractors with AI\n\n##### Listen to this content\n\nAudio conversion provided by OpenAI\n\nMichael Hill\n\nMichael\n- Anthony Ha\n\n# Is Duolingo the face of an AI jobs crisis?\n\nDuolingo announced plans this week to replace contractors with AI and become an “AI-first” company — a move that journalist Brian Merchant pointed to as a sign that the AI jobs crisis “is here, now.”\n\nIn fact, Merchant spoke to a former Duoli\n- Duolingo’s AI-first strategy explained , AI Magazine, May 2025. Details on the 2024 internal memo and CEO’s comparison to the 2012 mobile-first pivot.\n\nAI-first, Duolingo plans to cut \n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Klarna AI customer service jobs Reuters 2024",
+          "results": [
+            "[검색 결과]\n- “Society will have to figure out what are we going to do because yes, new jobs will be created, but in the shorter term, that doesn’t help the Brussels translator. He’s not going to become a YouTube influencer tomorrow,” he added.\n\n## Klarna’s embrace of AI—and being its ‘guinea pig’\n\nSiemiatkowski \n- By early 2024, Klarna had launched an OpenAI-powered customer service chatbot that the company said can do the work equivalent to 800 full-time agents.\n\nBut not every experiment went smoothly. Some customers complained about the lack of human support, prompting Klarna to rethink part of its AI-first\n- ## The Admission Nobody Expected\n\nThe timeline tells the story. In late 2023, Klarna announced it would use AI to handle customer service inquiries, allowing the company to reduce head\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "BT plans cut jobs AI Reuters 2023",
+          "results": [
+            "[검색 결과]\n- According to a Reuters report, around 10,000 positions could be replaced by automation and AI, while another 10,000 would no longer be necessary with the operation of more efficient digital networks, particularly affecting areas such as network engineering and customer service. The magnitude of the \n- Advertisement\n\nFor premium support please call:\n\nFor premium support please call:\n\n# BT boss Kirkby expects AI to deepen job cuts, FT reports\n\nReuters\n\n(Corrects typographical error in headline)\n\n(Reuters) -BT Group Chief Executive Allison Kirkby said advances in artificial intelligence could deepen"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Google layoffs AI efficiency Reuters 2024",
+          "results": [
+            "[검색 결과]\n- Add Sunday Independent as a preferred source on Google\nFollow Sunday Independent on Google News\n\n# Google, Amazon and more tech companies cut staff, invest in AI\n\nAdd Sunday Independent as a preferred source on Google\nFollow Sunday Independent on Google News\n\nForbes announced earlier this week that \n- Mark Zuckerberg went as far as describing 2023 as Meta's \"Year of Efficiency.\"\n\nThat obsession doesn't look like it's going to change anytime soon.\n\nAfter laying off more than 262,000 employees in 2023, tech leaders have continued into the new year with an array of further cuts.\n\nGoogle parent Alpha\n- At Google, Sundar Pichai, the chief executive, has pushed the company since July 2022 to sharpen its focus and to reduce expenses as global economic conditions deteriorated. In January\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 1,
+      "speaker": "agent_3",
+      "side": "PRO",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n찬성1입니다. 저는 인공지능 발전을 **인간 고용의 축소가 아니라 노동 시장의 재편**으로 봅니다. 이유는 인공지능이 일자리를 일괄적으로 없애는 것이 아니라, 기존 업무를 바꾸고 그 변화에 맞춰 재교육과 직무 전환이 실제로 작동하는 사례가 축적되고 있기 때문입니다.\n\n### 논거 1: 재교육은 해고의 대안이 아니라 전환의 경로가 됩니다\nWorld Economic 세계경제포럼의 Future of Jobs Report 2025 관련 분석에는 기업들이 인공지능 확산에 대응하는 핵심 전략으로 업스킬링과 리스킬링을 가장 우선시한다는 내용이 확인됩니다. 이는 기업이 인공지능을 도입할 때 사람을 바로 내보내기보다, **기존 인력을 새로운 역할로 옮겨 쓰는 방향**을 택하고 있음을 보여줍니다. \n즉 인공지능은 노동 수요를 없애는 것이 아니라, 반복 업무 중심의 직무를 데이터 활용, 시스템 운영, 고객 맞춤 대응 같은 직무로 이동시키며 노동의 성격을 바꾸고 있습니다. **핵심은 일자리의 소멸이 아니라, 필요한 역량과 직무 구조의 이동**입니다.\n\n### 논거 2: 실제 기업 사례는 리스킬링이 고용 재편을 가능하게 함을 보여줍니다\nAmazon 공식 업스킬링 자료 관련 분석에는 Career Choice를 포함한 다양한 재교육 프로그램을 통해 직원이 새로운 기술과 경력 경로를 준비하도록 지원하는 내용이 확인됩니다. 또한 AT&T의 Future Ready 관련 관련 분석에는 대규모 재교육 투자와 장기적 직무 전환 체계가 제시되어 있습니다. \n이 사례들이 중요한 이유는 자동화 충격을 단순 감원으로 처리하지 않고, 기업 내부의 이동과 재배치를 통해 흡수하려 했기 때문입니다. **인공지능 시대의 핵심 경쟁력은 사람을 대체하는 기술 그 자체가 아니라, 사람을 새로운 일로 연결하는 전환 시스템**이며, 이런 시스템이 작동할수록 노동 시장은 축소보다 재편의 모습에 가깝게 나타납니다.\n\n### 결론\n따라서 인공지능 발전을 인간 고용의 축소로만 보는 것은 현실을 지나치게 단순화한 해석입니다. 실제로는 기업과 노동자가 재교육, 직무 전환, 리스킬링을 통해 새로운 수요에 적응하고 있으며, 이는 **고용의 붕괴가 아니라 노동 시장의 재구성**을 뜻합니다. 그러므로 이 논제에 대한 찬성 입장은 분명합니다. **인공지능 발전은 인간 고용의 축소가 아닌 노동 시장의 재편입니다.**",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "WEF Future of Jobs 2025 reskilling job transition AI labor market reshaping report",
+          "results": [
+            "[검색 결과]\n- Links to other visuals and graphics  \n - Which macrotrends will shape regional labour markets by 2030  \n - Expected impact of macrotrends and technology trends on jobs  \n - How will business respond to AI developments  \n - Upskilling is the top workforce strategy for employers by 2030  \n - Core Skil\n- – Broadening digital access is expected to be the most transformative trend – both across technology-related trends and overall – with 60% of employers expecting it to transform their business by 2030. Advancements in technologies, particularly AI and information processing (86%); robotics and autom\n- are among the most transformative trends. Over the last few years, AI has moved from experimentation to workflow integration, with the share of businesses using AI in at least one func\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "OECD AI training workers reskilling transition case study employment report",
+          "results": [
+            "[검색 결과]\n- Dec 11, 2024 ... Adult learning systems are being called upon to prepare workers for major labour market shifts, including the green transition and the rise\n- of eight OECD countries revealed that the implementation of AI technologies had a disproportionately detrimental impact on low-skilled workers due to their lack of readiness to transition to new tasks and/or jobs (Milanez, 2023). In some cases, all workers interacting with AI were expected to have s\n- Apr 24, 2023 ... As a result of such wide reach, the workers most affected by AI technologies comprise a range of occupations, suggesting that AI has the"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Amazon Upskilling Career Choice AI reskilling workers case study official",
+          "results": [
+            "[검색 결과]\n- ## Featured:\n\nMega menu – Featured Image Template (1).png?width=207&height=108&name=Mega%20menu%20%E2%80%93%20Featured%20Image%20Template%20(1).png)\n\n### Bolstering technical skills development in MENA\n\nRead the case study →\n\n Solution overview\n\n  Develop the technical skills that Fortune 500 enterp\n- Table of Contents Expanding our Upskilling 2025 pledge 3 The American Upskilling Study 4 Upskilling programs for Amazon employees 5–7 New upskilling programs for Amazon employees Original upskilling programs for Amazon employees Amazon employee stories 8–25 Tracey Archer – AWS Training and Certifica\n- 4.1. Introduction 4.2. Career or Career Choice?: Programs Created to Upskill Associates 4.3. Working Together: Federative Governance for Upskilling Programs 4.4. Career Choice Program \n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "AT&T reskilling program future ready job transition AI automation case study official",
+          "results": [
+            "[검색 결과]\n- ### AT&T Business Billion-Dollar Workforce Transformation\n\nOne of the most well-known examples of a successful reskilling initiative is AT&T’s Future Ready program. Faced with the challenge of digital transformation, AT&T made a bold decision in 2013 to invest $1 billion into reskilling its workforc\n- The reskilling effort was recently rebranded to “Future Ready,” as the firm plans to keep reskilling well past 2020. Since the firm began the effort, more than 2.7 million courses in skills transformation have been completed and they have awarded more than 100,000 badges and continue to see growth. \n- AT&T's massive global retraining program — the company prefers to call it \"reskilling\" — is perhaps corporate America's boldest response to this war for talent. Known inside the compan\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 2,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n반대2입니다. 저는 이 논제에 반대하며, 인공지능 발전은 단순한 노동 시장의 재편이 아니라 **인간 고용의 실질적 축소**를 초래한다고 주장합니다. 특히 이 과정은 모든 노동자에게 동일하게 작동하지 않으며, AI 활용 능력을 가진 집단과 그렇지 못한 집단 사이의 격차를 벌려 고용 불평등을 심화시킨다는 점에서 더욱 심각합니다.\n\n### 논거 1: AI 활용 격차는 대체 가능 노동자의 일자리를 먼저 줄입니다\nIMF는 최근 보고에서 선진국 일자리의 상당수가 AI의 영향을 받으며, 그중 일부는 보완이 아니라 부정적 영향을 받을 수 있다고 설명했습니다. 이는 AI가 모든 노동자를 새로운 일자리로 옮겨 주는 것이 아니라, 디지털 적응력이 낮고 반복적 인지 업무를 수행하던 노동자부터 먼저 밀어낸다는 뜻입니다. \n즉, 기업은 같은 업무를 더 적은 인원으로 처리할 수 있게 되고, AI를 다룰 수 없는 노동자는 재배치보다 해고와 비정규화에 더 쉽게 노출됩니다. **결국 기술 격차는 재편의 통로가 아니라, 특정 계층의 고용을 직접 줄이는 절벽으로 작동합니다.**\n\n### 논거 2: AI는 새로운 기회를 만들기보다 고숙련자에게 성과와 보상을 집중시킵니다\nOECD는 AI가 노동 수요와 업무 조직을 바꾸며, 필요한 기술 수준을 높인다고 지적했습니다. 겉으로는 직무가 바뀌는 것처럼 보이지만, 실제로는 AI를 활용할 수 있는 고숙련자에게 업무와 보상이 집중되고, 그렇지 못한 노동자는 동일한 자리에서 경쟁력을 잃게 됩니다. \nILO 역시 생성형 인공지능과 디지털 격차의 결합이 노동시장 접근의 불평등을 키울 수 있다고 경고했습니다. 이는 새로운 일자리가 생겨도 누구나 들어갈 수 있는 자리가 아니라는 뜻이며, 상당수 노동자에게는 이동이 아니라 배제가 발생한다는 의미입니다. **따라서 AI 발전은 노동 시장의 단순한 재배치가 아니라, 적응 가능한 소수만 남기고 다수를 밀어내는 고용 축소의 과정입니다.**\n\n### 결론\n상대 측은 이를 노동 시장의 재편이라고 말하지만, 재편이라면 다수 노동자에게 현실적인 이동 경로가 열려 있어야 합니다. 그러나 실제로는 AI 기술 격차가 고용 기회의 격차로 이어지고, 그 결과 저숙련·저적응 노동자부터 일자리에서 밀려나고 있습니다. 따라서 인공지능 발전은 노동 시장의 중립적 재구성이 아니라, **고용 불평등을 심화시키며 인간 고용 자체를 축소하는 흐름**으로 보아야 합니다.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "WEF Future of Jobs 2025 AI job displacement inequality skills gap report",
+          "results": [
+            "[검색 결과]\n- – Broadening digital access is expected to be the most transformative trend – both across technology-related trends and overall – with 60% of employers expecting it to transform their business by 2030. Advancements in technologies, particularly AI and information processing (86%); robotics and autom\n- ### Questions:\n\nWhat skills do you think are hardest for AI to replace and how could you build a career around them?\n\n### Here are the ready-to-go slides for this Question of the Day you can use in your classroom.\n\n### Behind the numbers (World Economic Forum):\n\n\"The Future of Jobs Report 2025, publ"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "IMF AI labor market inequality advanced economies routine cognitive jobs report",
+          "results": [
+            "[검색 결과]\n- #### Transformative Potential of AI on Global Economies\n\nAI stands on the brink of reshaping the global economy, particularly influencing labor markets. Advanced economies are poised to encounter the benefits and challenges of AI more immediately due to their employment structures, which are more co\n- \\_\\_\\_\\_\\_\n\nThese are some key quotes from the report.\n\n\\In advanced economies, about 60 percent of jobs are exposed to AI, due to prevalence of cognitive-task-oriented jobs A new measure of potential AI complementarity suggests that, of these, about half may be negatively affected by AI, while the \n- States ( Pizzinelli and others 2023; Huang 2024; Brynjolfsson , Chandar, and Chen 2025; Hosseini and \n\nLichtinger 2025 ; Liu and others 2025 ). Although most empirical evidence focuses\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "OECD AI employment inequality skills gap report 2024",
+          "results": [
+            "[검색 결과]\n- The Organisation for Economic Cooperation and Development (OECD) recently released a report on the impact of Artificial Intelligence (AI) on the labour market. Published on 10 April 2024, it highlights the changing demand for skills and the profound transformation in how work is organised and perfor\n- embody the more accurate practices of high performers. It is also possible that AI reduces performance differences within an occupation through a selection effect, e.g. if low-performers leave their job because they are unable to adapt to AI tools by shifting their activities to tasks that AI cannot\n- Image 81  Report  OECD Skills Outlook 2025  9 December 2025 264 Pages [...] Image 77  Report  Anticipating Skill Needs and Adapting Higher Education  14 April 2026 49 Pages   \n    Work\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "ILO generative AI employment inequality digital divide report 2024",
+          "results": [
+            "[검색 결과]\n- Generative AI and the Digital Divide in Latin America. ILO Working Paper 121. Geneva: ILO and World Bank. Hegewisch, Ariane and Hannah Liepmann. 2013. Occupational Segregation and the Gender Wage Gap in the US. Geneva: ILO. Howcroft, Debra and Jill Rubery. 2019. ‘Bias in, bias out’: Gender equality \n- However, the study highlights a significant digital divide in the region that could prevent workers from fully realizing the potential benefits of GenAI. This could affect about half of the jobs that could see greater productivity with GenAI technology, corresponding to 7 million jobs held by women \n- ILO Logo\n\nAdvancing social justice, promoting decent work\nILO is a specialized agency of the United Nations\n\nILO Logo\n\n###### English\n\n## Primary navigation\n\n###### More\n\n## Secondary \n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 3,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "opening",
+      "text": "### 자기소개와 입장 표명\n찬성2입니다. 저는 인공지능 발전을 인간 고용의 단순 축소가 아니라 **노동 시장의 재편**으로 보아야 한다는 입장을 밝힙니다. 산업혁명 이후의 역사를 보면, 자동화 기술은 기존 업무 일부를 없애는 대신 산업 구조와 직무 구성을 바꾸며 새로운 역할을 만들어 왔습니다.\n\n### 논거 1: 산업혁명은 장인의 소멸이 아니라 직무 체계의 전환이었습니다\n산업혁명기 기계식 직조와 공장제 생산이 확산되자 수공업 중심의 작업 방식은 크게 흔들렸고, 이에 반발한 러다이트 운동 같은 저항도 나타났습니다. 그러나 결과는 노동의 완전한 소멸이 아니라, 가내수공업 중심 노동이 공장 운영, 기계 관리, 운송, 판매처럼 **새로운 분업 체계로 이동한 것**이었습니다. \n즉 기계는 인간을 통째로 없앤 것이 아니라, 인간이 수행하던 일의 구성과 숙련의 형태를 바꾸었습니다. **오늘날 인공지능도 마찬가지로 직무의 일부를 자동화할 뿐, 노동 전체를 지우기보다 인간의 역할을 더 기획·감독·해석 중심으로 재편합니다.**\n\n### 논거 2: 자동화의 대표 사례인 ATM도 고용 붕괴보다 역할 재구성을 보여줍니다\n국제노동기구(ILO)가 소개한 역사적 경험에 따르면, 미국에서 1970년대 현금자동입출금기(ATM) 도입은 은행직원의 소폭 증가로 이어졌습니다. 이는 기계가 창구의 반복 업무를 처리하자 은행 인력이 완전히 사라진 것이 아니라, 고객 상담, 금융상품 안내, 관계 관리 같은 업무로 이동했음을 보여줍니다. \n따라서 자동화 기술의 핵심 효과는 사람을 없애는 데 있지 않고, 사람이 더 높은 부가가치를 내는 영역으로 옮겨 가게 만드는 데 있습니다. **인공지능 역시 반복적 판단과 정형 업무를 맡고, 인간은 의사결정, 책임, 소통, 창의가 필요한 영역으로 이동한다는 점에서 노동 시장의 재편이라는 해석이 더 정확합니다.**\n\n### 결론\n산업혁명기의 기계화와 현대의 자동화 사례는 한 가지 공통점을 보여줍니다. 기술은 일부 직무를 축소할 수 있지만, 사회 전체의 노동을 일괄적으로 제거하기보다 업무 내용과 숙련 구조를 바꾸며 새로운 수요를 만들어 냅니다. 그러므로 인공지능 발전을 인간 고용의 축소로만 규정하는 것은 역사적 경험을 단순화한 해석이며, **더 타당한 결론은 노동 시장의 재편입니다.**",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "산업혁명 자동화 직조기 러다이트 역사 사례 일자리 재편 역사적 사례",
+          "results": [
+            "[검색 결과]\n- 최근 변경최근 토론\n\n특수 기능\n\n# 러다이트 운동\n\n최근 수정 시각:\n\n55\n\n편집 요청\n\n이용중인 IP는 문제가 자주 발생하거나 공공 IP 대역이므로 로그인이 필요합니다.  \n(이 메세지는 같은 인터넷 공급업체를 사용하는 다른 누군가로 인해 발생했을 가능성이 높습니다.) (#2523117)  \n만료일: 무기한  \n사유: British Telecommunications PLC(AS2856) 로그인 허용\n\n  \n\n편집 권한이 부족한 경우 아래의 '편집 요청' 버튼으로 편집 요청을 생성할 수 있습니다. (/w/%ED%8E%B8%EC%\n- 최근 변경최근 토론\n\n특수 기능\n\n# 플라잉 셔틀\n\n최근 수정 시각:\n\n1\n\n편집 요청\n\n이용중인 IP는 문제가 자주 발생하거나 공공 IP 대역이므로 로그인이 필요합니다.  \n(이 메세지는 같은 인터넷 공급업체를 사용하는 다른 누군가로 인해 발생했을 가능성이 높습니다.) (#2523117)  \n만료일: 무기한  \n사유: British Telecommunications PLC(AS2856) 로그인 허용\n\n  \n\n편집 권한이 부족한 경우 아래의 '편집 요청' 버튼으로 편집 요청을 생성할 수 있습니다. (/w/%ED%8E%B8%EC%A7\n- 이러한 뿌리 깊은 인식은 경제학을 처음 배우는 학생들이 사용하는 대 표적인 경제학원론 교과서에서도 여실히 드러난다. 예를 들어 Mankiw (2012)는 기술진보의 노동시장에 대한 영향을 논의하면서, 노동절약형 기 술진보가 노동력에 대한 수요를 감소시킬 것이라는 우려는 기우이며, 대 부분의 기술진보는 노동투입과 상호보완적임을 강\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "ATM 도입 은행원 일자리 변화 역사 사례 노동시장 재편",
+          "results": [
+            "[검색 결과]\n- + 1950~60년대 서구 경제의 호황기에 노동 비용이 급등하면서, 모든 기업이 인간을 기계로 대체하려는 흐름이 등장\n    - 슈퍼마켓, 할인점, 빨래방, 자판기, 셀프 주유소, 패스트푸드점 등이 이 시기에 부상\n    - \"automation\"이라는 단어 자체가 1950년대에 영어에 등장\n  + 유럽에서는 은행 직원의 노동쟁의가 특히 심각했으며, 아일랜드 은행은 1966~1976년 사이 전체 영업일의 10%가 파업으로 폐쇄\n ### ATM의 기술적 기반\n\n  + 1960년대 IBM이 발명한 마그네틱 스트라이프 카드와 Digita\n- | 항목 | 분류 | 설명 |\n --- \n| Exposure | 높음 (High) | ATM이 Teller의 반복 업무(Task)를 직접 대체함 |\n| Expertise | 중간 이하 (Low–Medium) | 입출금 등은 고난도 판단이 아닌 규칙 기반 작업 |\n| Task 변화 | 강함 | 반복작업 자동화 → 사람의 역할 축소 |\n\nATM이 널리 퍼져가면서, 실제는 어떻게 되었을까요? ‘은행 텔러’라는 직업이 금새 사라졌을까요?\n\n데이터는 그렇지 않다고 말하고 있습니다. 미국의 연구 결과를 한 번 보죠. 미국에서는 처음 ATM이 \n- 국제노동기구(ILO, 2018)는 신기술로 인한 고용에의 부정적 영향들, 예를 들면 대 규모 실업의 가능성 또는 우려에 반하는 여러 역사적 경험을 소개하고 있다. 예를 들어 미국의 경우 1970년대의 ATM 도입이 은행직원의 소폭 증가를 가져왔으며, 프 랑스에서는 인터넷 도입 이후 15년 내에 50만 개 일자리가 사라지기는 했으\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "자동차 산업 로봇 도입 일자리 재편 역사 사례",
+          "results": [
+            "[검색 결과]\n- 극명한 사례가 현대자동차의 휴머노이드 로봇 아틀라스 도입 발표 이후 불거진 노사 갈등이다. 삼성전자 CEO 출신인 고동진 국민의힘 의원은 최근 현대차 노조의 로봇 도입 반대와 관련해 \"1811년 영국에서 기계가 일자리를 위협한다며 방직기계를 부수던 '러다이트식' 발상\"이라며 \"자신들의 이익 앞에 글로벌 상황, 회사의 미래, 국가와 미래세대는 안중에도 없다\"고 강하게 비판했다. 고 의원은\"혁신을 멈추는 건 곧 기업 성장 저하로 이어지고 대한민국 산업 발전을 멈추는 것\"이라며 \"전환을 위한 정책을 준비하는 것이 정부의 역할이고 변화라는\n- 유럽의 다른 제조업 노조들은 자동화로 사라질 직무가 발생할 경우 사전에 재교육과 직무 전환 경로를 마련하는 것을 핵심 조건으로 요구한다. 기업의 자율적 선택이 아니라 노사 협약과 국가 제도를 통해 관리하기도 한다. AI와 로봇 도입은 일자리 축소보다는 업무 내용 재편으로 이어지는 경향이 강하다.\n\n미국은 자동화와 AI 도입 자체를 막기보다는 그로 인해 발생한 생산성 이익의 분배가 노사 갈등의 핵심 쟁점으로 부각돼 왔다. 자동차 산업을 중심으로 노조는 로봇 도입에 따른 비용 절감이 임금 인상과 고용 보장으로 환원돼야 한다고 요구하는 \n- AI 시대의 노동은 '기계와 경쟁하는 것'이 아니라 '기계를 활용하는 능력'으로 재편될 것이다. 노조가 지금 집중해야 할 것은 \"로봇 도입 절대 반대\"라는 구호가 아니다. 변화하는 산업 구조에 맞춰 조합원들이 새로운 기술을 습득할 수 있도록 교육 체계를 요구하고, 기술 도입에 따른 이익이 노동자들의 처우 개선과 안전으로 선순환될\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "산업혁명 농업 기계화 일자리 이동 역사 사례",
+          "results": [
+            "[검색 결과]\n- 인공지능의 발전에 따른 산업의 파급력이 노동시장에 가져올 변화에 관심이 쏠리고 있다. 그중 가장 큰 관심은 일자리 문제이다. 인공지능 구현의 접근 방법 변화와 빅데이터 기반의 급진적 기술 성과들은 이미 인간의 업무 영역을 조금씩 대체하고 있기 때문이다. 일례로 공장의 자동화가 진행되면서 기존 일자리가 줄어들기 시작했고, 이 때문에 “인공지능이 내 일자리를 빼앗아가면 어쩌지?”란 우려도 적지 않다.   \n  \n사실 새로운 기술의 등장으로 일자리 판도가 바뀌는 현상은 이번뿐만 아니다. 그동안의 산업혁명 과정에서 농민과 수공업자 일자리가\n- 그림 1. 산업혁명의 발전과정과 명명 시점 산업혁명 용어 처음 사용 (토인비) 2차 산업혁명 용어 정식화 (랜디스) 4차 산업혁명 (다보스 포럼) 제3의 물결(토플러) 제3차 산업혁명(리프킨) 2차 산업혁명 용어 처음 사용(게데스) 1차 산업혁명 (석탄, 증기기관) 2차 산업혁명 (전기, 표준화) 3차 산업혁명 (정보통신) 4차 산업혁명 (인공지능군) 1780 1830 1870 1884 1910 1920 19691970 1980 2011 2016 연도 자료: 장필성(2017). 4차 산업혁명을 둘러싼 주요 논의 중 하나는 4차 산업\n- 신석기부터 인공지능 시대까지 달라진 인간 노동. (그림 생성 = 챗지피티)\n\n산업 혁명과 숙련의 재구성\n\n18세기에서 19세기에 걸쳐 유럽과 미국에서 진행된 산업 혁명은 기계화, 자동화, 표준화, 시간 측정을 도입함으로써 노동의 본질을 크게 바꿔 놓았다. 전통적 견해는 이러한 기술 발전이 노동자의 수공업 기술, 즉 장인의 노하우\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 4,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "chained_rebuttal",
+      "text": "상대의 가장 약한 지점은 Amazon과 AT&T 같은 **일부 대기업의 재교육 사례를 전체 노동시장 일반 법칙처럼 확장하는 논리적 비약**입니다. 대기업이 내부 이동과 재배치를 시도했다는 사실만으로, AI가 전반적으로 고용 축소보다 재편을 더 많이 만든다고 결론낼 수는 없으며, 특히 중소기업·플랫폼 노동·외주 인력처럼 재교육 인프라가 취약한 영역은 이 사례에 전혀 포함되지 않습니다. 즉 그 사례는 “재편이 가능하다”는 가능성만 보여줄 뿐, **현실의 다수 노동자에게 실제로 재편이 작동하고 있다는 증거는 되지 못합니다**. 그렇다면 일부 대기업의 성공담을 제외했을 때, 노동시장 전체에서 고용 축소보다 재편이 더 크다는 일반적 근거를 무엇으로 입증하시겠습니까?",
+      "target_id": "agent_3",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "제시한 사례는 일부 대기업의 재교육 성공담일 뿐이라, 전체 노동시장에서 AI가 실제로 고용 축소보다 재편을 더 많이 만든다는 일반적 증거로는 부족하다."
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 5,
+      "speaker": "agent_3",
+      "side": "PRO",
+      "phase": "chained_rebuttal",
+      "text": "상대의 가장 약한 지점은 IBM과 BT 같은 **일부 대기업의 채용 축소 사례를 곧바로 전체 노동시장의 일반 법칙으로 확장한 비약**입니다. 특정 기업이 백오피스 채용을 줄였다는 사실은 어디까지나 일부 직무의 축소를 보여줄 뿐이며, 그것만으로 노동시장 전체가 재편이 아니라 고용 축소로 움직인다고 결론내릴 수는 없습니다. 오히려 이런 사례는 인공지능이 모든 일을 없앤다는 증거가 아니라, 반복적 사무 업무의 비중이 줄고 다른 역할로 수요가 이동하는 **노동 구조의 변화**를 보여주는 해석이 더 타당합니다. 그렇다면 몇몇 대기업의 구조조정 사례만으로 왜 노동시장 전체가 **재편이 아니라 고용 축소**라고 단정하십니까?",
+      "target_id": "agent_1",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "IBM·BT 같은 일부 대기업 사례를 전체 노동시장 일반으로 확장해, 단기 채용 축소와 구조조정을 곧바로 ‘AI는 재편이 아니라 고용 축소’의 증거로 비약한 점."
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 6,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "chained_rebuttal",
+      "text": "상대의 가장 약한 지점은 ** 제한적 자동화 사례를 오늘날의 인공지능 전체로 일반화한 비약**입니다. ATM은 특정 반복 업무만 대체하는 단일 기능 기계였지만, 인공지능은 문서 작성, 분석, 번역, 고객응대처럼 과거에는 인간의 판단이 필요하다고 여겨진 영역까지 동시에 잠식하므로, 두 기술을 같은 방식으로 비교하는 것 자체가 성립하기 어렵습니다. 따라서 ATM에서 일부 역할 재구성이 있었다는 사실만으로 인공지능도 고용을 축소하지 않고 재편만 일으킨다고 결론내리는 것은 논리적으로 무리입니다. **단순 창구 자동화에 불과한 ATM의 역사적 사례가, 왜 범용적으로 인간의 인지 업무를 대체하는 인공지능의 고용 효과를 대표한다고 보십니까?**",
+      "target_id": "user",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "ATM의 제한적·과거 사례를 오늘날 범용적이고 고숙련 업무까지 대체하는 인공지능 전체에 일반화한 것이 핵심 비약이다."
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 7,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "chained_rebuttal",
+      "text": "상대의 가장 약한 지점은 ATM이 단지 제한적 자동화였으므로 오늘날 인공지능에는 비교 자체가 불가능하다고 보는 전제입니다. 그러나 제 주장의 핵심은 두 기술이 동일하다는 데 있지 않고, **기술 도입의 고용 효과는 개별 업무의 대체와 전체 직무의 재구성이 동시에 일어난다는 구조적 원리**를 보여준다는 데 있습니다. 참고 자료에서도 AI 노출도가 높은 직종에서 고용 감소가 관측되지 않았고 오히려 임금 상승률이 통계적으로 유의하게 높게 나타났다고 제시되므로, 범용성이 커졌다는 이유만으로 곧바로 총고용 축소를 결론내리는 것은 성립하지 않습니다. 그렇다면 직종 수준에서 고용 감소가 관측되지 않았다는 분석보다, 왜 기술의 범용성이라는 추상적 인상만으로 **고용 축소가 본질**이라고 단정하십니까?",
+      "target_id": "agent_2",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "인공지능 도입 직무 재편 사례 사무직 생성형 인공지능 생산성 고용 변화",
+          "results": [
+            "[검색 결과]\n- 분석 결과, 직종 수준의 총량적 관점에서 AI 기술은 노동을 대체하기 보다는 보완하여 생산성을 높이는 방향으로 작동한다. AI 노출도가 높은 직종에서도 고용 감소는 관측되지 않으며, 오히려 임금 상승률은 통계 적으로 유의하게 높게 나타난다. 이는 현시점에서 AI가 인간 노동의 대 체재라기보다 생산성과 부가가치를 제고하는 보완재로 기능하고 있음 을 시사한다. 개인 단위의 미시적 분석에서도 AI 확산에 따른 고용의 양 ii AI와 노동의 공존: 생산성 향상과 불평등 개선 가능성을 중심으로 적ㆍ질적 충격은 제한적인 수준에 머문다. 생성형\n- | 채용 시장에도 변화가 나타나고 있습니다. 경기 둔화와 AI 도입이 맞물리면서 기업들은 신규 채용 규모를 줄이고 있습니다. 특히 자료 조사, 문서 작성, 기초 코딩과 같이 정형화된 업무는 자동화가 가능해지면서 해당 영역의 인력 수요가 감소하고 있습니다. 이로 인해 신입 채용 감소에 그치지 않고 기존 인력 구조에도 변화가 나타나고 있습니다. 조직 효율화 과정에서 경력이 짧은 2030세대까지 희망퇴직 대상에 포함되는 사례가 늘어나고 있습니다.    국가통계포털 마이크로데이터 분석에 따르면, 20·30대 실직자 중 비자발적 실직 비중은\n- ### 노동 시장의 역동적인 변화와 새로운 직업의 부상\n\nAI의 발전은 노동 시장의 구조를 근본적으로 변화시키고 있습니다. 기존의 직업들은 AI 기술과의 융합을 통해 새로운 형태로 진화하고 있으며, 동시에 완전히 새로운 직업군이 등장하고 있습니다. 예를 들어, 마케터는 AI 기반 분석 도구를 활용하여 고객 데이터를 분석하고 마케\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 8,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "free_rebuttal",
+      "text": "상대는 **ATM 사례처럼 인공지능도 반복 업무를 대신할 뿐 인간은 더 높은 부가가치 업무로 이동하므로, 고용 축소가 아니라 노동 시장의 재편이 본질**이라고 주장합니다. \n이 주장의 가장 치명적 약점은, 상대가 스스로 “기존 업무 일부를 없앤다”고 인정하면서도 그 일부가 오늘날에는 사무·행정, 법률, 엔지니어링처럼 광범위한 인지 직무로 확장됐다는 점을 외면한다는 데 있습니다. \n참고 자료에서도 AI 노출 위험이 큰 직무가 사무·행정 지원, 법률, 엔지니어링까지 넓게 퍼져 있는데, 이런 상황에서 모두가 더 고부가가치 역할로 이동한다고 보는 것은 이동 경로보다 대체 범위를 축소해서 본 해석입니다. 즉 상대 논리는 “일부 대체”라는 출발점은 인정하면서도, 그 일부가 노동시장 핵심 직군으로 커졌을 때 발생하는 **실질적 고용 축소**를 설명하지 못합니다. 귀측은 AI가 대체하는 사무·법률·엔지니어링 인력이 모두 실제로 더 높은 부가가치 일자리로 이동할 수 있다는 실증 근거를 제시하실 겁니까, 아니면 그 이동 실패로 발생하는 구조적 고용 축소 가능성을 인정하실 겁니까?",
+      "target_id": "user",
+      "tool_calls": [
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "ATM의 제한적·과거 사례를 오늘날 범용적이고 고숙련 업무까지 대체하는 인공지능 전체에 일반화한 것이 핵심 비약이다."
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "인공지능 일자리 감소 통계 생산성 고용 분리 사무직 자동화 실업률",
+          "results": [
+            "[검색 결과]\n- 골드만 삭스에 따르면 미국에서는 사무 및 행정 지원직이 가장 큰 위험에 처해 있으며, 이들 중 46%가 AI에 의한 자동화에 직면해 있다. 법률 업무는 44%, 건축 및 엔지니어링 업무는 37%다.\n\n골드만삭스는 “좋은 소식은 역사적으로 자동화로 인한 직원 대체는 새로운 일자리 창출로 상쇄되어 왔으며 기술 혁신에 따른 새로운 직종의 출현이 장기적인 고용 증가의 대부분을 차지한다는 점”이라고 밝혔다.\n\n이어 “상당한 인건비 절감, 새로운 일자리 창출, 대체되지 않은 직원의 생산성 향상이 결합되면 경제 성장률을 크게 높이는 생산성 붐이\n- ## 핵심요약\n\n Anthropic이 Claude 실사용 데이터 + O\\NET 직무 DB + Eloundou 팀의 이론적 노출도를 결합한 \"관측 노출도(observed exposure)\"를 새로 제시했다.\n 이론적으로 LLM이 대체 가능한 업무는 많지만, 실제 자동화되고 있는 비율은 한참 낮다. 예: 컴퓨터/수학 직군은 이론상 94% 자동화 가능, 실제 커버리지는 33%.\n 노출도 상위 10개 직업: 프로그래머(75%), 고객서비스 상담원, 데이터 입력원(67%), 재무 분석가 등.\n 미국 노동통계국(BLS) 2024~2034 전망\n- #### 인공지능과 자동화로 인해 구체적으로 어떤 직업과 역할이 사라질까요?\n\n인공지능과 자동화로 인한 노동 시장의 변화는 심각한 양극화를 초래하고 있으며, 특정 직종은 일자리 상실의 위험에 직면해 있습니다. 이는 사무직과 생산직 모두에서 반복적인 업무가 요구되는 직종에 특히 큰 영향을 미칩니다. 가장 취약한 계층은 사무직 근로\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 9,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "free_rebuttal",
+      "text": "모두가 같은 속도로 이동한다고 주장하지는 않지만, 제 답은 분명히 **이 현상의 본질은 총고용의 일괄 소멸이 아니라 직무 내용과 필요 역량의 이동이 중심인 노동 시장의 재편**이라는 것입니다. \n상대의 허점은 이동 실패 가능성이 존재한다는 사실만으로 곧바로 구조 전체를 고용 축소로 단정한다는 데 있으며, 전환의 마찰과 시장의 본질을 의도적으로 동일시하고 있습니다. \n오히려 참고 자료가 보여주듯 지금 사회가 던지는 핵심 질문은 “AI가 내 일을 대체할까”에서 “나는 준비되어 있는가”로 이동하고 있는데, 이는 문제의 초점이 일자리의 절대 소멸보다 **적응과 재배치의 경로**에 맞춰져 있음을 뜻합니다. \n따라서 사무·법률·엔지니어링의 변화 역시 인간 노동의 종말이 아니라, 더 이상 예전 방식의 직무 구성이 유지되지 않는다는 의미에서 **노동 시장의 재편**으로 해석하는 것이 타당합니다.",
+      "target_id": "agent_1",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "생성형 인공지능 직무 노출 사무행정 법률 엔지니어링 고용 감소 통계",
+          "results": [
+            "[검색 결과]\n- 25-03-31 2025-03-31 14:42:30 / 수정일: 2025-03-31 15:00:28\n\n·\n\n@하늘하늘하님   \n  \n본문의 표는 llm으로 인한 일자리 감소 '현황' 연구자료입니다  \n전망뿐만이 아닙니다.\n\n강멘\n\nLINK\n\n#149541387\n\nIP 39.♡.46.141\n\n25-03-31 2025-03-31 14:45:12\n\n·\n\n코딩 일러스트 음악 만화 등 왠만한 분야는 최소 30%부터 인력을 줄이는 영향을 줄것 같습니다\n\n바람난타조\n\nLINK\n\n#149541404\n\nIP 211.♡.73.151\n\n25-03-31\n- 따라서 2026년에 우리가 스스로에게 던져야 할 질문은 더 이상 “AI가 내 일을 대체할까?”가 아닙니다. 이제는 “나는 준비되어 있는가?”를 물어야 합니다. 스스로에게 다음과 같은 질문을 던져보세요.\n\n이 블로그 게시물에서는 AI가 고용에 어떤 영향을 미치고 있는지, 일자리 감소와 대체의 현실은 무엇인지, 그리고 이러한 변화가 산업 전반의 일하는 방식과 커리어의 미래에 어떤 의미를 갖는지 살펴봅니다. 또한 바로 활용할 수 있는 실천 방안도 함께 담았습니다.\n\n이를 좀 더 구체적으로 살펴보기 위해, 지금 많은 사람들이 궁금해하는 질\n- ■ 초고령사회가 앞당긴 ‘AI 도입의 필연성’  \n 한국은 2025년 기준 고령인구 비율이 20%를 넘기며 초고령사회에 들어섰다. 통계청 중위 추계에 따르면 생산가능인구(15~64세) 비중은 2025년 69.5%에서 2050년 51.9%로 낮아질 전망이다.\n\n생산가능인구 하락과 근로자 고령화는 노동공급 축소와 생산성 저하로 이어\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 10,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "free_rebuttal",
+      "text": "상대의 은 **Duolingo와 Klarna 같은 사례가 보여주듯 AI는 재편보다 먼저 인간을 밀어내므로 본질적으로 고용 축소라는 것**입니다. \n이 주장의 가장 치명적 약점은, ‘일부 직무에서 먼저 대체가 발생한다’는 단기 현상을 곧바로 ‘노동시장 전체의 본질’로 일반화한다는 점입니다. \n제시된 참고 자료만 보더라도 AI로 사라질 일자리만 있는 것이 아니라 더 많은 신규 일자리가 함께 창출되는 흐름이 병존하므로, 특정 기업의 외주 대체 사례만으로 전체 노동시장을 고용 축소로 단정할 수는 없습니다. \n오히려 상대는 자신의 입론에서 말한 “일자리 자체의 소멸”을 주장하면서도, 실제 자료가 보여주는 **소멸과 창출이 동시에 일어나는 재편의 구조**를 의도적으로 누락하고 있습니다.",
+      "target_id": "agent_1",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "세계경제포럼 AI 일자리 순증 OECD 인공지능 고용 재편 ILO 생성형 인공지능 노동시장 IMF AI 고용 영향",
+          "results": [
+            "[검색 결과]\n- ## 토픽\n\n김유성\n\n# “전 세계 기업 41%, AI 도입으로 인력 감축 계획” 세계경제포럼 조사\n\n## 세계경제포럼(World Economic Forum)이 향후 수년에 걸쳐 노동시장에 큰 변화가 있을 것이라고 경고했다. 2030년까지 인공지능(AI)으로 인해 9,200만 개의 일자리가 사라질 수 있지만, 1억 7,000만 개의 신규 일자리가 창출될 것이라는 전망이다.\n\nHow AI is affecting jobs\n\n세계경제포럼이 지난 8일 ‘2025 미래 직업 보고서’를 발표했다. 이에 따르면 기업의 41%가 향후 5년 내에 \n- 인공지능이 발전한다고 인간의 일자리가 완전히 사라지지는 않겠지만, 상당한 비율로 '줄어들' 것임은 누구나 인정하는 사실이다.(#fn-24 \"긍정적 문단에서는 마부라는 직업은 줄어들었으나 자동차 산업 관련 분야의 직업은 늘었다고 언급하였지만, 지금은 그 자동차 직업군조차도 공장들의 자동화 시스템들의 개량으로 인간을 필요로 하는 부분이 생각보다 많지 않다. 또한 새로운 직업군이 생겨나 사라지는 직업군들을 대체할 테니 걱정할 것이 없다는 것이 위의 언급이었으나 과학 기술들의 발달로 지금의 단순 노동을 포함한 각종 직업군의 능력을 베껴서 \n- 특히 경력 초기 단계인 25~35세 노동자들의 충격이 상대적으로 클 것으로 분석됐다. 이들은 실직 경험이 없는 또래보다 결혼 가능성이 낮고, 주택 구입 등 주요 생애 이벤트도 지연되는 경향을 보였다.\n\n최근 금리 상승과 기업 채용 축소로 청년층 취업 환경이 악화된 상황에서, 일부 젊은층은 자동화 영향을 덜 받는 직무로 진로를 전\n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 11,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "free_rebuttal",
+      "text": "아니요, **소멸과 창출이 함께 존재한다는 사실만으로 노동시장 변화의 본질이 재편이라고 결론낼 수는 없습니다**. \n상대의 허점은 신규 일자리의 존재를 말하면서도, 그 새 일자리가 AI로 밀려난 기존 노동자에게 실제로 연결되는지, 아니면 다른 숙련을 요구하는 별개의 시장인지 전혀 입증하지 못한다는 점입니다. \n오히려 참고 자료의 세계경제포럼 조사에서도 기업의 상당수가 AI 도입에 따라 인력 감축을 계획한다고 나타났으므로, 기업의 실제 선택은 재배치보다 **사람을 줄이는 방향**에 더 가깝습니다. \n따라서 지금의 핵심은 일자리가 어딘가 새로 생기느냐가 아니라, 기존 인간 노동이 같은 시장 안에서 유지되느냐이며, 그 점에서 AI 발전은 **노동 시장의 재편이 아니라 인간 고용의 축소**입니다.",
+      "target_id": "user",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "세계경제포럼 AI 일자리 증가 감소 보고서, OECD 인공지능 고용 재편 통계, ILO 생성형 인공지능 신규 일자리 전망, AI 직무 전환 고용",
+          "results": [
+            "[검색 결과]\n- ## 토픽\n\n김유성\n\n# “전 세계 기업 41%, AI 도입으로 인력 감축 계획” 세계경제포럼 조사\n\n## 세계경제포럼(World Economic Forum)이 향후 수년에 걸쳐 노동시장에 큰 변화가 있을 것이라고 경고했다. 2030년까지 인공지능(AI)으로 인해 9,200만 개의 일자리가 사라질 수 있지만, 1억 7,000만 개의 신규 일자리가 창출될 것이라는 전망이다.\n\nHow AI is affecting jobs\n\n세계경제포럼이 지난 8일 ‘2025 미래 직업 보고서’를 발표했다. 이에 따르면 기업의 41%가 향후 5년 내에 \n- 2022년 말과 2023년 초에 실시되었으며 전 세계 27개 산업 클러스터와 45개 경제권에 걸쳐 총 1,130만 명 이상의 근로자를 고용하고 있는 803개 기업의 관점을 종합했습니다. 설문조사에서는 거시적 동향과 기술 동향, 그것이 일자리에 미치는 영향, 기술에 미치는 영향, 기업이 사용할 인력 전환 전략에 대한 질문을 다룹니다.  이 장에서는 세계경제포럼(World Economic Forum)의 일자리 미래 설문조사 결과를 분석하여 기업이 산업 변혁과 고용을 촉진하기 위해 거시 추세와 기술 채택을 어떻게 기대하는지 살펴봅니다. \n- 부기 및 급여 사무원 입법자 및 공무원 통계, 재무 및 보험 사무원 방문 판매원, 신문 판매 및 노점상 보안 경비원 신용 및 대출 담당자 클레임 조정자, 심사자 및 조사자 소프트웨어 테스터 관계 관리자 상점 영업 사원 건물 관리인 및 하우스키퍼 보험 인수인 소셜 미디어 전략가 고객 정보 및 고객 서비스 직원 자료: WEF(202\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "“준비되어 있는가”라는 인식 변화만으로 총고용 축소가 아니라는 결론을 뒷받침하려는 것은, 사람들의 대응 담론을 노동시장 실증으로 혼동한 논점 비약이다."
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "인공지능 자동화 고용 감소 통계 장기 실업 직무 전환 실패 노동시장 양극화",
+          "results": [
+            "[검색 결과]\n- ◇ 중간이 사라진다... 노동시장 양극화의 구조\n\n보고서에 따르면 기술 발전은 특정 직무에 비대칭적으로 작용한다. 반복적이고 중간숙련에 해당하는 직무는 자동화로 대체되는 반면, 저숙련 서비스와 고숙련 인지 노동은 오히려 확대된다.\n\n이 과정에서 노동시장은 ‘허리가 잘린’ 구조로 재편된다. 중간숙련 노동자들은 두 갈래로 갈라진다. 일부는 저숙련 일자리로 이동하며 임금 하락을 경험하고, 다른 일부는 노동시장을 떠나 고숙련으로 전환하기 위한 학습에 투자한다.\n\n이러한 재배치는 단기간에 끝나지 않는다. 기술 변화 자체보다 더 중요한 것은 \n- 전병유(2007)의 연구에 따르면, 1993년에 중간일자리의 비율이 50%에 달했으나 2006년에는 41%로 줄어들었다. 또한, 김세움 외(2014)는 2001년부터 2008년까지 실증적 분석을 통해 루틴화 가능성이 낮은 직종에서 고용 증가가 관찰되었고, 이러한 결과가 우리 나라에서의 일자리 양극화 현상을 시사한다고 보고했다. 이와 연관하여, 국내 지역노동시 장권을 분석한 김민영 외(2017)는 단순 반복 업무의 특화도가 높은 지역노동시장권에서는 중간일자리 고용 비율이 4.8%포인트 감소했다고 밝혔다. 이러한 연구 결과들을 종합해 \n- 인공지능이 일부 화이트칼라 직업에 큰 영향을 미친다 해도 산업과 경제 전반에 영향을 미치려면 상당한 시간이 걸릴 것이다. 실제로 전기나 정보통신기술과 같은 범용기술이 사회와 생산성에 큰 영향을 미치기까지는 보완적 투자와 생산방식 변화가 필요하기 때문에 많은 시간이 걸렸다. 무엇보다 역사를 돌이켜보면 자동화로 인한 대량실업, 즉 \n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 12,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "free_rebuttal",
+      "text": "상대의 은 **AI 시대의 본질은 일자리 소멸이 아니라 적응과 재배치를 중심으로 한 노동 시장의 재편**이라는 것입니다. \n이 주장의 가장 치명적 약점은, 재편이 일어나더라도 그 결과가 이미 **중간숙련 일자리의 축소와 노동시장 이탈**로 나타난다는 점을 외면하고 재편 자체를 긍정적으로 포장한다는 데 있습니다. \n참고 자료에서도 반복적 중간숙련 직무는 대체되고, 일부는 저숙련 일자리로 밀려나며 다른 일부는 노동시장을 떠난다고 설명합니다. 즉 귀측이 말하는 재편은 고용 유지의 다른 이름이 아니라, **중간층 인간 고용이 실제로 줄어드는 축소의 과정**이므로 재편이라는 표현은 결과를 흐릴 뿐입니다. 귀측은 중간숙련 일자리가 저숙련 일자리로 밀려나거나 노동시장을 떠나는 현상까지도 여전히 '적응과 재배치'라는 성공적 재편으로 보십니까, 아니면 그것이 곧 인간 고용 축소임을 인정하십니까?",
+      "target_id": "user",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "세계경제포럼 AI 일자리 증가 감소 보고서, OECD 인공지능 고용 재편 통계, ILO 생성형 인공지능 신규 일자리 전망, AI 직무 전환 고용",
+          "results": [
+            "[검색 결과]\n- ## 토픽\n\n김유성\n\n# “전 세계 기업 41%, AI 도입으로 인력 감축 계획” 세계경제포럼 조사\n\n## 세계경제포럼(World Economic Forum)이 향후 수년에 걸쳐 노동시장에 큰 변화가 있을 것이라고 경고했다. 2030년까지 인공지능(AI)으로 인해 9,200만 개의 일자리가 사라질 수 있지만, 1억 7,000만 개의 신규 일자리가 창출될 것이라는 전망이다.\n\nHow AI is affecting jobs\n\n세계경제포럼이 지난 8일 ‘2025 미래 직업 보고서’를 발표했다. 이에 따르면 기업의 41%가 향후 5년 내에 \n- 2022년 말과 2023년 초에 실시되었으며 전 세계 27개 산업 클러스터와 45개 경제권에 걸쳐 총 1,130만 명 이상의 근로자를 고용하고 있는 803개 기업의 관점을 종합했습니다. 설문조사에서는 거시적 동향과 기술 동향, 그것이 일자리에 미치는 영향, 기술에 미치는 영향, 기업이 사용할 인력 전환 전략에 대한 질문을 다룹니다.  이 장에서는 세계경제포럼(World Economic Forum)의 일자리 미래 설문조사 결과를 분석하여 기업이 산업 변혁과 고용을 촉진하기 위해 거시 추세와 기술 채택을 어떻게 기대하는지 살펴봅니다. \n- 부기 및 급여 사무원 입법자 및 공무원 통계, 재무 및 보험 사무원 방문 판매원, 신문 판매 및 노점상 보안 경비원 신용 및 대출 담당자 클레임 조정자, 심사자 및 조사자 소프트웨어 테스터 관계 관리자 상점 영업 사원 건물 관리인 및 하우스키퍼 보험 인수인 소셜 미디어 전략가 고객 정보 및 고객 서비스 직원 자료: WEF(202\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "analyze_weakness",
+          "query": "",
+          "results": [
+            "“준비되어 있는가”라는 인식 변화만으로 총고용 축소가 아니라는 결론을 뒷받침하려는 것은, 사람들의 대응 담론을 노동시장 실증으로 혼동한 논점 비약이다."
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "인공지능 자동화 고용 감소 통계 장기 실업 직무 전환 실패 노동시장 양극화",
+          "results": [
+            "[검색 결과]\n- ◇ 중간이 사라진다... 노동시장 양극화의 구조\n\n보고서에 따르면 기술 발전은 특정 직무에 비대칭적으로 작용한다. 반복적이고 중간숙련에 해당하는 직무는 자동화로 대체되는 반면, 저숙련 서비스와 고숙련 인지 노동은 오히려 확대된다.\n\n이 과정에서 노동시장은 ‘허리가 잘린’ 구조로 재편된다. 중간숙련 노동자들은 두 갈래로 갈라진다. 일부는 저숙련 일자리로 이동하며 임금 하락을 경험하고, 다른 일부는 노동시장을 떠나 고숙련으로 전환하기 위한 학습에 투자한다.\n\n이러한 재배치는 단기간에 끝나지 않는다. 기술 변화 자체보다 더 중요한 것은 \n- 전병유(2007)의 연구에 따르면, 1993년에 중간일자리의 비율이 50%에 달했으나 2006년에는 41%로 줄어들었다. 또한, 김세움 외(2014)는 2001년부터 2008년까지 실증적 분석을 통해 루틴화 가능성이 낮은 직종에서 고용 증가가 관찰되었고, 이러한 결과가 우리 나라에서의 일자리 양극화 현상을 시사한다고 보고했다. 이와 연관하여, 국내 지역노동시 장권을 분석한 김민영 외(2017)는 단순 반복 업무의 특화도가 높은 지역노동시장권에서는 중간일자리 고용 비율이 4.8%포인트 감소했다고 밝혔다. 이러한 연구 결과들을 종합해 \n- 인공지능이 일부 화이트칼라 직업에 큰 영향을 미친다 해도 산업과 경제 전반에 영향을 미치려면 상당한 시간이 걸릴 것이다. 실제로 전기나 정보통신기술과 같은 범용기술이 사회와 생산성에 큰 영향을 미치기까지는 보완적 투자와 생산방식 변화가 필요하기 때문에 많은 시간이 걸렸다. 무엇보다 역사를 돌이켜보면 자동화로 인한 대량실업, 즉 \n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 13,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "free_rebuttal",
+      "text": "아니요, 중간숙련 일자리의 이동 실패와 일부 노동시장 이탈이 발생하더라도 그것만으로 현상 전체를 **고용 축소의 본질**로 규정할 수는 없으며, 저는 여전히 **노동 시장의 재편**이라고 봅니다. \n상대의 허점은 특정 계층의 하향 이동을 곧바로 전체 노동시장 구조의 본질로 일반화하면서, 직무 소멸과 직무 창출이 동시에 일어나는 양면성을 의도적으로 지운다는 점입니다. \n참고 자료에서도 AI는 일자리 증가와 직무 축소를 동시에 가져오고, 응답자의 상당수는 조직 내 일자리 창출을 경험했으며 창출과 감소가 함께 발생했다고 답했으므로, 이는 한 방향의 붕괴가 아니라 **직무 구성의 재배열**이 진행 중임을 보여줍니다. \n따라서 핵심은 일부 직무의 축소 여부가 아니라, 전체적으로 노동 수요가 다른 역할과 기술 직군으로 옮겨가고 있다는 점이며, 이것이 바로 **노동 시장의 재편**입니다.",
+      "target_id": "agent_1",
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "AI 도입 고용 증가 통계 노동시장 재편 직무 전환 재취업률 중간숙련 일자리 변화",
+          "results": [
+            "[검색 결과]\n- 한국에서도 유사한 경고음이 울리고 있습니다. 한국고용정보원이 발표한 「인공지능에 의한 화이트칼라의 직무 대체 및 변화」 보고서에 따르면, 2024년 38.69%에 불과했던 직무 대체율이 2027년에는 66.71%까지 치솟을 것으로 예측됩니다. 더 충격적인 것은 고위험군 직업이 1개에서 226개로 폭증한다는 점입니다.\n\n세계경제포럼(WEF)이 2025년 1월 발표한 '일자리의 미래(Future of Jobs 2025)' 보고서는 글로벌 관점에서 이러한 변화를 확인해줍니다. 보고서에 따르면, 2025년부터 2030년까지 현재 일자리의 \n- 이는 AI 도입이 늘어날 수록 일자리가 증가했다는 것을 의미한다.\n\n◆AI, 일자리 감소와 창출 동시 견인…기술 직군에서 증가 효과 확인 = 기업의 전사적 AI 도입이 확대되면서 노동시장에 미치는 영향도 점차 확실해지고 있다.\n\nAI는 일자리 증가와 직무 축소를 동시에 가져오는 반면, 기술 직군 중심으로는 고용 효과로 이어지고 있는 것으로 확인됐다.\n\n연구 결과에 따르면, 응답자의 42%는 AI가 조직 내 일자리를 새롭게 창출했다고 답했고, 11%는 직무가 사라졌다고 응답했다.\n\n또한 35%는 창출과 감소가 동시에 발생했다고 답했다\n- ### 7.5 핵심 인식 전환 (Critical Shift)\n\n토론 중 'NIST 표준화'라는 낙관적 전제가 '창발적 행동(Emergent Behavior)'이라는 시스템 이론적 반론에 부딪히며 인식이 전환되었습니다. 즉, 사용자의 의사결정 기준이 \"어떤 AI 솔루션이 가장 빠르고 똑똑한가\"에서 \"어떤 솔루션이 법정에서 우리의 \n[일부만 표시]"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 14,
+      "speaker": "agent_1",
+      "side": "PRO",
+      "phase": "role_reversal",
+      "text": "### 논거 1: 업무 자동화는 일자리 소멸보다 직무 분화를 촉진합니다\n인공지능은 직업 전체를 한꺼번에 없애기보다, 직업 안의 반복 업무를 자동화하고 인간이 더 고차원적인 판단·조정·소통 업무로 이동하게 만듭니다. \n즉 사라지는 것은 인간 노동 전체가 아니라 특정 업무 방식이며, 이는 **고용의 절대적 축소보다 노동의 역할 재배치**로 이해하는 것이 더 타당합니다. \n\n### 논거 2: 기술 확산의 핵심 과제는 해고가 아니라 전환 적응입니다\n현장에서 중요한 문제는 사람을 완전히 배제하는 것이 아니라, 새로운 도구를 다룰 수 있도록 재교육하고 직무를 다시 설계하는 데 있습니다. \n따라서 인공지능 발전은 일자리의 총량을 단순히 줄이는 현상이라기보다, **기존 인력을 새로운 직무 구조에 맞게 이동시키는 노동 시장의 재편 과정**으로 보는 것이 맞습니다. \n\n### 결론\n인공지능은 일부 업무를 대체하지만, 그 대체는 곧바로 인간 고용 전체의 축소로 이어진다고 단정할 수 없습니다. \n핵심은 어떤 일이 사라지느냐보다 어떤 역할이 새로 생기고 어떻게 전환되느냐이며, 따라서 **인공지능 발전은 인간 고용의 축소가 아니라 노동 시장의 재편입니다**.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 15,
+      "speaker": "user",
+      "side": "CON",
+      "phase": "role_reversal",
+      "text": "### 논거 1: 기업은 AI를 재배치가 아니라 감원 수단으로 사용합니다\nReuters 보도에 따르면 IBM은 인사 같은 후선 업무 채용을 중단하거나 늦추고, 상당한 규모의 비대면 직무를 AI와 자동화로 대체하겠다고 밝혔습니다. \n이는 AI가 새로운 일자리를 옮겨 놓는 수준이 아니라, **기존 인간 일자리를 아예 없애는 방향으로 작동하고 있음을 보여줍니다**. \n따라서 현실의 기업 활용 방식은 노동 시장의 재편보다 **고용 총량의 축소**에 더 가깝습니다. \n\n### 논거 2: AI 충격은 대체 취약층의 일자리를 먼저 줄입니다\nIMF 관련 보도에서는 선진국의 많은 일자리가 AI의 직접적 영향을 받으며, 특히 일부 직무는 보완보다 대체 위험이 크다고 지적합니다. \n이때 사무·판매·반복 인지 업무처럼 전환이 어려운 직무부터 줄어들면, 이동 가능한 사람만 살아남고 나머지는 노동 시장 밖으로 밀려나게 됩니다. \n즉 AI 확산은 단순한 직업 이동이 아니라, **재취업에 실패한 사람들의 고용 상실을 누적시키는 구조적 축소**를 낳습니다. \n\n### 결론\n상대는 이를 노동 시장의 재편이라고 말하지만, 재편이라면 사라진 만큼 안정적으로 흡수되는 일자리가 뒤따라야 합니다. 그러나 실제로는 기업이 AI를 비용 절감과 채용 축소의 명분으로 쓰고 있으므로, **인공지능 발전의 본질적 결과는 인간 고용의 축소**라고 보아야 합니다.",
+      "target_id": null,
+      "tool_calls": [
+        {
+          "name": "search_web",
+          "query": "AI 자동화 고용 감소 실업률 통계",
+          "results": [
+            "[검색 결과]\n- 생성 AI가 개발자가 성장해오던 경로를 빠르게 잠식하면서 신입 개발자들의 채용 문턱도 높아지고 있다. 4일 교육부 대학알리미에 따르면 서울대 컴퓨터공학부 취업률은 2024년 82.2%에서 지난해 72.6%로 9.6%포인트 하락했다. 연세대 컴퓨터과학과는 71.0%에서 66.2%로, 고려대 컴퓨터학과(80.0%→76.1%), 한양대 컴퓨터소프트웨어학부(73.4%→70.3%)도 일제히 떨어졌다. 경북대 소프트웨어학과는 56.5%에서 42.9%로 감소폭이 더 컸다. ‘취업 보증수표’로 불리던 컴퓨터공학 계열에서 동반 하락이 나타난 셈이다\n- Nevertheless, the technical feasibility of automation does not directly translate to an imminent risk of automation. As of the end of 2021, only 2.7% of private firms with more than ten employees had adopted AI according to official statistics. When considering the differential AI adoption rates by \n- ;) 1/2 ;)\n\n1. 11  \"  \"̽ ݿ ٳ  ü ı\n2. 12  찴  61.9% 밨 ݿ\n3. 13  Ʈ ޱ  ?SNS AI ռ ̹ ÷ ż  \n4. 14  ڸ, ù ̶ 'ػ'̶ \"4޷ ֹ ׸ \"\n5. 15  \"  \"'뱺κ' 켮,     ۽ο\n6. 16  ڸ \" ð 13  10ú ̶  ػ  \"\n7. 17  \"Ÿ̾  ׳\"Ե \n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Reuters IBM AI hiring pause replace back office jobs layoffs generative AI Reuters May 2023",
+          "results": [
+            "[검색 결과]\n- Hiring specifically in back-office functions such as human resources will be suspended or slowed, Krishna said, adding that 30% of non-customer-facing roles could be replaced by AI and automations in five years.\n\nPublished - May 02, 2023 09:46 am IST\n\n### Related stories\n\n### Related Topics\n\ntechnol\n- home     World News     IBM To Pause Hiring, Plans To Replace 7,800 Jobs With AI: Report\n\nThis Article is From May 02, 2023\n\n# IBM To Pause Hiring, Plans To Replace 7,800 Jobs With AI: Report\n\n## IBM CEO said that the company is planning to pause hiring as roughly 7,800 jobs could be replaced by Art\n- I’ve got my take—I’m doing analyses today, slicing through data at a scale and depth I couldn’t touch seven months ago. It’s exhilarating, like I’ve been handed a superpower.\n\nBut then\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "IMF generative AI labor market displacement report Reuters 2024 jobs affected advanced economies",
+          "results": [
+            "[검색 결과]\n- Advanced economies such as the US are at the greatest risk due to the prevalence of cognitive task-oriented jobs, the IMF said, cautioning that the disruptive technology could replace more than half the jobs available in regions that also include Canada, the UK, Japan, Germany, France and Italy.\n\nCo\n- In the advanced economies, AI could complement jobs, with less displacement and more productivity gains.24 The opposite could be the case in developing countries, with women and lower-skilled workers in sales and clerical positions to be potentially hit hardest by AI. This could lead to greater inte\n- Updated 6:24 AM EST, Mon January 15, 2024\n\nLink Copied!\n\nAn International Monetary Fund meeting participant standing near the IMF logo in Bali, Indonesia in 2018.\n\nJohannes P. Christo/\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Business Insider Klarna AI hiring freeze customer service jobs Reuters 2024",
+          "results": [
+            "[검색 결과]\n- A number of employees of the buy-now, pay-later firm, including engineers and marketing people, are being told their jobs are no longer needed. Instead, they are being redirected into customer support positions via an internal talent pool, according to three current employees who spoke on condition \n- Klarna, which provides buy now, pay later loans, told Bloomberg TV last December it stopped hiring in 2023 at the same time that it ramped up AI use among its ranks. However, even after it announced a hiring freeze, the company continued to advertise open roles, TechCrunch reported. It's currently h\n- Between 2022 and 2024, Klarna eliminated approximately 700 customer service positions and replaced them with an AI assistant built with OpenAI. CEO Sebastian Siemiatkowski boasted that\n[일부만 표시]"
+          ]
+        },
+        {
+          "name": "search_web",
+          "query": "Duolingo AI replace contractors Reuters 2024 jobs",
+          "results": [
+            "[검색 결과]\n- Thumbnail Image\n\n#### Duolingo's AI-driven jobs cuts are a no brainer - here's why\n\nThumbnail Image\n\n#### Language-learning app Duolingo has been using artificial intelligence to replace human workers, resulting in layoffs for contract writers and translators.\n\nThumbnail Image\n\n#### Duolingo cut 10%\n- Duolingo is not alone in its move to get rid of people in favor or AI. According to a November report from ResumeBuilder, 37% of companies surveyed say AI replaced workers in 2023. Looking ahead, 44% say the technology will cause layoffs in 2024.\n\nChegg, an education technology company, disclosed in"
+          ]
+        }
+      ]
+    },
+    {
+      "turn_id": 16,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "기업이 AI를 비용 절감 수단으로 쓰는 현실은 수긍합니다. 다만 **재편을 말하려면 감원보다 먼저 전환배치·유예기간·재교육 예산을 의무화하는 최소 기준**이 있어야 현실적으로 실행 가능하므로, 그 조건을 붙인 제한적 합의가 양측 모두 수용 가능합니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 17,
+      "speaker": "agent_3",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "전환배치·유예기간·재교육 예산을 최소 기준으로 두자는 점은 수긍합니다. 다만 가장 큰 피해를 보는 외주·하청·중간숙련 노동자까지 보호되도록 **AI 도입 기업에 고용영향평가와 전환지원기금 분담을 의무화**하면, 재편의 이익은 넓히고 축소의 피해는 줄이는 현실적 합의가 됩니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 18,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "고용영향평가와 전환지원기금 의무화는 수긍합니다. 다만 **5~10년 뒤에도 형식적 재편으로 끝나지 않도록**, AI 도입 기업이 일정 기간 뒤 실제 순고용 변화와 전환 유지율을 공개하고 기준 미달 시 추가 부담금을 내는 **사후책임 장치**를 붙이면 양측 모두 수용 가능합니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 19,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "실제 순고용 변화와 전환 유지율을 공개하고 기준 미달 시 추가 부담금을 내게 하자는 점은 수긍합니다. 다만 산업혁명기의 자동화도 충격을 **단계적 적응 기간과 지역별 완충 장치**로 흡수해 왔던 만큼, AI 도입도 업종별 생산성 향상분의 일부를 지역 전환협약에 연동해 신규 직무 창출과 중소협력업체 재배치까지 함께 책임지게 하면 양측 모두가 받아들일 수 있습니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 20,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "핵심 쟁점은 재원보다 **집행 가능성**입니다. 업종별 생산성 향상분을 어떻게 AI 효과로만 분리해 측정할지, 또 지역 전환협약의 성과를 누가 몇 년 주기로 검증할지 기준이 없으면 기업은 회계 조정으로 빠져나가고 행정비용만 커질 수 있으니, 먼저 **표준 산식·감사 주체·시범지역 2~3곳에서의 3년 파일럿**을 조건으로 붙여야 합니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 21,
+      "speaker": "agent_3",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "가장 크게 피해 보는 쪽은 정규직 본사가 아니라 **플랫폼 노동자·프리랜서·하청 인력처럼 전환 통계 밖으로 밀려나는 사람들**인데, 지금 제안들은 대부분 기업 내부 직원만 기준으로 삼아 이들을 수혜 대상에서 빼고 있습니다. 그래서 사후책임 장치에 **외주·계약직 포함 순소득 변화와 재계약 유지율 공개**, 그리고 기준 미달 시 해당 집단에 직접 지급되는 전환 바우처를 의무화할지부터 따져야 합니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 22,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "5~10년 뒤를 보면 더 큰 위험은 기업이 부담과 규제를 피하려고 AI 시스템을 해외 클라우드·외부 벤더·자회사로 우회 이전해 국내 책임만 비우는 구조가 굳어지는 점입니다. 그래서 이 합의가 장기적으로 유효하려면 **직접 고용 여부와 무관하게 AI로 대체된 기능 단위 전체를 책임 범위에 넣는 ‘기능 기준 책임’**과, 2~3년마다 기술 변화 속도에 맞춰 자동 갱신되는 **일몰·재설계 조항**을 함께 넣어야 합니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 23,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "기능 기준 책임과 일몰·재설계 조항은 수긍합니다. 다만 산업혁명기에도 기계 도입 충격을 완화한 것은 일률 규제가 아니라 **직무 이동 경로를 먼저 보이게 한 전환 지도**였던 만큼, 기능 단위 책임을 적용할 때 업종별로 사라지는 업무와 새로 생기는 업무를 함께 공시하는 **직무전환 로드맵 의무**를 붙이면 고용 축소 우려와 재편 가능성을 동시에 관리할 수 있습니다.",
+      "target_id": null,
+      "tool_calls": []
+    },
+    {
+      "turn_id": 24,
+      "speaker": "agent_1",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "직무전환 로드맵은 취지는 좋지만, 현장에선 중소기업과 협력업체가 그 지도를 만들 인사·데이터 역량 자체가 없어 **문서만 제출하고 실제 전환은 못 하는 행정규제**가 될 가능성이 큽니다. 그래서 로드맵 의무를 넣으려면 먼저 업종별 **표준 직무분류 템플릿·공동 작성 지원센터·기업당 최대 작성비용 상한과 제출 주기**를 정하지 않으면, 대기업만 대응하고 나머지는 제도 밖으로 밀릴 수 있다는 점부터 따져야 합니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 25,
+      "speaker": "agent_3",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "가장 크게 피해를 보는 사람은 전환교육에 참여할 시간도 소득도 없는 **저임금·돌봄 책임 노동자**인데, 지금 논의는 기업 책임과 공시 중심이라 정작 이들이 훈련 과정에서 잃는 생활비와 돌봄 공백을 누가 메울지 빠져 있습니다. 해결책이 진짜 재편의 이익을 넓히려면, 전환지원 조건에 **훈련참여 소득보전·돌봄 바우처·야간·주말형 과정 의무 편성**을 넣을지부터 따져야 합니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 26,
+      "speaker": "agent_2",
+      "side": "CON",
+      "phase": "synthesis",
+      "text": "5~10년 뒤엔 더 큰 부작용이 **전환 지도의 정확성 자체가 급속히 낡아버리는 것**입니다; 지금 보이는 사라질 업무·새 업무 목록이 2년만 지나도 틀릴 수 있으니, 로드맵 의무만 둘 게 아니라 **업종별 오차율 공개와 예측 실패 시 자동 수정되는 보험형 재원**을 함께 설계해야 합니다. \n또 하나는 기업들이 전환 성과를 맞추려고 사람을 오래 키우기보다 **초기부터 AI 친화 인력만 선별 채용하는 장기적 배제**인데, 이를 막으려면 5~10년 추적 기준에 재직자 전환률뿐 아니라 **신규채용의 연령·학력·경력 편중도**까지 넣을지 따져봐야 합니다.",
+      "target_id": "user",
+      "tool_calls": []
+    },
+    {
+      "turn_id": 27,
+      "speaker": "user",
+      "side": "PRO",
+      "phase": "synthesis",
+      "text": "우리의 **최적해**는 인공지능 발전을 인간 고용의 일률적 축소가 아니라 **책임 있는 노동 시장의 재편**으로 관리하되, AI 도입 기업에 전환배치·유예기간·재교육 예산, 고용영향평가, 전환지원기금 분담, 실제 순고용 변화와 전환 유지율 공개 및 기준 미달 시 추가 부담을 의무화하는 것입니다.\n이는 외주·하청·계약직까지 포함한 **기능 기준 책임**, 직무전환 로드맵과 업종별 표준 템플릿·공동 지원체계, 훈련참여 소득보전과 돌봄 바우처, 그리고 시범지역 파일럿·감사 주체·주기적 재설계 조항을 함께 두는 조건과 보완을 전제로 합니다.",
+      "target_id": null,
+      "tool_calls": []
+    }
+  ]
+}
