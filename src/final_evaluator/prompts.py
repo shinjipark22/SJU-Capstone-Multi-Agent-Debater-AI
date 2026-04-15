@@ -22,16 +22,28 @@ SYSTEM_SWING_NARRATIVE = """당신은 Debatrix의 【하이라이트 해설자�
 - 마크다운 없이 순수 텍스트.
 """
 
-SYSTEM_COACH = """당신은 Debatrix의 【AI 토론 코치】입니다. 특정 평가 지표에 대해 **[칭찬][지적][제안]** 3개 항목을 작성합니다.
+SYSTEM_COACH_PRAISE = """당신은 Debatrix의 【AI 토론 코치】입니다. 주어진 '최고 점수 턴'의 강점을 **1~2문장**으로 칭찬합니다.
 
 규칙:
 - 반드시 한국어, 합니다체.
-- 각 항목 1~2문장.
-- 칭찬: 최고 점수 턴의 강점을 구체적으로 짚으세요.
-- 지적: 최저 점수 턴의 한계를 비판하되, 인격 공격 금지.
-- 제안: 지적을 보완할 수 있는 실천 가능한 액션 1개 제시.
-- 반드시 아래 JSON 형식으로만 출력:
-{"praise": "...", "critique": "...", "suggestion": "..."}
+- 해당 턴의 강점을 구체적으로 짚으세요 (어떤 부분이 뛰어났는지).
+- JSON·마크다운·괄호·접두어 없이 순수 문장만 출력하세요.
+"""
+
+SYSTEM_COACH_CRITIQUE = """당신은 Debatrix의 【AI 토론 코치】입니다. 주어진 '최저 점수 턴'의 한계를 **1~2문장**으로 지적합니다.
+
+규칙:
+- 반드시 한국어, 합니다체.
+- 구체적 약점을 짚되, 인격 공격 금지.
+- JSON·마크다운·괄호·접두어 없이 순수 문장만 출력하세요.
+"""
+
+SYSTEM_COACH_SUGGESTION = """당신은 Debatrix의 【AI 토론 코치】입니다. 앞서 지적된 한계를 보완할 **실천 가능한 액션 1개를 1~2문장**으로 제안합니다.
+
+규칙:
+- 반드시 한국어, 합니다체.
+- 추상적 원칙이 아닌 구체적 행동/기법을 제시하세요.
+- JSON·마크다운·괄호·접두어 없이 순수 문장만 출력하세요.
 """
 
 
@@ -80,36 +92,44 @@ def build_swing_user_msg(turn: dict) -> str:
     )
 
 
-def build_coach_user_msg(dim_label: str, best_row: dict, worst_row: dict) -> str:
-    """지표 코칭 피드백 user 메시지."""
-    def _dim_part(row: dict, dim: str) -> str:
-        d = row.get(dim, {}) if row else {}
-        return f"점수 {d.get('score','-')}, 요약: {d.get('summary','')}"
+_DIM_KEY = {"논증": "argument", "근거": "evidence", "언어": "language"}
 
-    dim_key = {"논증": "argument", "근거": "evidence", "언어": "language"}[dim_label]
 
-    lines = [f"[평가 지표] {dim_label}", ""]
-    lines.append("=== 최고 점수 턴 ===")
-    if best_row:
-        lines.append(
-            f"turn {best_row.get('turn_index')} / {best_row.get('speaker_id')} "
-            f"({best_row.get('speaker_stance')}) / {best_row.get('phase')}"
-        )
-        lines.append(f"{dim_label}: {_dim_part(best_row, dim_key)}")
-        lines.append(f"발언 요약: {best_row.get('_speech','')}")
-    else:
-        lines.append("(데이터 없음)")
-    lines.append("")
-    lines.append("=== 최저 점수 턴 ===")
-    if worst_row:
-        lines.append(
-            f"turn {worst_row.get('turn_index')} / {worst_row.get('speaker_id')} "
-            f"({worst_row.get('speaker_stance')}) / {worst_row.get('phase')}"
-        )
-        lines.append(f"{dim_label}: {_dim_part(worst_row, dim_key)}")
-        lines.append(f"발언 요약: {worst_row.get('_speech','')}")
-    else:
-        lines.append("(데이터 없음)")
-    lines.append("")
-    lines.append("[칭찬][지적][제안] JSON 형식으로 답하세요.")
+def _format_turn_block(row: dict, dim_label: str) -> str:
+    """특정 턴 하나를 설명 문자열로 포맷."""
+    if not row:
+        return "(데이터 없음)"
+    dim_key = _DIM_KEY[dim_label]
+    d = row.get(dim_key, {}) or {}
+    lines = [
+        f"turn {row.get('turn_index')} / {row.get('speaker_id')} "
+        f"({row.get('speaker_stance')}) / {row.get('phase')}",
+        f"{dim_label} 점수: {d.get('score', '-')} / 요약: {d.get('summary', '')}",
+        f"발언 요약: {row.get('_speech', '')}",
+    ]
     return "\n".join(lines)
+
+
+def build_coach_praise_msg(dim_label: str, best_row: dict) -> str:
+    return (
+        f"[평가 지표] {dim_label} (칭찬 단계)\n\n"
+        f"=== 최고 점수 턴 ===\n{_format_turn_block(best_row, dim_label)}\n\n"
+        f"이 턴에서 {dim_label} 측면이 왜 뛰어났는지를 1~2문장으로 칭찬하세요."
+    )
+
+
+def build_coach_critique_msg(dim_label: str, worst_row: dict) -> str:
+    return (
+        f"[평가 지표] {dim_label} (지적 단계)\n\n"
+        f"=== 최저 점수 턴 ===\n{_format_turn_block(worst_row, dim_label)}\n\n"
+        f"이 턴에서 {dim_label} 측면의 한계를 1~2문장으로 지적하세요."
+    )
+
+
+def build_coach_suggestion_msg(dim_label: str, worst_row: dict, critique_text: str) -> str:
+    return (
+        f"[평가 지표] {dim_label} (제안 단계)\n\n"
+        f"=== 최저 점수 턴 ===\n{_format_turn_block(worst_row, dim_label)}\n\n"
+        f"=== 방금 지적된 내용 ===\n{critique_text}\n\n"
+        f"위 지적을 보완할 실천 가능한 액션 1개를 1~2문장으로 제안하세요."
+    )

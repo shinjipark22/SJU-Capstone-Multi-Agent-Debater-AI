@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -28,10 +26,14 @@ from .models import (
     WinnerBlock,
 )
 from .prompts import (
-    SYSTEM_COACH,
+    SYSTEM_COACH_CRITIQUE,
+    SYSTEM_COACH_PRAISE,
+    SYSTEM_COACH_SUGGESTION,
     SYSTEM_SUMMARY,
     SYSTEM_SWING_NARRATIVE,
-    build_coach_user_msg,
+    build_coach_critique_msg,
+    build_coach_praise_msg,
+    build_coach_suggestion_msg,
     build_summary_user_msg,
     build_swing_user_msg,
 )
@@ -59,64 +61,84 @@ def _safe_swing_narrative(turn: dict) -> str:
         return turn.get("overall_summary", "") or "해설 생성 실패"
 
 
-def _extract_first_json(raw: str) -> dict:
-    """LLM 출력에서 첫 JSON 객체만 추출 (trailing 텍스트 허용).
+def _cleanup_text(raw: str, fallback: str) -> str:
+    """LLM 평문 응답에서 마크다운·접두어 제거. 실패 시 fallback."""
+    if not raw:
+        return fallback
+    t = raw.strip()
+    # 흔한 접두어/코드블록 제거
+    t = t.lstrip("#*-•·").strip()
+    if t.startswith("```"):
+        # ``` ... ``` 안쪽만 추출
+        parts = t.split("```")
+        if len(parts) >= 3:
+            t = parts[1]
+            if t.lower().startswith(("json", "text")):
+                t = "\n".join(t.splitlines()[1:])
+            t = t.strip()
+    # 여러 줄 중 비어 있지 않은 첫 블록
+    cleaned = " ".join(line.strip() for line in t.splitlines() if line.strip())
+    return cleaned or fallback
 
-    1) ```json ... ``` 코드블록 우선
-    2) 첫 `{` 부터 raw_decode로 파싱
-    3) 실패 시 가장 긴 `{...}` 블록 greedy 시도
-    """
-    text = raw.strip()
-    m = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
-    if m:
-        text = m.group(1).strip()
-    # 여는 `{` 없이 바로 `"key": "..."` 로 시작하는 경우(assistant_prefix 소거 등) 복원 시도
-    if text and not text.lstrip().startswith("{") and re.match(r'^\s*"\w+"\s*:', text):
-        text = "{" + text
-        if not text.rstrip().endswith("}"):
-            text = text.rstrip().rstrip(",") + "}"
-    # raw_decode: trailing 데이터 무시하고 첫 JSON만 파싱
-    idx = text.find("{")
-    if idx >= 0:
-        try:
-            obj, _ = json.JSONDecoder().raw_decode(text[idx:])
-            if isinstance(obj, dict):
-                return obj
-        except Exception:
-            pass
-    # 폴백: greedy 매칭
-    m2 = re.search(r"\{[\s\S]+\}", text)
-    if m2:
-        try:
-            return json.loads(m2.group(0))
-        except Exception:
-            pass
-    return {}
+
+def _coach_field(system: str, msg: str, fallback: str, label: str) -> str:
+    """단일 코치 필드(칭찬/지적/제안) 호출. 실패 시 fallback."""
+    try:
+        raw = qwen_chat(system, msg, max_new_tokens=180)
+        return _cleanup_text(raw, fallback)
+    except Exception as e:
+        logger.warning("[final_evaluator] coach %s 실패: %s", label, e)
+        return fallback
 
 
 def _safe_coach(dim_label: str, best_row: Optional[dict], worst_row: Optional[dict]) -> DimensionFeedback:
-    fallback = DimensionFeedback(
-        praise=f"{dim_label} 지표에서 최고 점수 턴을 참조 바랍니다.",
-        critique=f"{dim_label} 지표에서 최저 점수 턴을 재검토하세요.",
-        suggestion=f"{dim_label} 영역의 보완 액션을 별도로 수립하세요.",
-    )
+    """3회 개별 LLM 호출(칭찬/지적/제안) → DimensionFeedback 조립.
+
+    JSON 파싱 불필요 — 각 필드는 자연어 1~2문장만 반환.
+    """
+    fb_praise = f"{dim_label} 지표에서 최고 점수 턴을 참조 바랍니다."
+    fb_critique = f"{dim_label} 지표에서 최저 점수 턴을 재검토하세요."
+    fb_suggestion = f"{dim_label} 영역의 보완 액션을 별도로 수립하세요."
+
     if best_row is None and worst_row is None:
-        return fallback
-    try:
-        msg = build_coach_user_msg(dim_label, best_row or {}, worst_row or {})
-        raw = qwen_chat(SYSTEM_COACH, msg, max_new_tokens=400).strip()
-        obj = _extract_first_json(raw)
-        if not obj:
-            logger.warning("[final_evaluator] coach JSON 추출 실패 (%s): %s", dim_label, raw[:200])
-            return fallback
-        return DimensionFeedback(
-            praise=str(obj.get("praise", fallback.praise)).strip() or fallback.praise,
-            critique=str(obj.get("critique", fallback.critique)).strip() or fallback.critique,
-            suggestion=str(obj.get("suggestion", fallback.suggestion)).strip() or fallback.suggestion,
+        return DimensionFeedback(praise=fb_praise, critique=fb_critique, suggestion=fb_suggestion)
+
+    # 칭찬·지적은 병렬, 제안은 지적 완료 후 (critique 맥락 필요)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_praise = pool.submit(
+            _coach_field,
+            SYSTEM_COACH_PRAISE,
+            build_coach_praise_msg(dim_label, best_row or {}),
+            fb_praise,
+            f"{dim_label}/칭찬",
+        ) if best_row else None
+        f_critique = pool.submit(
+            _coach_field,
+            SYSTEM_COACH_CRITIQUE,
+            build_coach_critique_msg(dim_label, worst_row or {}),
+            fb_critique,
+            f"{dim_label}/지적",
+        ) if worst_row else None
+
+        praise_text = f_praise.result() if f_praise else fb_praise
+        critique_text = f_critique.result() if f_critique else fb_critique
+
+    # 제안은 critique 결과를 입력으로 받아 생성 (일관성 ↑)
+    if worst_row:
+        suggestion_text = _coach_field(
+            SYSTEM_COACH_SUGGESTION,
+            build_coach_suggestion_msg(dim_label, worst_row, critique_text),
+            fb_suggestion,
+            f"{dim_label}/제안",
         )
-    except Exception as e:
-        logger.warning("[final_evaluator] coach LLM 실패 (%s): %s", dim_label, e)
-        return fallback
+    else:
+        suggestion_text = fb_suggestion
+
+    return DimensionFeedback(
+        praise=praise_text,
+        critique=critique_text,
+        suggestion=suggestion_text,
+    )
 
 
 # ── 메인 오케스트레이터 ────────────────────────────────────────────────────
