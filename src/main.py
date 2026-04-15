@@ -20,6 +20,7 @@ from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 from pydantic import BaseModel, field_validator
 
+from src.final_evaluator import build_final_report
 from src.graph.main_graph import build_debate_graph
 from src.live_analyzer import DebatrixJudge, project_frontend_event
 from src.models import DebateInitRequest
@@ -38,8 +39,11 @@ app = FastAPI(
 debate_graph = build_debate_graph()
 
 # ── 세션별 실시간 분석기 캐시 ──────────────────────────────────────────────
-# 토론 세션 단위로 DebatrixJudge 인스턴스를 유지, 턴별 누적 분석을 위해.
+# 토론 세션 단위로 DebatrixJudge 인스턴스를 유지, 턴별 누적 분석 + 최종 리포트 생성을 위해.
+# (is_finished=True 이후에도 유지 — 최종 리포트 생성 후 삭제)
 _session_judges: Dict[str, DebatrixJudge] = {}
+# 최종 리포트 캐시 — 같은 세션에서 반복 호출 시 재사용
+_final_reports: Dict[str, dict] = {}
 
 
 def _build_teams_from_state(initial_state: DebateState) -> dict:
@@ -292,8 +296,8 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             final_state = debate_graph.get_state(config)
             if final_state and final_state.values:
                 synthesis_draft = final_state.values.get("synthesis_draft", "")
-            # 완료된 세션의 judge 정리
-            _session_judges.pop(session_id, None)
+            # 완료된 세션의 judge는 최종 리포트 생성을 위해 유지
+            # (별도 엔드포인트 GET /debate/{id}/final-report에서 소비 후 정리)
 
         yield _sse_event("waiting", {
             "session_id": session_id,
@@ -330,6 +334,71 @@ def get_debate_state(session_id: str):
         "debate_history": values.get("debate_history", []),
         "synthesis_draft": values.get("synthesis_draft", ""),
     }
+
+
+@app.get("/debate/{session_id}/final-report")
+def get_final_report(session_id: str, refresh: bool = False):
+    """종료된 토론 세션의 최종 평가 리포트.
+
+    - 토론이 `is_finished=True` 이후에 호출 권장.
+    - `refresh=true` 쿼리 파라미터 시 캐시 무시하고 재생성.
+    - judge 인스턴스(`_session_judges`)와 LangGraph state를 사용.
+    """
+    if not refresh and session_id in _final_reports:
+        return _final_reports[session_id]
+
+    judge = _session_judges.get(session_id)
+    if judge is None:
+        raise HTTPException(
+            status_code=404,
+            detail="세션의 분석 데이터를 찾을 수 없습니다 (judge 없음).",
+        )
+
+    config = {"configurable": {"thread_id": session_id}}
+    graph_state = debate_graph.get_state(config)
+    if not graph_state or not graph_state.values:
+        raise HTTPException(status_code=404, detail="세션 상태를 찾을 수 없습니다.")
+
+    values = graph_state.values
+    analysis_memory = list(judge.memory.analysis_memory)
+    speech_memory = list(judge.memory.speech_memory)
+    live_debate = judge.memory.live_debate_snapshot()
+
+    if not analysis_memory:
+        raise HTTPException(
+            status_code=400,
+            detail="분석 메모리가 비어 있습니다. 토론이 진행되지 않았거나 평가 대상 phase가 없습니다.",
+        )
+
+    try:
+        report = build_final_report(
+            topic=values.get("topic", ""),
+            debate_format=values.get("debate_format") or judge.memory.debate_format,
+            user_stance=values.get("user_stance", "PRO"),
+            analysis_memory=analysis_memory,
+            speech_memory=speech_memory,
+            live_debate=live_debate,
+        )
+    except Exception as e:
+        logger.exception("[final-report] 빌드 실패: %s", e)
+        raise HTTPException(status_code=500, detail=f"final report 생성 실패: {e}")
+
+    payload = report.model_dump()
+    _final_reports[session_id] = payload
+    return payload
+
+
+@app.delete("/debate/{session_id}")
+def delete_session_cache(session_id: str):
+    """세션 관련 메모리 캐시 정리 (judge, final report).
+
+    토론 종료 + 리포트 조회 후 리소스 회수용.
+    """
+    removed = {
+        "judge": _session_judges.pop(session_id, None) is not None,
+        "final_report": _final_reports.pop(session_id, None) is not None,
+    }
+    return {"session_id": session_id, "removed": removed}
 
 
 @app.get("/topics")
