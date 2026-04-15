@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from src.live_analyzer.inference import parse_json, qwen_chat
+from src.live_analyzer.inference import qwen_chat
 
 from .aggregator import (
     compute_mvp,
@@ -57,6 +59,41 @@ def _safe_swing_narrative(turn: dict) -> str:
         return turn.get("overall_summary", "") or "해설 생성 실패"
 
 
+def _extract_first_json(raw: str) -> dict:
+    """LLM 출력에서 첫 JSON 객체만 추출 (trailing 텍스트 허용).
+
+    1) ```json ... ``` 코드블록 우선
+    2) 첫 `{` 부터 raw_decode로 파싱
+    3) 실패 시 가장 긴 `{...}` 블록 greedy 시도
+    """
+    text = raw.strip()
+    m = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
+    if m:
+        text = m.group(1).strip()
+    # 여는 `{` 없이 바로 `"key": "..."` 로 시작하는 경우(assistant_prefix 소거 등) 복원 시도
+    if text and not text.lstrip().startswith("{") and re.match(r'^\s*"\w+"\s*:', text):
+        text = "{" + text
+        if not text.rstrip().endswith("}"):
+            text = text.rstrip().rstrip(",") + "}"
+    # raw_decode: trailing 데이터 무시하고 첫 JSON만 파싱
+    idx = text.find("{")
+    if idx >= 0:
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(text[idx:])
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            pass
+    # 폴백: greedy 매칭
+    m2 = re.search(r"\{[\s\S]+\}", text)
+    if m2:
+        try:
+            return json.loads(m2.group(0))
+        except Exception:
+            pass
+    return {}
+
+
 def _safe_coach(dim_label: str, best_row: Optional[dict], worst_row: Optional[dict]) -> DimensionFeedback:
     fallback = DimensionFeedback(
         praise=f"{dim_label} 지표에서 최고 점수 턴을 참조 바랍니다.",
@@ -67,8 +104,11 @@ def _safe_coach(dim_label: str, best_row: Optional[dict], worst_row: Optional[di
         return fallback
     try:
         msg = build_coach_user_msg(dim_label, best_row or {}, worst_row or {})
-        raw = qwen_chat(SYSTEM_COACH, msg, max_new_tokens=400, assistant_prefix='{"praise":').strip()
-        obj = parse_json(raw) or {}
+        raw = qwen_chat(SYSTEM_COACH, msg, max_new_tokens=400).strip()
+        obj = _extract_first_json(raw)
+        if not obj:
+            logger.warning("[final_evaluator] coach JSON 추출 실패 (%s): %s", dim_label, raw[:200])
+            return fallback
         return DimensionFeedback(
             praise=str(obj.get("praise", fallback.praise)).strip() or fallback.praise,
             critique=str(obj.get("critique", fallback.critique)).strip() or fallback.critique,
