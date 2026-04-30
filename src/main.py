@@ -415,3 +415,123 @@ def get_topics():
 def health_check():
     """서버 상태 확인."""
     return {"status": "ok", "version": "2.0.0", "graph": "langgraph", "streaming": "SSE"}
+
+
+# ── 토론 전후 사용자 평가 ──────────────────────────────────────────────────
+# evaluation/ 패키지의 analyze_user_before_after() 를 vLLM 인스턴스로 호출.
+# 5가지 지표(근거 확장성/지식 구체성/근거 타당성/논리 추론 밀도/관점 다각성)를
+# 토론 전·후 × 찬·반 4쌍에 대해 채점하고, 100점 환산 + 변화량(delta) 까지 반환.
+
+from evaluation import analyze_user_before_after
+
+
+class EvaluateRequest(BaseModel):
+    """토론 전·후 사용자 답변 (찬성/반대 측 모두 입력)."""
+    pre_pro: str
+    pre_con: str
+    post_pro: str
+    post_con: str
+
+
+class MetricScore(BaseModel):
+    label: str
+    score: int
+    reason: str
+
+
+class PhaseResult(BaseModel):
+    evidence_expansion: MetricScore
+    knowledge_specificity: MetricScore
+    evidence_validity: MetricScore
+    reasoning_density: MetricScore
+    perspective_diversity: MetricScore
+    average_100: float
+    overall_summary: str
+
+
+class SideResult(BaseModel):
+    pre: PhaseResult
+    post: PhaseResult
+    delta_100: float  # post - pre (양수 = 토론 후 향상)
+
+
+class EvaluateResponse(BaseModel):
+    topic_id: str
+    topic: str
+    pro_label: str
+    con_label: str
+    pro: SideResult
+    con: SideResult
+
+
+def _build_phase_result(phase: dict) -> PhaseResult:
+    s = phase["scores"]
+    return PhaseResult(
+        evidence_expansion=MetricScore(**{
+            "label": s["evidence_expansion"]["label"],
+            "score": s["evidence_expansion"]["score"],
+            "reason": s["evidence_expansion"]["reason"],
+        }),
+        knowledge_specificity=MetricScore(**{
+            "label": s["knowledge_specificity"]["label"],
+            "score": s["knowledge_specificity"]["score"],
+            "reason": s["knowledge_specificity"]["reason"],
+        }),
+        evidence_validity=MetricScore(**{
+            "label": s["evidence_validity"]["label"],
+            "score": s["evidence_validity"]["score"],
+            "reason": s["evidence_validity"]["reason"],
+        }),
+        reasoning_density=MetricScore(**{
+            "label": s["reasoning_density"]["label"],
+            "score": s["reasoning_density"]["score"],
+            "reason": s["reasoning_density"]["reason"],
+        }),
+        perspective_diversity=MetricScore(**{
+            "label": s["perspective_diversity"]["label"],
+            "score": s["perspective_diversity"]["score"],
+            "reason": s["perspective_diversity"]["reason"],
+        }),
+        average_100=phase["average_100"],
+        overall_summary=phase.get("overall_summary", ""),
+    )
+
+
+@app.post("/evaluation", response_model=EvaluateResponse)
+async def evaluate_user_before_after(req: EvaluateRequest, topic_id: str):
+    """
+    토론 전·후 사용자 답변(찬·반 양쪽)을 5개 지표로 채점하고 변화량을 반환한다.
+
+    - **topic_id**: query 파라미터 (예: `tech_001`). topics JSON 에서 title/pro/con 자동 조회.
+    - 요청 body: pre_pro / pre_con / post_pro / post_con 각각 문자열.
+    - 응답: pro/con 각 진영의 pre/post 점수(5개 지표 + 100점 환산 + 요약) + delta_100.
+    """
+    topic_data = _load_topic(topic_id)
+
+    try:
+        # vLLM 호출이 무거우므로 thread pool 에서 실행 (이벤트 루프 차단 방지)
+        result = await asyncio.to_thread(
+            analyze_user_before_after,
+            req.pre_pro, req.pre_con, req.post_pro, req.post_con,
+            topic=topic_data["title"],
+        )
+    except Exception as e:
+        logger.exception("평가 실패")
+        raise HTTPException(status_code=500, detail=f"평가 중 오류: {e}")
+
+    return EvaluateResponse(
+        topic_id=topic_id,
+        topic=topic_data["title"],
+        pro_label=topic_data.get("pro", "찬성"),
+        con_label=topic_data.get("con", "반대"),
+        pro=SideResult(
+            pre=_build_phase_result(result["pro"]["pre"]),
+            post=_build_phase_result(result["pro"]["post"]),
+            delta_100=result["pro"]["delta_100"],
+        ),
+        con=SideResult(
+            pre=_build_phase_result(result["con"]["pre"]),
+            post=_build_phase_result(result["con"]["post"]),
+            delta_100=result["con"]["delta_100"],
+        ),
+    )
