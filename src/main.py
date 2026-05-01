@@ -150,6 +150,22 @@ def _load_topic(topic_id: str) -> dict:
     raise HTTPException(status_code=404, detail=f"topic ID '{topic_id}'를 찾을 수 없습니다.")
 
 
+def _load_topic_for_evaluation(topic_id: str) -> dict:
+    """평가 API는 과거 프론트 세션의 카테고리 ID도 방어적으로 처리한다."""
+    try:
+        return _load_topic(topic_id)
+    except HTTPException as e:
+        if e.status_code != 404:
+            raise
+        logger.warning("평가 topic_id를 topics 파일에서 찾지 못해 기본 라벨로 진행합니다: %s", topic_id)
+        return {
+            "id": topic_id,
+            "title": topic_id,
+            "pro": "찬성",
+            "con": "반대",
+        }
+
+
 def _create_initial_state(request: DebateInitRequest, topic_dict: dict) -> DebateState:
     """AI 에이전트 생성 + 초기 State 빌드."""
     try:
@@ -506,7 +522,7 @@ async def evaluate_user_before_after(req: EvaluateRequest, topic_id: str):
     - 요청 body: pre_pro / pre_con / post_pro / post_con 각각 문자열.
     - 응답: pro/con 각 진영의 pre/post 점수(5개 지표 + 100점 환산 + 요약) + delta_100.
     """
-    topic_data = _load_topic(topic_id)
+    topic_data = _load_topic_for_evaluation(topic_id)
 
     try:
         # vLLM 호출이 무거우므로 thread pool 에서 실행 (이벤트 루프 차단 방지)
