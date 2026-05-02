@@ -4,7 +4,7 @@
 
 set -e
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 echo "[FastAPI] 서버 시작 (포트 8001)..."
 echo "  vLLM 연결: http://localhost:8000/v1"

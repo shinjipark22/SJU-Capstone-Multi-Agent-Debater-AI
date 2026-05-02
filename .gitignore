@@ -209,3 +209,14 @@ __marimo__/
 output/
 results/
 data/
+
+# === 실험·평가 결과물 (코드 아님, 매번 변경) ===
+test_results/
+experiments/evals/llm/
+experiments/evals/llm_cache/
+experiments/evals/rule/
+experiments/prompt_exp/
+
+# artifacts/ — 결과 CSV 는 빼고 PNG (차트) 만 커밋
+artifacts/*
+!artifacts/*.png

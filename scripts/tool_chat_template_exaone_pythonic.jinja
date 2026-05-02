@@ -1,0 +1,62 @@
+{#- EXAONE-3.5 tool-calling template (pythonic parser compatible) -#}
+{#- Based on EXAONE default template, injects tool schemas + pythonic instructions into system message -#}
+
+{%- if not tools is defined %}{%- set tools = none %}{%- endif %}
+
+{#- Extract system message content -#}
+{%- if messages[0]['role'] == 'system' -%}
+    {%- if messages[0]['content'] is string -%}
+        {%- set system_content = messages[0]['content'] -%}
+    {%- else -%}
+        {%- set system_content = messages[0]['content'][0]['text'] -%}
+    {%- endif -%}
+    {%- set loop_messages = messages[1:] -%}
+{%- else -%}
+    {%- set system_content = "" -%}
+    {%- set loop_messages = messages -%}
+{%- endif -%}
+
+{#- Append tool instructions to system content when tools are defined -#}
+{%- if tools is not none -%}
+    {%- set system_content = system_content + "\n\nTools (functions) are available. If you decide to invoke one or more of the tools, you must respond with a python list of the function calls.\nExample Format: [func_name1(params_name1=params_value1, params_name2=params_value2), func_name2(params)]\nDo not use variables. DO NOT USE MARKDOWN SYNTAX. You SHOULD NOT include any other text in the response if you call a function. If none of the functions can be used, point it out. If you lack the parameters required by the function, also point it out.\nHere is a list of functions in JSON format that you can invoke.\n" + (tools | tojson(indent=4)) -%}
+{%- endif -%}
+
+{#- Emit system block -#}
+{{- '[|system|]' + system_content + '[|endofturn|]\n' -}}
+
+{#- Main loop -#}
+{%- for message in loop_messages -%}
+    {%- if message['role'] == 'user' -%}
+        {%- if message['content'] is string -%}
+            {{- '[|user|]' + message['content'] + '\n' -}}
+        {%- else -%}
+            {{- '[|user|]' + message['content'][0]['text'] + '\n' -}}
+        {%- endif -%}
+    {%- elif message['role'] == 'assistant' -%}
+        {%- if message.get('tool_calls') -%}
+            {{- '[|assistant|][' -}}
+            {%- for tc in message['tool_calls'] -%}
+                {%- set fn = tc['function'] if tc.get('function') else tc -%}
+                {{- fn['name'] + '(' -}}
+                {%- set args = fn.get('arguments', {}) -%}
+                {%- if args is string -%}
+                    {%- set args = args | from_json if args else {} -%}
+                {%- endif -%}
+                {%- set first = true -%}
+                {%- for k, v in args.items() -%}
+                    {%- if not first -%}, {%- endif -%}
+                    {{- k + '=' + (v | tojson) -}}
+                    {%- set first = false -%}
+                {%- endfor -%}
+                {{- ')' -}}
+                {%- if not loop.last -%}, {%- endif -%}
+            {%- endfor -%}
+            {{- ']' + '[|endofturn|]\n' -}}
+        {%- else -%}
+            {{- '[|assistant|]' + (message['content'] or '') + '[|endofturn|]\n' -}}
+        {%- endif -%}
+    {%- elif message['role'] == 'tool' -%}
+        {{- '[|user|]' + (message['content'] | string) + '\n' -}}
+    {%- endif -%}
+{%- endfor -%}
+{%- if add_generation_prompt -%}{{- '[|assistant|]' -}}{%- endif -%}
