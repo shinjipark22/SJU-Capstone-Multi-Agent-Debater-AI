@@ -80,17 +80,27 @@ def start_vllm(config: ModelConfig) -> subprocess.Popen:
         "--tensor-parallel-size", str(config.tensor_parallel),
         "--gpu-memory-utilization", "0.90",
         "--max-model-len", str(config.max_model_len),
-        "--dtype", "float16",
+        "--dtype", config.dtype,
         "--enforce-eager",
-        "--enable-auto-tool-choice",
-        "--tool-call-parser", "hermes",
         "--download-dir", HF_CACHE_DIR,
     ]
     if config.quantization:
         cmd.extend(["--quantization", config.quantization])
+    if config.trust_remote_code:
+        cmd.append("--trust-remote-code")
+    if config.tool_call_parser:
+        cmd.extend([
+            "--enable-auto-tool-choice",
+            "--tool-call-parser", config.tool_call_parser,
+        ])
+    if config.chat_template:
+        cmd.extend(["--chat-template", config.chat_template])
 
     logger.info("vLLM 시작: %s (GPU %s, port %d)", config.model_name, config.gpu_devices, config.port)
-    proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    vllm_log_path = PROJECT_ROOT / "experiments" / f"vllm_{config.model_id}.log"
+    vllm_log = open(vllm_log_path, "a", buffering=1)
+    vllm_log.write(f"\n===== {time.strftime('%Y-%m-%d %H:%M:%S')} vLLM start =====\n")
+    proc = subprocess.Popen(cmd, env=env, stdout=vllm_log, stderr=subprocess.STDOUT)
     return proc
 
 

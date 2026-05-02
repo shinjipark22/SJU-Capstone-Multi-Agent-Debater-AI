@@ -38,6 +38,10 @@ class ModelConfig:
     tensor_parallel: int = 2                            # 텐서 병렬 수
     quantization: Optional[str] = None                  # awq / gptq / None
     max_model_len: int = 16384
+    dtype: str = "float16"                              # float16 / bfloat16 / auto (EXAONE는 bfloat16 필수)
+    tool_call_parser: Optional[str] = "hermes"          # vLLM tool-call 파서 (None=tool-call 비활성화)
+    trust_remote_code: bool = False                     # 커스텀 모델 코드 허용 (EXAONE 등)
+    chat_template: Optional[str] = None                 # jinja 템플릿 경로
     extra_vllm_args: Dict = field(default_factory=dict) # 추가 vLLM 인자
 
 
@@ -67,11 +71,16 @@ MODELS: Dict[str, ModelConfig] = {
         model_id="Gemma-3-27b-it",
         model_name="pytorch/gemma-3-27b-it-AWQ-INT4",
         quantization="awq",
+        tool_call_parser="pythonic",
+        chat_template=str(PROJECT_ROOT / "scripts" / "tool_chat_template_gemma3_pythonic.jinja"),
     ),
-    "EXAONE-3.5-32B-Instruct": ModelConfig(
-        model_id="EXAONE-3.5-32B-Instruct",
-        model_name="LGAI-EXAONE/EXAONE-3.5-32B-Instruct-AWQ",
-        quantization="awq",
+    "EXAONE-4.0-32B": ModelConfig(
+        model_id="EXAONE-4.0-32B",
+        model_name="LGAI-EXAONE/EXAONE-4.0-32B-AWQ",
+        quantization="awq_marlin",  # bfloat16 지원 (기본 awq 커널은 fp16 전용)
+        dtype="bfloat16",
+        tool_call_parser="hermes",
+        trust_remote_code=True,
     ),
     # ── 14B급 ──
     "DeepSeek-R1-Distill-Qwen-14B": ModelConfig(
@@ -162,7 +171,7 @@ WIN_THRESHOLD = 0.15   # Final Score 차이가 이 값 초과 시 승/패, 이�
 
 # ── vLLM 서버 설정 ──────────────────────────────────────────────────────────
 
-VLLM_STARTUP_TIMEOUT = 600   # 초 (32B 모델 로딩 대응)
+VLLM_STARTUP_TIMEOUT = 1800  # 초 (32B 모델 최초 다운로드(18GB) + 로딩 대응)
 VLLM_HEALTH_POLL_INTERVAL = 5  # 초
 
 # ── 사용자 대행 에이전트 ─────────────────────────────────────────────────────
