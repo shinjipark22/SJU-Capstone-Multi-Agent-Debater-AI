@@ -11,18 +11,23 @@ LangGraph 메인 토론 그래프 기반.
 
 import asyncio
 import json
+import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 from pydantic import BaseModel, field_validator
 
+from src.final_evaluator import build_final_report
 from src.graph.main_graph import build_debate_graph
+from src.live_analyzer import DebatrixJudge, project_frontend_event
 from src.models import DebateInitRequest
 from src.phase0.persona_factory import create_agents, AgentPersona
 from src.state import AgentSnapshot, DebateState, build_initial_state, generate_session_id
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Multi-Agent Debater AI",
@@ -32,6 +37,58 @@ app = FastAPI(
 
 # ── LangGraph 메인 그래프 (싱글톤) ────────────────────────────────────────
 debate_graph = build_debate_graph()
+
+# ── 세션별 실시간 분석기 캐시 ──────────────────────────────────────────────
+# 토론 세션 단위로 DebatrixJudge 인스턴스를 유지, 턴별 누적 분석 + 최종 리포트 생성을 위해.
+# (is_finished=True 이후에도 유지 — 최종 리포트 생성 후 삭제)
+_session_judges: Dict[str, DebatrixJudge] = {}
+# 최종 리포트 캐시 — 같은 세션에서 반복 호출 시 재사용
+_final_reports: Dict[str, dict] = {}
+
+
+def _build_teams_from_state(initial_state: DebateState) -> dict:
+    """initial_state에서 PRO/CON 팀 구성을 만든다 (judge init용)."""
+    pro: list = []
+    con: list = []
+    user_stance = initial_state.get("user_stance", "PRO")
+    for agent in initial_state.get("agents", []):
+        aid = agent.get("agent_id") if isinstance(agent, dict) else agent.agent_id
+        side = agent.get("stance") if isinstance(agent, dict) else agent.stance
+        (pro if side == "PRO" else con).append(aid)
+    # user 포함
+    (pro if user_stance == "PRO" else con).append("user")
+    return {"PRO": sorted(pro), "CON": sorted(con)}
+
+
+async def _run_judge_turn(judge: DebatrixJudge, entry: dict) -> Optional[dict]:
+    """judge.judge_turn을 async로 실행. 실패 시 None 반환 (debate는 계속)."""
+    speaker = entry.get("speaker_id") or entry.get("speaker") or ""
+    stance = entry.get("stance") or entry.get("side") or "PRO"
+    phase = entry.get("phase") or ""
+    content = entry.get("content") or entry.get("text") or ""
+    target = entry.get("target_id")
+    if target in (None, "None", ""):
+        target = None
+
+    def _call():
+        try:
+            analysis = judge.judge_turn(
+                speaker_id=speaker,
+                speaker_stance=stance,
+                phase=phase,
+                speech_content=content,
+                target_id=target,
+            )
+            if analysis is None:
+                return None  # 분석 대상 외 phase
+            live = judge.memory.live_debate_snapshot()
+            analysis_row = judge.memory.analysis_memory[-1]
+            return project_frontend_event(analysis_row, live)
+        except Exception as e:
+            logger.warning("live_analyzer 실패: %s", e)
+            return None
+
+    return await asyncio.to_thread(_call)
 
 
 # ── 요청 모델 ─────────────────────────────────────────────────────────────
@@ -61,11 +118,19 @@ def _extract_new_entries(prev_history: list, cur_history: list) -> list:
     return cur_history[prev_len:]
 
 
+_WAITING_ALIAS = {
+    # 내부 노드 분할이 API 계약에 노출되지 않도록 통합 이름으로 매핑
+    "user_free_rebuttal_defense": "user_free_rebuttal",
+    "user_free_rebuttal_attack": "user_free_rebuttal",
+}
+
+
 def _get_waiting_info(config: dict) -> tuple:
     """현재 그래프 상태에서 waiting_for, is_finished를 추출한다."""
     graph_state = debate_graph.get_state(config)
     if graph_state and graph_state.next:
-        return graph_state.next[0], False
+        raw = graph_state.next[0]
+        return _WAITING_ALIAS.get(raw, raw), False
     return "", True
 
 
@@ -83,6 +148,22 @@ def _load_topic(topic_id: str) -> dict:
             if t["id"] == topic_id:
                 return t
     raise HTTPException(status_code=404, detail=f"topic ID '{topic_id}'를 찾을 수 없습니다.")
+
+
+def _load_topic_for_evaluation(topic_id: str) -> dict:
+    """평가 API는 과거 프론트 세션의 카테고리 ID도 방어적으로 처리한다."""
+    try:
+        return _load_topic(topic_id)
+    except HTTPException as e:
+        if e.status_code != 404:
+            raise
+        logger.warning("평가 topic_id를 topics 파일에서 찾지 못해 기본 라벨로 진행합니다: %s", topic_id)
+        return {
+            "id": topic_id,
+            "title": topic_id,
+            "pro": "찬성",
+            "con": "반대",
+        }
 
 
 def _create_initial_state(request: DebateInitRequest, topic_dict: dict) -> DebateState:
@@ -130,6 +211,16 @@ async def initialize_debate(request: DebateInitRequest):
     session_id = generate_session_id()
     config = {"configurable": {"thread_id": session_id}}
 
+    # 세션별 실시간 분석기 준비
+    judge = DebatrixJudge(
+        topic=topic_dict["title"],
+        debate_format=request.debate_format,
+        user_id="user",
+        user_stance=request.user_stance,
+        teams=_build_teams_from_state(initial_state),
+    )
+    _session_judges[session_id] = judge
+
     async def event_stream():
         # 세션 시작 이벤트
         yield _sse_event("session", {"session_id": session_id, "topic": topic_dict["title"]})
@@ -147,6 +238,10 @@ async def initialize_debate(request: DebateInitRequest):
             for entry in new_entries:
                 entry_dict = dict(entry) if isinstance(entry, dict) else entry
                 yield _sse_event("entry", entry_dict)
+                # 실시간 분석 — 턴 발행 직후 점수 emit
+                ev = await _run_judge_turn(judge, entry_dict)
+                if ev is not None:
+                    yield _sse_event("analysis", ev)
 
             prev_history = list(cur_history)
 
@@ -179,6 +274,8 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             detail="세션을 찾을 수 없거나 이미 완료된 토론입니다.",
         )
 
+    judge = _session_judges.get(session_id)
+
     async def event_stream():
         # 현재 히스토리 길이 기록
         current_values = graph_state.values or {}
@@ -199,6 +296,11 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             for entry in new_entries:
                 entry_dict = dict(entry) if isinstance(entry, dict) else entry
                 yield _sse_event("entry", entry_dict)
+                # 실시간 분석 — 턴 발행 직후 점수 emit
+                if judge is not None:
+                    ev = await _run_judge_turn(judge, entry_dict)
+                    if ev is not None:
+                        yield _sse_event("analysis", ev)
 
             prev_history = list(cur_history)
 
@@ -210,6 +312,8 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             final_state = debate_graph.get_state(config)
             if final_state and final_state.values:
                 synthesis_draft = final_state.values.get("synthesis_draft", "")
+            # 완료된 세션의 judge는 최종 리포트 생성을 위해 유지
+            # (별도 엔드포인트 GET /debate/{id}/final-report에서 소비 후 정리)
 
         yield _sse_event("waiting", {
             "session_id": session_id,
@@ -248,6 +352,71 @@ def get_debate_state(session_id: str):
     }
 
 
+@app.get("/debate/{session_id}/final-report")
+def get_final_report(session_id: str, refresh: bool = False):
+    """종료된 토론 세션의 최종 평가 리포트.
+
+    - 토론이 `is_finished=True` 이후에 호출 권장.
+    - `refresh=true` 쿼리 파라미터 시 캐시 무시하고 재생성.
+    - judge 인스턴스(`_session_judges`)와 LangGraph state를 사용.
+    """
+    if not refresh and session_id in _final_reports:
+        return _final_reports[session_id]
+
+    judge = _session_judges.get(session_id)
+    if judge is None:
+        raise HTTPException(
+            status_code=404,
+            detail="세션의 분석 데이터를 찾을 수 없습니다 (judge 없음).",
+        )
+
+    config = {"configurable": {"thread_id": session_id}}
+    graph_state = debate_graph.get_state(config)
+    if not graph_state or not graph_state.values:
+        raise HTTPException(status_code=404, detail="세션 상태를 찾을 수 없습니다.")
+
+    values = graph_state.values
+    analysis_memory = list(judge.memory.analysis_memory)
+    speech_memory = list(judge.memory.speech_memory)
+    live_debate = judge.memory.live_debate_snapshot()
+
+    if not analysis_memory:
+        raise HTTPException(
+            status_code=400,
+            detail="분석 메모리가 비어 있습니다. 토론이 진행되지 않았거나 평가 대상 phase가 없습니다.",
+        )
+
+    try:
+        report = build_final_report(
+            topic=values.get("topic", ""),
+            debate_format=values.get("debate_format") or judge.memory.debate_format,
+            user_stance=values.get("user_stance", "PRO"),
+            analysis_memory=analysis_memory,
+            speech_memory=speech_memory,
+            live_debate=live_debate,
+        )
+    except Exception as e:
+        logger.exception("[final-report] 빌드 실패: %s", e)
+        raise HTTPException(status_code=500, detail=f"final report 생성 실패: {e}")
+
+    payload = report.model_dump()
+    _final_reports[session_id] = payload
+    return payload
+
+
+@app.delete("/debate/{session_id}")
+def delete_session_cache(session_id: str):
+    """세션 관련 메모리 캐시 정리 (judge, final report).
+
+    토론 종료 + 리포트 조회 후 리소스 회수용.
+    """
+    removed = {
+        "judge": _session_judges.pop(session_id, None) is not None,
+        "final_report": _final_reports.pop(session_id, None) is not None,
+    }
+    return {"session_id": session_id, "removed": removed}
+
+
 @app.get("/topics")
 def get_topics():
     """사용 가능한 토론 주제 목록을 반환한다."""
@@ -262,3 +431,123 @@ def get_topics():
 def health_check():
     """서버 상태 확인."""
     return {"status": "ok", "version": "2.0.0", "graph": "langgraph", "streaming": "SSE"}
+
+
+# ── 토론 전후 사용자 평가 ──────────────────────────────────────────────────
+# evaluation/ 패키지의 analyze_user_before_after() 를 vLLM 인스턴스로 호출.
+# 5가지 지표(근거 확장성/지식 구체성/근거 타당성/논리 추론 밀도/관점 다각성)를
+# 토론 전·후 × 찬·반 4쌍에 대해 채점하고, 100점 환산 + 변화량(delta) 까지 반환.
+
+from evaluation import analyze_user_before_after
+
+
+class EvaluateRequest(BaseModel):
+    """토론 전·후 사용자 답변 (찬성/반대 측 모두 입력)."""
+    pre_pro: str
+    pre_con: str
+    post_pro: str
+    post_con: str
+
+
+class MetricScore(BaseModel):
+    label: str
+    score: int
+    reason: str
+
+
+class PhaseResult(BaseModel):
+    evidence_expansion: MetricScore
+    knowledge_specificity: MetricScore
+    evidence_validity: MetricScore
+    reasoning_density: MetricScore
+    perspective_diversity: MetricScore
+    average_100: float
+    overall_summary: str
+
+
+class SideResult(BaseModel):
+    pre: PhaseResult
+    post: PhaseResult
+    delta_100: float  # post - pre (양수 = 토론 후 향상)
+
+
+class EvaluateResponse(BaseModel):
+    topic_id: str
+    topic: str
+    pro_label: str
+    con_label: str
+    pro: SideResult
+    con: SideResult
+
+
+def _build_phase_result(phase: dict) -> PhaseResult:
+    s = phase["scores"]
+    return PhaseResult(
+        evidence_expansion=MetricScore(**{
+            "label": s["evidence_expansion"]["label"],
+            "score": s["evidence_expansion"]["score"],
+            "reason": s["evidence_expansion"]["reason"],
+        }),
+        knowledge_specificity=MetricScore(**{
+            "label": s["knowledge_specificity"]["label"],
+            "score": s["knowledge_specificity"]["score"],
+            "reason": s["knowledge_specificity"]["reason"],
+        }),
+        evidence_validity=MetricScore(**{
+            "label": s["evidence_validity"]["label"],
+            "score": s["evidence_validity"]["score"],
+            "reason": s["evidence_validity"]["reason"],
+        }),
+        reasoning_density=MetricScore(**{
+            "label": s["reasoning_density"]["label"],
+            "score": s["reasoning_density"]["score"],
+            "reason": s["reasoning_density"]["reason"],
+        }),
+        perspective_diversity=MetricScore(**{
+            "label": s["perspective_diversity"]["label"],
+            "score": s["perspective_diversity"]["score"],
+            "reason": s["perspective_diversity"]["reason"],
+        }),
+        average_100=phase["average_100"],
+        overall_summary=phase.get("overall_summary", ""),
+    )
+
+
+@app.post("/evaluation", response_model=EvaluateResponse)
+async def evaluate_user_before_after(req: EvaluateRequest, topic_id: str):
+    """
+    토론 전·후 사용자 답변(찬·반 양쪽)을 5개 지표로 채점하고 변화량을 반환한다.
+
+    - **topic_id**: query 파라미터 (예: `tech_001`). topics JSON 에서 title/pro/con 자동 조회.
+    - 요청 body: pre_pro / pre_con / post_pro / post_con 각각 문자열.
+    - 응답: pro/con 각 진영의 pre/post 점수(5개 지표 + 100점 환산 + 요약) + delta_100.
+    """
+    topic_data = _load_topic_for_evaluation(topic_id)
+
+    try:
+        # vLLM 호출이 무거우므로 thread pool 에서 실행 (이벤트 루프 차단 방지)
+        result = await asyncio.to_thread(
+            analyze_user_before_after,
+            req.pre_pro, req.pre_con, req.post_pro, req.post_con,
+            topic=topic_data["title"],
+        )
+    except Exception as e:
+        logger.exception("평가 실패")
+        raise HTTPException(status_code=500, detail=f"평가 중 오류: {e}")
+
+    return EvaluateResponse(
+        topic_id=topic_id,
+        topic=topic_data["title"],
+        pro_label=topic_data.get("pro", "찬성"),
+        con_label=topic_data.get("con", "반대"),
+        pro=SideResult(
+            pre=_build_phase_result(result["pro"]["pre"]),
+            post=_build_phase_result(result["pro"]["post"]),
+            delta_100=result["pro"]["delta_100"],
+        ),
+        con=SideResult(
+            pre=_build_phase_result(result["con"]["pre"]),
+            post=_build_phase_result(result["con"]["post"]),
+            delta_100=result["con"]["delta_100"],
+        ),
+    )

@@ -1,0 +1,2018 @@
+[
+  {
+    "file": "econ_001_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_001",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "agent_3과 user가 반복적으로 동일한 GDP 성장률 수치(-1.8%, -6.7%)와 제재 시점(2019년 5월)을 언급했으며, agent_1과 agent_2도 유사한 논거를 여러 차례 반복했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성 진영에서 미국의 제재와 GDP 하락 수치를 반복 사용했고, 반대 진영에서도 이란의 경제 정책 실패와 지정학적 도발 논거를 반복적으로 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "대부분의 참가자가 각 단계에서 일관된 입장을 유지했으나, agent_1이 중간에 찬성 논리를 일부 사용하는 혼선을 보였습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 참가자가 전문적이고 예의바른 논조를 유지했으며, 인신공격이나 욕설은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적인 통계 수치(GDP 성장률, 실업률, 유가 등)를 다수 인용했지만 검색 도구를 전혀 사용하지 않고 수치를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "검증되지 않은 구체적 수치들(-2.4%, -1.8%, -6.7%, $76.85 등)과 존재하지 않는 사건명('드루즈 교도소 폭동', '아부수다 석유 시설 공격')을 단정적으로 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-추론 구조를 갖추고 있으나, 일부 발언에서 논리적 연결이 약하거나 사실 나열에 그치는 부분이 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 3,
+        "reason": "대부분 한국어로 작성되었으나, user의 마지막 synthesis에서 중국어가 대량 혼재되어 심각한 언어 규칙 위반이 발생했습니다."
+      }
+    },
+    "mean_llm_score": 2.75
+  },
+  {
+    "file": "econ_001_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_001",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "특히 agent_1이 미국의 중동 개입과 제재 관련 논거를 여러 차례 반복하며, user도 이란의 행동과 미국의 중동 정책 관련 논거를 계속 되풀이했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성 진영에서 미국의 중동 개입과 전쟁 비용 관련 논거가 agent_3과 user 사이에서 중복되었고, 반대 진영도 이란의 해상 기지 공격과 경제 충격 관련 논거를 반복했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "대부분의 참여자가 각 단계에서 자신의 입장을 일관되게 유지했으나, role_reversal 단계에서 의도된 역할 변경이 제대로 이루어졌습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 4,
+        "reason": "전체적으로 전문적이고 예의바른 논조를 유지했으나, 일부 발언에서 약간 공격적인 표현이 있었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "GDP 감소율, 석유 수송량, FDI 감소 등 구체적 통계가 필요한 상황에서 검색 도구를 사용하지 않고 수치를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "2019년 드루즈 교도소 폭동, 아부수다 석유 시설 공격 등 검증되지 않은 구체적 사건명과 수치들을 단정적으로 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-결론 구조는 갖추고 있으나, 일부 논거에서 논리적 연결이 약하고 사실 나열에 그친 부분이 있습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어로 작성되었으나, user의 마지막 발언에서 중국어가 섞여 들어가는 오류가 있었습니다."
+      }
+    },
+    "mean_llm_score": 2.88
+  },
+  {
+    "file": "econ_001_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_001",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "대부분의 에이전트가 미국의 중동 개입, 제재, GDP 성장률 하락 등 동일한 논거를 반복적으로 사용했습니다. 특히 user는 여러 발언에서 동일한 근거를 반복했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성 진영 에이전트들이 미국의 중동 개입, 이란 GDP 하락, 제재 효과 등 유사한 논거를 계속 되풀이했습니다. 반대 진영도 호르무즈 해협, 이란 도발 등을 반복했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "각 에이전트는 자신의 입장을 일관되게 유지했으며, role_reversal 단계에서의 입장 변경은 토론 규칙에 따른 것으로 감점하지 않습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 에이전트가 전문적이고 예의바른 논조를 유지했으며, 욕설이나 인신공격은 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 3,
+        "reason": "구체적인 통계와 수치를 인용하는 상황이 많았지만, 실제 검색 도구 사용은 user가 한 번만 시도했고 다른 에이전트들은 검색 없이 수치를 사용했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "여러 에이전트가 구체적인 GDP 성장률(-4%, -7%, -4.6% 등)과 경제 손실 규모($100억 달러, $500억 달러 등)를 검증 없이 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "논리적 구조는 갖추고 있으나, 근거와 추론의 연결이 약하고 주장-근거-추론 구조가 완전하지 않은 경우가 많았습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어로 작성되었으나, user의 마지막 발언에서 중국어가 섞여 나타났습니다."
+      }
+    },
+    "mean_llm_score": 3.12
+  },
+  {
+    "file": "econ_001_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_001",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "user는 호르무즈 해협 봉쇄 위협과 핵합의 파기 등 동일한 논거를 반복적으로 사용했으며, 새로운 근거나 사례 추가가 부족했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성 진영 내에서 미국의 중동 개입 비용, 이라크/아프가니스탄 전쟁 경제 영향 등 유사한 논거가 반복되어 독창성이 부족했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "role_reversal 단계에서 의도적으로 반대 입장을 취한 것을 제외하고는 일관된 찬성 입장을 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전 과정에서 전문적이고 예의 바른 논조를 유지했으며, 인신공격이나 욕설이 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "GDP 성장률, 유가 상승폭, 전쟁 비용 등 구체적 수치를 다수 인용했으나 검색 도구를 전혀 사용하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "2019년 드루즈 교도소 폭동, 아부수다 석유 시설 공격 등 구체적 사건명을 검증 없이 단정적으로 인용하여 날조 가능성이 높습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-추론 구조는 갖추었으나 논리적 연결이 약하고, 사실 나열에 치우친 부분이 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 1,
+        "reason": "synthesis 단계 마지막 발언에서 중국어로 전환하여 한국어 규칙을 심각하게 위반했습니다."
+      }
+    },
+    "mean_llm_score": 2.38
+  },
+  {
+    "file": "econ_002_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_002",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "일부 에이전트는 논거를 다양화했지만, 'user'는 글로벌 무역 파동과 경제 성장률 하락을 반복적으로 언급했습니다."
+      },
+      "team_repetition": {
+        "score": 4,
+        "reason": "찬성팀 내에서 대체로 다른 논거를 제시했으나, 글로벌 스태그플레이션과 경제 성장률 하락을 공통적으로 언급하는 경우가 있었습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "모든 에이전트가 각 단계에서 자신의 입장을 일관되게 유지했으며, role_reversal에서도 규칙에 따라 적절히 입장을 바꿨습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언이 전문적이고 예의바른 논조를 유지했으며, 욕설이나 인신공격은 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계와 수치를 다수 인용했으나, search_web 도구를 명시적으로 사용한 것은 user의 role_reversal에서만 확인됩니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "검증 없이 구체적 수치(미국 제조업 생산 10% 증가, 고용률 1.5% 포인트 상승 등)를 단정적으로 제시한 경우가 다수 있었습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-추론 구조를 갖추고 있으나, 일부는 근거 없는 단정적 주장에 그쳤습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "전반적으로 자연스러운 한국어로 작성되었으나, 일부 어색한 표현과 번역체 문장이 있었습니다."
+      }
+    },
+    "mean_llm_score": 3.62
+  },
+  {
+    "file": "econ_002_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_002",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 4,
+        "reason": "대부분 참여자가 새로운 논거를 추가하였으나, 일부 참여자는 같은 논거를 반복 사용하는 경우가 있었습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "같은 진영 내에서 유사한 논거(경제적 부담 증가, 제조업 생산 증가 등)가 반복적으로 사용되었습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "각 참여자는 role_reversal 단계에서의 의도적 전환을 제외하고 자신의 입장을 일관되게 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 참여자가 전문적이고 정중한 논조를 유지했으며, 욕설이나 인신공격은 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계와 수치를 인용하는 상황이 많았으나 대부분 검색 도구를 사용하지 않고 수치를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적 수치(연평균 4% 성장률 등)와 연구 결과를 검증 없이 단정적으로 인용한 경우가 다수 발견되었습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-추론 구조를 갖추고 있으나, 일부는 사실 나열에 그치는 경우가 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "모든 발언이 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 깨진 문자는 없었습니다."
+      }
+    },
+    "mean_llm_score": 3.75
+  },
+  {
+    "file": "econ_002_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_002",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "많은 발언자가 '트럼프 관세 정책이 초기에는 미국 제조업에 일시적인 도움을 주었지만 장기적으로는 글로벌 무역 갈등을 증폭시키고 스태그플레이션을 촉발'이라는 동일한 논거를 반복했습니다."
+      },
+      "team_repetition": {
+        "score": 1,
+        "reason": "찬성진영에서 'agent_4', 'agent_5', 'user'가 '초기 일시적 도움 → 장기적 스태그플레이션' 논거를 지속적으로 반복하여 완전히 같은 근거를 되풀이했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "대부분 발언자가 일관된 입장을 유지했으나, agent_2가 opening에서 반대 입장이라고 소개하면서 찬성 논거를 펼치는 혼란을 보였습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언자가 전문적이고 정중한 논조를 유지했으며, 욕설이나 인신공격 없이 논의를 진행했습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계와 수치를 인용한 상황이 많았음에도 불구하고 검색 도구 사용이 매우 제한적이었으며, 대부분 search_web 언급만 있고 실제 검색 결과 제시는 부족했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적인 수치들(GDP 성장률 3.7%→2.6%, 제조업 생산 증가율 등)이 많이 인용되었으나 검색 결과로 검증되지 않아 날조 가능성이 높습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-결론 구조는 갖추고 있으나, 논리적 연결이 약하고 단순한 사실 나열에 그치는 경우가 많았습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "전반적으로 자연스러운 한국어를 사용했으나, 일부 문장에서 어색한 표현이나 문법적 오류가 발견되었습니다."
+      }
+    },
+    "mean_llm_score": 2.88
+  },
+  {
+    "file": "econ_002_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_002",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "일부 참여자가 같은 수치나 논거를 반복하는 경향이 있었지만, 전반적으로는 토론이 진행되면서 새로운 관점들을 추가했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "같은 진영 내에서 유사한 논거가 반복되는 경우가 있었으나, 각자 다른 측면을 강조하여 어느 정도 차별화를 시도했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "모든 참여자가 자신의 입장을 일관되게 유지했으며, 역할반전 단계에서는 규칙에 따라 적절히 입장을 전환했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언이 전문적이고 예의 바른 논조를 유지했으며, 인신공격이나 독성 언어는 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계와 수치를 인용하는 상황이 많았지만 대부분의 참여자가 검색 도구를 사용하지 않고 수치를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "여러 참여자가 구체적인 수치(GDP 성장률, 생산 증가율 등)를 검증 없이 단정적으로 인용하여 날조 가능성이 높습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-추론의 논리적 구조를 갖추고 있으며, 체계적인 논증을 시도했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 3,
+        "reason": "대부분의 발언이 한국어로 작성되었으나, user의 마지막 synthesis에서 중국어가 섞여 나오는 등 일부 언어 준수 문제가 있었습니다."
+      }
+    },
+    "mean_llm_score": 3.38
+  },
+  {
+    "file": "econ_003_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_003",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "사용자는 초기에 2019년 아랍 Spring, 2011년 리비아 혼란 등 같은 사례를 반복적으로 인용했으나, 후반부에서는 지속가능한 농업 기술 도입 등 새로운 논거를 추가했습니다."
+      },
+      "team_repetition": {
+        "score": 4,
+        "reason": "찬성측 팀원들이 식량 안보의 중요성이라는 공통 주제를 다루었지만, 각자 다른 근거와 접근법(경제적 영향, 사회적 영향, 기술적 해결책 등)을 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "role_reversal 단계에서 의도적으로 반대 입장으로 전환한 것 외에는 찬성 입장을 일관되게 유지했으나, 중간에 일부 논리가 혼재된 부분이 있었습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 전문적이고 예의바른 논조를 유지했으며, 욕설이나 인신공격 없이 건설적인 토론을 진행했습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계나 수치를 인용해야 하는 상황에서 'search_web에서 찾은 데이터'라고 언급했지만 실제로는 검색 도구를 사용하지 않고 가상의 데이터를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "2019년 아랍 Spring 이후 이집트 식량 가격 20% 상승, 세계 식량 가격지수 급등 등 구체적 수치를 검증 없이 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-결론의 구조를 갖추고 논리적으로 전개했으나, 일부 근거의 신빙성 부족과 논증 간의 연결이 약한 부분이 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 3,
+        "reason": "대부분 한국어로 작성되었으나, role_reversal 단계에서 중국어 문장이 대량 포함되어 언어 규칙을 위반했습니다."
+      }
+    },
+    "mean_llm_score": 3.38
+  },
+  {
+    "file": "econ_003_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_003",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "동일한 우루두스 반란 사례와 식량 가격 30% 상승을 여러 번 반복 인용했으며, 새로운 논거나 사례 제시가 부족했습니다."
+      },
+      "team_repetition": {
+        "score": 1,
+        "reason": "agent_3과 user 모두 우루두스 반란으로 이집트 식량 생산 중단과 30% 가격 상승이라는 동일한 사례를 반복 사용했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "role_reversal 단계에서 적절히 입장을 전환했으나, 일부 발언에서 자신을 '반대2'라고 잘못 소개하는 실수가 있었습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 정중하고 전문적인 논조를 유지했으며, 욕설이나 인신공격은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계와 수치를 다수 인용했지만 search_web 도구 사용이 매우 제한적이었고, 대부분의 수치는 검증되지 않은 상태로 제시되었습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "우루두스 반란, 이집트 식량 생산 중단, 특정 GDP 감소율 등 구체적 사건과 수치를 단정적으로 인용했으나 이들의 실제 존재나 정확성이 의심됩니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-결론 구조를 갖추려 노력했으나, 근거의 신빙성 부족과 논리적 연결고리의 약화로 설득력이 제한적이었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어로 작성되었으나, 일부 발언에서 중국어 문장이 포함되는 등의 언어 혼용이 있었습니다."
+      }
+    },
+    "mean_llm_score": 2.88
+  },
+  {
+    "file": "econ_003_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_003",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "사용자가 opening에서 사용한 식량 가격 폭등과 글로벌 식량 안보 중요성 논거를 여러 단계에서 반복적으로 사용하여 새로운 논거 제시가 부족했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 팀의 여러 에이전트가 중동 지역의 식량 가격 상승과 농업 투자 필요성이라는 유사한 논거를 반복적으로 사용했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "role_reversal 단계에서 의도적으로 입장을 바꾸었고, 그 외 단계에서는 찬성 입장을 일관되게 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 전문적이고 정중한 논조를 유지하며 욕설이나 인신공격이 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적인 통계와 수치를 인용하면서도 search_web 도구를 제한적으로만 사용했고, 많은 경우 검색 없이 수치를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "2011년 아랍의 봄 이후 식량 가격 40% 상승, 2022년 아프리카 식량 부족 등 구체적 수치와 사건을 검색 없이 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 갖추고 있으나, 일부 근거가 검증되지 않아 논증의 강도가 약화되었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어를 사용했으나, role_reversal 단계에서 중국어 문장이 일부 섞여 있어 감점했습니다."
+      }
+    },
+    "mean_llm_score": 3.5
+  },
+  {
+    "file": "econ_003_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "econ_003",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "일부 참가자들이 같은 논거나 사례를 반복하여 사용했습니다. 특히 2011년 아랍의 봄 사례와 식량 가격 상승에 대한 논거가 여러 차례 재사용되었습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "같은 진영 내에서 유사한 논거와 사례들이 반복적으로 제시되었습니다. 찬성 측은 식량 가격 상승과 2011년 아랍의 봄 사례를, 반대 측은 경제적 손실과 원유 가격 영향을 반복했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "각 단계에서 자신의 입장을 일관되게 유지했으며, 역할반전 단계에서의 입장 변경은 토론 규칙에 따른 것이므로 적절합니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 참가자가 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격은 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적인 통계와 수치를 인용해야 하는 상황이 많았음에도 검색 도구를 사용하지 않고 구체적 수치들을 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "여러 구체적 수치와 기관명이 검증 없이 제시되었습니다. 예를 들어 '이라이브 뉴스', '세계 음식 연합' 등의 기관명과 구체적 수치들이 사실 확인 없이 사용되었습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-추론의 논리적 구조를 갖추고 있으며, 체계적인 논증을 제시했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어로 작성되었으나, 일부 발언에서 중국어 문장이 섞여 있고 문법적 오류가 있었습니다."
+      }
+    },
+    "mean_llm_score": 3.12
+  },
+  {
+    "file": "env_001_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_001",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "여러 발언에서 동일한 이라크/시리아 사례와 수치를 반복 사용하고, 'search_web' 언급도 반복됨"
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 측이 내전과 빈곤 논거를 공유하지만, 각자 다른 사례(이라크/시리아, 아프가니스탄/콩고)를 활용해 어느 정도 차별화함"
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "역할반전 단계에서 의도적으로 입장을 바꾸는 것을 제외하고는 모든 단계에서 일관된 입장 유지"
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 정중하고 전문적인 논조를 유지하며, 욕설이나 인신공격 없음"
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계와 수치를 다수 인용했으나 실제 검색 도구 사용 없이 'search_web'만 언급함"
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적 수치들(이라크 460만 명, 시리아 680만 명 등)을 검증 없이 단정적으로 제시하여 날조 가능성 높음"
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 갖추고 있으나 일부 발언에서 논리적 연결이 약함"
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "전반적으로 자연스러운 한국어 사용하나 'livelihood' 등 영어 단어 일부 섞임"
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "env_001_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_001",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자(찬성)가 개막 발언과 후속 발언에서 동일한 소말리아와 시리아 사례를 반복 사용하여 다양성이 부족함."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성 측 에이전트들이 모두 동일한 소말리아, 시리아 사례와 유사한 내전/빈곤 통계를 반복적으로 사용함."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "역할반전 구간에서 의도적으로 입장을 바꾼 것 외에는 모든 에이전트가 일관되게 자신의 입장을 유지함."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언이 전문적이고 예의바른 논조를 유지하며, 욕설이나 인신공격이 전혀 없음."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계와 수치를 다수 인용했지만 search_web 도구를 실제로 사용하지 않고 언급만 했음."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "소말리아 140만명, 시리아 687만명, 니제르 100만명 등 구체적 수치들이 검증되지 않은 채 단정적으로 제시됨."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조로 논리적으로 구성되어 있으나, 일부 근거의 신빙성 문제가 있음."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "모든 발언이 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 문법 오류가 없음."
+      }
+    },
+    "mean_llm_score": 3.12
+  },
+  {
+    "file": "env_001_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_001",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "동일한 시리아 내전 사례(600만 명)와 가나 홍수/폭염 사례를 여러 차례 반복적으로 사용했으나, 다양한 논거도 함께 제시했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "같은 찬성 진영에서 시리아 내전 사례와 아프가니스탄 사례 등 유사한 논거를 반복적으로 사용하여 독립적인 논거 개발이 부족합니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "role_reversal 단계에서 의도적으로 입장을 바꾼 것을 제외하고는 각 단계에서 자신의 입장을 일관되게 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언에서 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격은 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계와 수치를 언급하면서도 실제 검색 도구를 사용하지 않고, '**search_web**에서 확인'이라는 표현만 사용했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "UNHCR 보고서의 구체적 수치(700만→1,300만), 미래 30년간 2억 명 예측 등을 검증 없이 단정적으로 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 갖추어 논리적으로 구성했으나, 일부 사례에서 인과관계 설명이 부족했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "자연스러운 한국어로 작성되었으며, 외국어 섞임이나 문자 깨짐 없이 완벽하게 작성했습니다."
+      }
+    },
+    "mean_llm_score": 3.5
+  },
+  {
+    "file": "env_001_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_001",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "여러 에이전트가 동일한 논거와 사례를 반복적으로 사용했습니다. 예를 들어, agent_4와 agent_1은 시리아 내전, 콩고 민주공화국 사례를 중복해서 사용했고, 기후변화 관련 통계도 반복 인용되었습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "같은 진영 내에서 논거 반복이 심각했습니다. 찬성 측은 시리아, 콩고, 아프가니스탄 내전 사례를 여러 에이전트가 중복 사용했고, 반대 측도 기후변화 통계와 아프리카 사례를 반복적으로 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "각 단계에서 자신의 입장을 일관되게 유지했으며, role_reversal 단계에서의 입장 변경은 토론 규칙에 따른 의도적 전환으로 감점하지 않았습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 참여자가 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격 없이 토론을 진행했습니다."
+      },
+      "web_search_tool_use": {
+        "score": 3,
+        "reason": "user는 구체적 통계 인용 시 search_web을 언급했지만, 다른 에이전트들은 구체적 수치를 제시하면서도 검색 도구를 사용하지 않아 혼재된 상황입니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적 수치와 기관명에서 날조가 의심됩니다. '2017년 아프리카 기후변화 난민 240만 명', '쿠바니아' 같은 존재하지 않는 국가명, '콩고 민주공화국 2019년 280만 명' 등의 단정적 수치 인용이 검증되지 않았습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-추론 구조를 갖추고 논리적으로 구성되었으나, 일부 발언에서 사실 나열에 그치는 경우가 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "모든 발언이 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 CoT 유출, 깨진 문자 없이 깔끔하게 표현되었습니다."
+      }
+    },
+    "mean_llm_score": 3.5
+  },
+  {
+    "file": "env_002_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_002",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "user는 초기 발언에서 제시한 미국 FED 자료와 9.1% 인플레이션율 등 동일한 논거와 사례를 여러 발언에서 반복적으로 사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "같은 찬성 진영 내에서 미국 에너지 정책 실패와 FED 자료 등 유사한 근거들이 반복되었지만, 일부 다른 관점도 제시되었습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "role_reversal 단계에서 의도적으로 입장을 바꾸었으며, 각 단계 내에서는 일관된 입장을 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 4,
+        "reason": "전반적으로 전문적 논조를 유지했으나, synthesis 단계에서 영어와 중국어가 섞인 부분이 있어 약간의 문제가 있었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계와 수치를 인용하는 상황에서 검색 도구 사용을 언급했지만 실제로는 사용하지 않았으며, 검색 없이 구체적 수치를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "미국 국립통계국(National Statistics Bureau) 등 존재하지 않는 기관명을 인용했고, 구체적 수치들의 정확성이 의심스럽습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 갖추고 논리적으로 구성되었으나, 일부 발언에서 논증의 연결성이 다소 약했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 2,
+        "reason": "대부분은 한국어로 작성되었으나, synthesis 단계에서 영어와 중국어가 대량으로 섞여 언어 규칙을 크게 위반했습니다."
+      }
+    },
+    "mean_llm_score": 2.88
+  },
+  {
+    "file": "env_002_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_002",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "user는 opening과 chained_rebuttal에서 미국 에너지 가격 인상률 40.6%와 거의 동일한 논거를 반복하였습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "agent_3과 user는 미국 에너지 가격 40.6% 상승 등 동일한 통계와 논거를 여러 차례 반복 사용했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "user는 role_reversal 단계에서 정확히 반대 입장으로 전환하고, 이후 다시 찬성 입장으로 돌아가는 등 규칙에 따라 일관되게 입장을 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 정중하고 전문적인 논조를 유지했으며, 욕설이나 인신공격은 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계 수치(40.6% 등)를 인용했으나 검색 도구 없이 단정적으로 제시했고, **search_web**은 실제 검색이 아닌 텍스트 표기에 불과했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "미국의 연간 에너지 가격 인상률 40.6%, 일본의 에너지 가격 2배 상승 등 구체적 수치를 검증 없이 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거 구조는 있으나 검증되지 않은 수치에 의존하여 논증의 신뢰성이 떨어집니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "전반적으로 자연스러운 한국어를 사용했으나 'expose', '**search_web**' 등 일부 영어 표현이 섞여 있었습니다."
+      }
+    },
+    "mean_llm_score": 3.0
+  },
+  {
+    "file": "env_002_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_002",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자는 개회사에서 제시한 '미국 인플레이션률 8.0%', '독일 인플레이션률 7.9%' 등의 동일한 수치와 논거를 여러 차례 반복 사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영은 에너지 정책 실패, 에너지 가격 상승 등 유사한 논거를 공유했지만, 각각 다른 국가 사례나 구체적 접근법을 제시하여 완전한 반복은 아닙니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "각 단계에서 자신의 입장을 일관되게 유지했으며, role_reversal 단계에서의 입장 전환도 토론 규칙에 따른 의도적 변화였습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언에서 전문적이고 정중한 논조를 유지했으며, 욕설이나 인신공격은 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계 수치(인플레이션률, 천연가스 가격 상승률 등)를 다수 인용했지만 검색 도구를 사용하지 않고 단정적으로 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "검증되지 않은 구체적 수치들('천연가스 가격 400% 상승', '독일 인플레이션률 7.9%' 등)을 단정적으로 인용하여 사실 확인이 의심됩니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 갖추고 논리적으로 연결했으나, 일부 근거의 신뢰성 문제로 논증력이 약화되었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어로 작성되었으나, 'expose'와 같은 영어 단어 혼용이 있었습니다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "env_002_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_002",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자(찬성3)는 opening, free_rebuttal, role_reversal, synthesis에서 '에너지 정책 개선으로 인플레이션 완화 가능', '유럽 사례 참조', '재생 에너지 확대' 등 동일한 논거를 반복적으로 제시함."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영 내에서 '에너지 정책 실패', '재생에너지 확대', '유럽 사례'라는 유사한 논거들이 반복적으로 나타나지만, 각자 다른 측면(가격 상승, 효율성, 화석연료 의존도)에서 접근함."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "각 에이전트는 자신의 입장을 일관되게 유지했으며, role_reversal 단계에서의 입장 전환도 규칙에 따라 적절히 수행됨."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 참여자가 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격은 전혀 없음."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 수치(미국 천연가스 400% 상승, CPI 6%, 독일 에너지 가격 28.7% 상승 등)를 인용했으나 검색 도구를 전혀 사용하지 않음."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적 수치들(천연가스 400% 상승, EU 가격 500% 상승, 독일 28.7% 상승 등)이 검증 없이 단정적으로 제시되어 날조 가능성이 높음."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-결론의 논리적 구조를 갖추고 있으며, 사례와 추론을 적절히 연결하여 논증을 구성함."
+      },
+      "korean_language_compliance": {
+        "score": 3,
+        "reason": "대부분 한국어로 작성되었으나, synthesis 단계에서 'ENERGY POLICY CHANGES CAN HAVE...'와 같은 영어 문장이 등장하여 감점."
+      }
+    },
+    "mean_llm_score": 3.0
+  },
+  {
+    "file": "env_003_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_003",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자는 같은 주장(정치적 참여 우선순위)을 논거나 근거의 변화 없이 반복적으로 제시하였으며, 특히 마지막 발언에서 이전 발언들과 매우 유사한 내용을 다시 언급했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "같은 찬성 진영의 agent_3과 일부 유사한 논거(정치적 참여의 효과성)를 공유하고 있지만, 완전히 동일한 사례나 근거를 반복하지는 않았습니다."
+      },
+      "role_consistency": {
+        "score": 3,
+        "reason": "opening에서 잘못된 자기소개(반대1이라고 소개하며 반대 입장 주장)를 했으나, 이후 발언들에서는 찬성 입장을 일관되게 유지했고, role_reversal 단계에서는 규칙에 따라 적절히 입장을 바꿨습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 예의 바른 토론 어조를 유지하였으며, 욕설이나 인신공격 없이 논리적으로 토론에 참여했습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적인 통계나 사례를 인용할 때 검색 도구 사용이 필요했으나 실제로 사용하지 않았으며, 'search_web에 따르면'이라는 표현을 사용했지만 실제 검색은 하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 3,
+        "reason": "그레타 툰베리와 스웨덴 관련 언급에서 구체적인 사실 관계가 불분명하고, 일부 추론적 내용을 단정적으로 제시한 부분이 있습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-추론 구조를 시도했지만, 일부 발언에서 논리적 연결이 약하고 근거가 충분히 뒷받침되지 않은 주장들이 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어로 작성되었으나, 중간에 중국어 문장이 포함된 부분('两者的回答似乎有些混乱...')이 있어 감점되었습니다."
+      }
+    },
+    "mean_llm_score": 3.0
+  },
+  {
+    "file": "env_003_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_003",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "user(찬성)는 opening에서 찬성2라고 했다가 role_reversal에서 반대 입장으로 바꾸었으나, synthesis에서 다시 찬성으로 돌아가며 동일한 논거를 반복적으로 사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "같은 진영 내에서 유사한 논거가 반복되었습니다. 특히 과학적 교육의 인식 변화 효과나 정치적 참여의 직접적 효과 등이 여러 에이전트에 의해 중복 언급되었습니다."
+      },
+      "role_consistency": {
+        "score": 2,
+        "reason": "user는 opening에서 찬성2라고 밝혔으나 내용은 반대 입장을 주장했고, role_reversal에서도 혼란을 보였습니다. 일관된 입장 유지가 부족했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 4,
+        "reason": "전반적으로 전문적이고 예의 바른 논조를 유지했으나, 일부 발언에서 약간의 공격적 표현이 있었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 수치와 통계를 많이 인용했으나 대부분 검색 도구를 사용하지 않고 언급했습니다. agent_2가 한 번 검색을 시도했고, user가 search_web을 언급했지만 실제 검색 결과는 제시되지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적 수치들(예: 2018년까지 전기차 보급률 15%, 환경 친화적 행동 30% 증가 등)이 검증 없이 단정적으로 제시되었습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-추론 구조는 어느 정도 갖추었으나, 논리적 연결이 약하거나 근거가 불충분한 경우가 많았습니다."
+      },
+      "korean_language_compliance": {
+        "score": 2,
+        "reason": "agent_3의 synthesis에서 'praktische Herausforderungen gibt', 'considerable resources sind erforderlich' 등 독일어가 섞여 있어 심각한 외국어 혼입이 발생했습니다."
+      }
+    },
+    "mean_llm_score": 2.5
+  },
+  {
+    "file": "env_003_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_003",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "동일한 논거를 여러 번 반복했습니다. 프랑스 환경세 사례, 클린턴 후보 승리 사례, 정치적 참여의 중요성 등을 계속 재사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 측에서 비슷한 사례들(프랑스, 미국, 네덜란드 등의 환경 정책 사례)을 반복적으로 제시했지만, 일부 다른 논거도 추가했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "각 단계에서 자신의 입장을 일관되게 유지했으며, role_reversal 단계에서의 입장 전환도 의도적으로 잘 수행했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 예의 바르고 전문적인 논조를 유지했으며, 욕설이나 인신공격이 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계나 수치를 인용할 필요가 있는 상황에서 검색 도구를 전혀 사용하지 않았습니다. 특히 '70%가 동의', '40%에 불과' 등의 구체적 수치를 검증 없이 사용했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "2020년 클린턴 후보 승리, 얀스텐 베르그스트롬 같은 인물명 등 구체적이지만 부정확한 정보를 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 대체로 잘 갖추었으나, 일부 논거에서 논리적 연결이 약한 부분이 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "전체적으로 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 문법적 오류가 거의 없었습니다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "env_003_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "env_003",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자는 자신의 여러 발언에서 동일한 논거를 반복적으로 사용했습니다. 정치적 참여가 정책 성과를 높인다는 주장과 스웨덴의 2017년 기후변화법 사례를 여러 번 반복 인용했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성 진영 에이전트들이 스웨덴의 기후변화법 사례를 반복적으로 사용했습니다. agent_5와 사용자가 동일한 스웨덴 2017년 사례를 중복해서 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "사용자는 찬성 입장을 일관되게 유지했고, role_reversal 단계에서 반대 입장으로 전환한 것은 토론 규칙에 따른 의도적 변화로 감점 대상이 아닙니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 전문적이고 예의바른 논조를 유지했습니다. 욕설이나 인신공격 없이 건설적인 토론을 진행했습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계나 수치를 여러 차례 인용했지만(30% 더 높은 정책 실행률, 25% 더 활발한 에너지 절약 행동 등) 검색 도구를 전혀 사용하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "검증되지 않은 구체적 수치들을 단정적으로 제시했습니다. '미국 연구에 따르면 30% 더 높다', '한국 조사에 따르면 25% 더 활발하다' 등의 구체적 수치를 검색 없이 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 잘 갖춘 논증을 제시했습니다. 정치적 참여의 효과성을 사례와 함께 논리적으로 연결했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "전체적으로 자연스러운 한국어로 작성되었습니다. 외국어 혼용이나 문법 오류 없이 깔끔하게 표현했습니다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "poli_001_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_001",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자가 펜타곤 페이퍼 사건을 반복적으로 언급하고, '언론 자유는 민주주의의 핵심' 같은 동일한 논거를 여러 차례 사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 팀 내에서 agent_3과 사용자가 펜타곤 페이퍼 사건과 언론 자유의 중요성을 공통으로 언급했으나, 각자 다른 관점에서 접근했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "각 단계에서 자신의 입장을 일관되게 유지했고, role_reversal 단계에서는 규칙에 따라 입장을 바꾸어 주장했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언이 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격이 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계나 사건을 인용할 때 검색이 필요했으나 'search_web 결과에 따르면'이라고만 언급하고 실제 검색 도구를 사용하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 3,
+        "reason": "아나나드 카슈피아 사건, 미국 국립 NRC 보고서 등 구체적 사건명과 기관명을 언급했으나 검증되지 않은 정보일 가능성이 있습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론의 논리적 구조를 갖추고 있으며, 역사적 사례와 원칙론을 연결하여 논증을 전개했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "전반적으로 자연스러운 한국어를 사용했으나 'pentagon' 같은 영어 단어를 한글로 표기하지 않고 그대로 사용한 부분이 있습니다."
+      }
+    },
+    "mean_llm_score": 3.5
+  },
+  {
+    "file": "poli_001_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_001",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "참여자들이 동일한 논거나 사례를 여러 번 반복 사용했습니다. 특히 NSA 스캔들, 펜타곤 페이퍼 사건, 언론 자유 침해 등을 반복적으로 언급했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "같은 진영 내에서 유사한 논거들이 반복되었습니다. 찬성 진영은 언론 자유 침해를, 반대 진영은 국방 효율성을 계속 강조하며 중복된 내용을 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "역할 반전 단계에서 의도적으로 입장을 바꾼 것 외에는 각 참여자가 자신의 입장을 일관되게 유지했습니다. 다만 일부 발언에서 논리적 혼선이 있었습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 참여자가 전문적이고 예의바른 논조를 유지했으며, 욕설이나 인신공격 없이 토론을 진행했습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계나 수치가 필요한 상황에서 검색 도구를 사용하지 않고 '15% 향상', '7만건 이상' 등의 구체적 수치를 임의로 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "검증되지 않은 구체적 수치와 사건들을 단정적으로 인용했습니다. '2023년 1월 사례', '작전 성공률 15% 향상' 등의 구체적 정보가 사실 확인 없이 제시되었습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-추론 구조를 시도했으나 논리적 연결이 약한 부분들이 있었습니다. 일부 발언은 사실 나열에 그쳤고, 논증의 완성도가 아쉬웠습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대체로 자연스러운 한국어로 작성되었으나, 일부 발언에서 어색한 표현과 문장 구조가 있었습니다. 특히 'pentagon' 같은 영어 표기가 혼용되었습니다."
+      }
+    },
+    "mean_llm_score": 2.75
+  },
+  {
+    "file": "poli_001_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_001",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "여러 발언에서 펜타곤 페이퍼 사건과 언론의 감시 역할을 반복적으로 언급하며 동일한 논거를 재사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "같은 진영 내에서 언론 자유 침해와 민주주의 가치 훼손이라는 유사한 논거가 반복되었으나 일부 독립적인 사례도 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "role_reversal 단계에서 의도적으로 입장을 바꾼 것을 제외하고는 각 단계에서 자신의 입장을 일관되게 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언에서 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적인 통계나 사례를 인용하는 상황에서 검색 도구를 사용해야 했지만 실제로는 사용하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "코트니 스노우 사건과 같은 존재하지 않는 구체적 사건명을 단정적으로 인용하여 사실을 날조했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-추론의 기본 구조는 갖추고 있으나 논리적 연결성이 부족하고 근거의 신빙성에 문제가 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대체로 자연스러운 한국어로 작성되었으나 일부 어색한 표현과 문법적 오류가 있었습니다."
+      }
+    },
+    "mean_llm_score": 3.12
+  },
+  {
+    "file": "poli_001_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_001",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "opening에서 펜타곤 페이퍼 사건과 이라크 전쟁 사례를 제시했는데, 이후 토론에서도 동일한 사건들을 반복적으로 언급하며 새로운 논거를 거의 추가하지 않았습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성 팀 내에서 펜타곤 페이퍼 사건, 이라크 전쟁 사례, 언론 접근 제한의 투명성 저해 논거 등이 중복적으로 사용되었습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "role_reversal 단계에서 의도적으로 입장을 바꾼 것을 제외하고는 찬성 입장을 일관되게 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격은 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계나 수치를 언급하면서도 검색 도구를 사용하지 않았고, 'search_web 결과에 따르면'이라고 언급하면서도 실제 검색은 하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "CNN의 '6개월 동안 중요한 정보를 얻지 못했다'는 구체적 주장, '10,000명 이상의 민간인 희생' 등 검증되지 않은 구체적 수치들을 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-추론의 구조는 있지만, 논리적 연결이 약하고 사례와 결론 사이의 인과관계가 명확하지 않았습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어로 작성되었지만, 'pentagon' 등 일부 용어에서 영어 표기가 혼재되었고, 중간에 중국어가 섞인 부분이 있었습니다."
+      }
+    },
+    "mean_llm_score": 3.0
+  },
+  {
+    "file": "poli_002_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_002",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자는 중국 사례와 녹색강철 탄소감축 효과를 여러 번 반복적으로 언급하며, 특히 탄소 70% 감축과 경쟁력 강화라는 동일한 논거를 반복 사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 팀 내에서 중국 사례와 경제적 효과 논거가 중복되었으나, 실현 가능성과 산업 독점 조장 위험 등 일부 차별화된 논거도 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 2,
+        "reason": "role_reversal에서 입장을 바꾼 것은 의도된 규칙이지만, 자유토론과 종합에서 찬성 입장과 반대 입장을 혼재하여 일관성이 없었습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언에서 전문적이고 건설적인 논조를 유지했으며, 인신공격이나 부적절한 표현이 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계(탄소 70% 감축, 중국 45% 증가)를 언급했으나 search_web 도구를 실제로 사용하지 않고 단순히 텍스트로만 언급했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "중국 녹색강철 45% 증가, 탄소 70% 감축 등 구체적 수치를 검증 없이 단정적으로 인용하여 날조 가능성이 높습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 갖추고 논리적으로 연결했으나, 일부 근거의 신빙성 부족으로 완전하지 않습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "자연스러운 한국어로 작성되었으며, 외국어 섞임이나 문법 오류가 없었습니다."
+      }
+    },
+    "mean_llm_score": 3.0
+  },
+  {
+    "file": "poli_002_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_002",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 4,
+        "reason": "사용자는 동일한 논거를 반복하지 않고 독점 조장, 규제 부담, 시장 경쟁력 약화 등 다양한 관점에서 논리를 전개했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영 내에서 독점 조장이라는 핵심 논거를 공유하지만, 각자 다른 측면(시장점유율, 비용증가, 중소기업 영향 등)을 다루고 있습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "role_reversal 단계에서만 의도적으로 반대 입장으로 전환했고, 나머지 단계에서는 찬성 입장을 일관되게 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전반적으로 전문적이고 예의바른 논조를 유지했으며, 욕설이나 인신공격은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적인 통계 수치를 다수 인용했으나 search_web 도구를 제대로 활용하지 않고 대부분 수치를 그냥 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "2022년 인도 녹색강철 시장점유율 45%, 2023년 평균 20% 비용증가 등 구체적 수치를 검증 없이 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "논거-근거-추론 구조로 논리적 흐름을 잘 구성했고, 상대방 주장에 대한 반박도 체계적으로 전개했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 3,
+        "reason": "대부분 한국어로 작성했으나 일부 발언에서 중국어가 섞여 나타났습니다(绿水钢购买义务化 등)."
+      }
+    },
+    "mean_llm_score": 3.38
+  },
+  {
+    "file": "poli_002_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_002",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자는 개방진술부터 종합토론까지 '독점적 공급망 형성', 'Tata Steel 예시', '산업 독점 조장' 등 동일한 논거와 사례를 반복적으로 사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영 내에서 '독점적 공급망', '마그네슘강철 시장 규모 증가', '중소기업 경쟁력 약화' 등 유사한 논거가 반복되었으나, 일부 새로운 관점도 제시되었습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "각 단계에서 일관되게 '산업 독점 조장' 입장을 유지했으며, 역할반전 단계에서 의도적으로 반대 입장을 취한 것도 규칙에 맞습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전 과정에서 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격 없이 논리적으로 토론했습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "역할반전에서 'search_web'을 언급했지만 실제로는 검색을 수행하지 않았고, 구체적 수치나 데이터가 필요한 상황에서 검색 도구를 활용하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "'2021년 마그네슘강철 시장 규모 20% 증가', '2022년 JSW Steel 10% 탄소 배출 감축' 등 검증되지 않은 구체적 수치를 단정적으로 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 대체로 잘 갖추었으나, 일부 논거에서 근거와 추론 사이의 연결이 약했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어로 작성되었으나, 종합토론에서 일부 중국어 문장이 섞여 있어 감점되었습니다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "poli_002_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_002",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "각 발언에서 녹색강철 의무화와 산업 독점 조장이라는 동일한 주제를 지속적으로 다루었으나, 구체적 근거나 사례는 다양하게 제시했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영에서 공통적으로 산업 독점 조장과 중소기업 경쟁력 약화를 주장했지만, 각자 다른 근거와 접근법을 사용했습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "역할반전 단계에서 의도적으로 입장을 바꾸었고, 그 외에는 일관되게 찬성 입장을 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언에서 전문적이고 예의 바른 논조를 유지했으며, 인신공격이나 욕설이 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계나 수치를 인용하는 상황에서 search_web 도구를 일부 사용했으나, 많은 발언에서 필요했음에도 불구하고 미사용했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "2022년 1월부터 2023년 12월까지 탄소 배출량 4% 증가 등 구체적 수치를 검증 없이 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-결론의 논증 구조를 명확하게 갖추고 있으며, 논리적 연결고리가 잘 드러납니다."
+      },
+      "korean_language_compliance": {
+        "score": 2,
+        "reason": "중국어 문장이 한 번 포함되어 있어 한국어 준수에 문제가 있습니다."
+      }
+    },
+    "mean_llm_score": 3.12
+  },
+  {
+    "file": "poli_003_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_003",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자는 개진 발언에서 생물다양성 감소와 환경적 손실이라는 동일한 논거를 계속 반복했고, 통계와 사례도 GM 밀/밀 관련하여 유사한 내용을 되풀이했다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 팀 전체적으로 생물다양성 감소와 환경적 손실이라는 핵심 논거를 공유했으나, 사용자는 일부 새로운 논점(종자시장 독점, 전통농법 강조)을 추가했다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "역할반전 단계에서 의도적으로 반대 입장으로 전환한 것을 제외하면, 각 단계에서 일관된 찬성 입장을 유지했다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전반적으로 전문적이고 예의바른 논조를 유지했으며, 욕설이나 인신공격 없이 논거 중심으로 토론했다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계(2017년 연구, 40% 감소 등)와 수치를 인용했지만 실제 검색 도구를 사용하지 않고 단정적으로 제시했다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "2017년 연구에서 GM 밀이 씨앗 다양성을 40% 감소시켰다는 구체적 수치를 검색 없이 단정적으로 인용하여 날조 가능성이 높다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 갖추고 논리적으로 연결했으나, 일부 논거에서 인과관계가 명확하지 않은 부분이 있었다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "자연스러운 한국어로 작성되었으며, 외국어 섞임이나 문법 오류가 없었다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "poli_003_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_003",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자가 동일한 사례(미국 GM 콩 24% 증가, 인도 GM 옥수수 등)를 반복적으로 인용하고, 'search_web'에 따르면이라는 표현을 여러 번 사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성팀(user, agent_3) 내에서 생물다양성 감소, 화학비료 사용 증가, 농업생태계 파괴라는 유사한 논거가 반복되었으나, 각자 다른 구체적 사례를 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "사용자는 찬성 입장에서 일관되게 GM 작물의 농업생태계 파괴를 주장했고, 역할반전 단계에서 의도적으로 반대 입장으로 전환했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 예의 바르고 전문적인 논조를 유지했으며, 욕설이나 인신공격은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 수치와 통계를 여러 번 인용했지만 실제 검색 도구를 사용하지 않고 'search_web'에 따르면이라고만 언급했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "GM 카카오플라스틱 작물, Bt 치즈스틱, 나일강 하류 국가들의 GM 작물 도입 등 존재하지 않는 구체적 사례들을 단정적으로 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-결론의 논증 구조를 잘 갖추었으나, 일부 근거가 허위 정보에 기반해 논리적 완성도가 떨어집니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "대부분 자연스러운 한국어로 작성되었으나, 'search_web'과 같은 영어 표현과 일부 어색한 문장 구조가 있었습니다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "poli_003_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_003",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자가 GM 작물의 생물다양성 감소와 농업 생태계 파괴라는 동일한 논거를 토론 전반에 걸쳐 반복적으로 제시하였습니다. 새로운 논거나 관점보다는 기존 주장을 재진술하는 경향이 강했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영 내에서 생물다양성 감소, 농업 생태계 파괴, 경제적 부담 등의 논거가 중복되었으나, 각자 약간씩 다른 관점에서 접근했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "사용자는 찬성 입장에서 일관되게 GM 작물 확대가 농업 생태계 파괴를 초래한다고 주장했으며, 역할반전 단계에서만 반대 입장으로 전환했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격은 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적인 통계와 수치('꽃 종 수 30% 감소', '토양 생물학적 다양성 20% 감소')를 인용했지만 검색 도구를 사용하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "미국 중부 지역 GM 밀 재배와 꽃 종 수 30% 감소, 토양 생물학적 다양성 20% 감소 등 구체적 수치를 검증 없이 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "GM 작물 → 생물다양성 감소 → 농업 생태계 파괴라는 논리적 연결구조는 있으나, 근거의 신뢰성이 부족하여 논증력이 제한적입니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "전반적으로 자연스러운 한국어로 작성되었으며, 문법적 오류나 외국어 혼용은 없었습니다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "poli_003_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "poli_003",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "user는 GM 작물의 환경 파괴와 생물다양성 감소라는 동일한 논거를 반복적으로 사용하며, 새로운 근거나 논점을 제시하지 못했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "user는 찬성 팀이 이미 제시한 생물다양성 감소와 농업 생태계 파괴 논거를 반복 사용했으나, 역할반전에서 새로운 시각을 일부 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "각 단계에서 자신의 역할에 맞는 입장을 일관되게 유지했으며, 역할반전 단계에서도 규칙에 따라 적절히 입장을 바꿨습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 3,
+        "reason": "대체로 전문적 논조를 유지했으나, 중국어가 섞인 문장과 일부 어색한 표현들이 있어 전문성이 떨어집니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "FAO 보고서와 같은 구체적 기관명을 언급하며 search_web 도구 사용을 암시했지만, 실제로는 도구를 사용하지 않고 부정확한 정보를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "존재하지 않는 구체적 수치들(30% 수입 증가, 68% 재배면적 등)을 단정적으로 제시하고, 힌두스탄이라는 부정확한 국가명을 사용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 2,
+        "reason": "주장은 제시했으나 근거가 부족하고, 논리적 연결이 약하며, 구체적 증거 없이 추상적 주장에 그쳤습니다."
+      },
+      "korean_language_compliance": {
+        "score": 2,
+        "reason": "중국어 문장이 대량으로 섞여 있고, 어색한 번역체 표현들이 많아 자연스러운 한국어 사용에 실패했습니다."
+      }
+    },
+    "mean_llm_score": 2.5
+  },
+  {
+    "file": "tech_001_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_001",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "사용자가 산업혁명 사례와 AI 관련 직업 창출이라는 같은 논거를 반복적으로 사용했으나, role_reversal에서는 반대 입장으로 전환하며 새로운 논거를 제시했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성 진영(agent_3, user)이 모두 산업혁명 사례와 새로운 직업 창출 논리를 반복적으로 사용하여 독립성이 부족합니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "role_reversal 단계에서 의도적으로 입장을 바꾼 것을 제외하고는 각 단계에서 일관된 입장을 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 전문적이고 예의바른 논조를 유지하며, 욕설이나 인신공격 없이 토론을 진행했습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계(2300만 개 일자리, 20% 증가, 22% 성장률 등)를 인용했으나 웹 검색 도구를 사용하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "검증되지 않은 구체적 수치들(일본 자동차업계 20% 증가, 2300만 개 신규 일자리, 연평균 22% 성장률 등)을 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언에서 주장-근거-결론의 논리적 구조를 갖추고 있으나, 일부 근거가 부정확한 데이터에 기반했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "자연스러운 한국어로 작성되었으며, 외국어 혼용이나 문자 깨짐 없이 깔끔하게 표현되었습니다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "tech_001_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_001",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "user는 여러 발언에서 미국 노동통계국 보고서, AI 기술 격차, search_web 언급 등 동일한 근거를 반복적으로 사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영 내에서 노동시장 재편과 새로운 일자리 창출 논거는 공통적이지만, 각자 다른 세부 사례와 관점을 제시했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "role_reversal 단계에서 의도적으로 입장을 바꾼 것 외에는 각 단계에서 일관된 입장을 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언이 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격이 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계나 수치 인용이 필요한 상황에서 search_web을 언급했지만 실제 검색을 수행하지 않고 임의의 데이터를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "미국 노동통계국 보고서의 구체적 수치, 캐나다 정부 보고서 70% 수치 등 검증되지 않은 구체적 데이터를 단정적으로 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분 주장-근거-추론 구조로 논리적으로 구성되었으나, 일부 발언에서 근거와 결론 간 연결이 약했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 4,
+        "reason": "전반적으로 자연스러운 한국어를 사용했으나, 'trin khai', '세ktor' 등 일부 외국어 표현이 섞여 있었습니다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "tech_001_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_001",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자는 동일한 논거를 반복 사용했습니다. 빅테크 기업의 AI 도입 사례를 opening과 다시 사용하고, '실증적 증거가 부족하다'는 표현을 여러 번 반복했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영에서 AI 관련 일자리 증가와 산업혁명 사례 등 유사한 논거가 반복되었으나, 각 에이전트별로 약간의 차별화가 있었습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "사용자는 찬성 입장에서 시작하여 role_reversal 단계에서 의도적으로 반대로 전환한 후, synthesis에서 다시 찬성으로 돌아가며 규칙에 맞게 입장을 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언이 전문적이고 정중한 논조를 유지했으며, 욕설이나 인신공격은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계나 수치를 인용하는 상황에서 'search_web'을 언급했지만 실제 검색 도구를 사용하지 않고 임의의 수치들을 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적인 수치와 기관명을 다수 인용했으나 ('2016년부터 2020년까지 30% 증가', '미국 노동통계국 데이터' 등) 검증되지 않은 정보들로 보입니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-결론 구조를 갖추고 있으며, 논리적 흐름이 대체로 명확했습니다. 다만 일부 근거의 신뢰성에 문제가 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "전체적으로 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 문법 오류는 거의 없었습니다."
+      }
+    },
+    "mean_llm_score": 3.5
+  },
+  {
+    "file": "tech_001_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_001",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "일부 발언에서 동일한 논거를 반복하는 경향이 있었으나, 대부분 새로운 관점이나 사례를 추가하여 제시했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "같은 진영 내에서 산업혁명 비유, 재교육 프로그램 사례, 새로운 직업 창출 등 유사한 논거가 여러 차례 반복되었습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "각 단계에서 자신의 입장을 일관되게 유지했으며, 역할반전 단계에서의 입장 변경도 토론 규칙에 따른 의도적 전환이었습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언에서 전문적이고 예의바른 논조를 유지했으며, 욕설이나 인신공격은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계와 수치를 인용한 상황이 많았으나 검색 도구를 사용하지 않고 수치를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적 수치와 기관명을 단정적으로 인용했으나 검증되지 않은 정보가 포함되어 있어 날조 가능성이 높습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언에서 주장-근거-추론 구조를 갖추어 논리적으로 구성했으나 일부 발언에서 논리적 연결이 약했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "모든 발언이 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 문법적 오류가 없었습니다."
+      }
+    },
+    "mean_llm_score": 3.38
+  },
+  {
+    "file": "tech_002_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_002",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "개별 발언을 보면 기본적인 논거(환경 규제의 필요성, AI 인프라의 중요성)를 반복하는 경향이 있지만, 역할반전과 synthesis 단계에서는 다소 새로운 관점을 추가함."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성팀은 환경/전력 규제 논거를, 반대팀은 AI 인프라 확충과 경제적 이익 논거를 반복적으로 사용하여 독창성이 부족함."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "각 단계별로 자신의 입장을 일관되게 유지했으며, 역할반전 단계에서의 입장 변화도 토론 규칙에 맞게 적절히 수행됨."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언이 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격이 전혀 없음."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계나 수치를 여러 차례 인용했으나(미국 데이터센터 8% 성장, 영국 6,000개 일자리 등) 검색 도구를 전혀 사용하지 않았음."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "검증되지 않은 구체적 수치들을 단정적으로 제시함(미국 데이터센터 협회 보고서 40% 효율성 향상, 전세계 데이터센터 100억 kWh 소비 등)."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "기본적인 주장-근거 구조는 갖추었으나, 논리적 연결과 증거 통합이 다소 약하며 단순한 주장 나열에 치우침."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "모든 발언이 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 문법적 오류가 없음."
+      }
+    },
+    "mean_llm_score": 3.12
+  },
+  {
+    "file": "tech_002_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_002",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자는 전체 토론 과정에서 '환경 및 전력 규제 강화', '세계 전체 전력 생산량의 1%', '70% 이상이 탄소 배출', '미국 800만 톤 CO2 배출' 등 거의 동일한 논거와 수치를 반복적으로 사용했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "같은 찬성 진영인 agent_3과 비교할 때, 일부 겹치는 통계(전력 소비량 1%, 탄소 배출 비율)를 사용했지만 전체적으로는 서로 다른 접근을 시도했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "role_reversal 단계에서 의도적으로 입장을 바꾼 것 외에는 찬성 입장을 일관되게 유지했으며, 이는 토론 규칙에 따른 정상적인 역할 변경입니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체 토론 과정에서 전문적이고 예의바른 논조를 유지했으며, 욕설이나 인신공격은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적인 통계 수치(전력 생산량 1%, CO2 배출량 800만 톤, Korea Green Growth 2020 프로젝트 등)를 인용했지만 검색 도구를 전혀 사용하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "Korea Green Growth 2020 프로젝트와 같이 존재하지 않을 가능성이 높은 구체적인 프로젝트명과 수치(30% 절감)를 단정적으로 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언에서 주장-근거-결론 구조를 갖추고 논리적 연결을 시도했으나, 일부 발언에서 사실 나열에 그친 부분이 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 2,
+        "reason": "synthesis 단계에서 '환경 규제와 전력 관리 정책을 강화的同时，加快AI基础设施建设也是至关重要的' 등 중국어가 섞여 나왔습니다."
+      }
+    },
+    "mean_llm_score": 3.0
+  },
+  {
+    "file": "tech_002_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_002",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 3,
+        "reason": "대부분의 참가자가 새로운 논거를 제시했으나, user는 같은 환경 규제와 지속 가능성 논리를 여러 차례 반복했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성팀이 환경 규제의 효과와 전력 소비 감소라는 유사한 근거를 agent_4, agent_5, user가 반복적으로 사용했습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "모든 참가자가 각 단계에서 자신의 입장을 일관되게 유지했으며, role_reversal 단계에서의 입장 변경은 규칙에 따른 것입니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 참가자가 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 수치와 통계가 많이 사용되었으나 웹 검색 도구를 전혀 사용하지 않아 데이터의 정확성을 검증하지 못했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 1,
+        "reason": "미국 에너지 정보청(EIA) 데이터, 미래에셋대우 보고서, ENERGY STAR 프로그램 등 구체적 기관명과 수치를 검증 없이 단정적으로 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-추론 구조를 갖추고 있으나, 일부 발언에서 사실 나열에 그치는 경우가 있었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "모든 참가자가 자연스러운 한국어로 작성했으며, 외국어 혼용이나 문법적 오류가 거의 없었습니다."
+      }
+    },
+    "mean_llm_score": 3.25
+  },
+  {
+    "file": "tech_002_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_002",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "user는 같은 논거(미국과 중국의 사례, 디지털 혁신 기여)를 반복적으로 사용하며, 새로운 논거 추가가 제한적입니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영 내에서 환경 규제의 중요성과 에너지 효율성이라는 유사한 논거가 반복되지만, 일부 독립적인 관점도 제시되었습니다."
+      },
+      "role_consistency": {
+        "score": 4,
+        "reason": "role_reversal 단계에서 의도적으로 입장을 바꾼 후 일관성을 유지했으며, 각 단계에서 명확한 입장을 유지했습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 전문적이고 예의 바른 논조를 유지했으며, 인신공격이나 부적절한 표현이 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 수치와 통계를 여러 차례 인용했으나 검색 도구를 사용하지 않고 수치를 제시했습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "미국 GDP 상승률 0.3%, 중국 IT 서비스 성장률 20% 등 구체적 수치를 검증 없이 단정적으로 인용했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "주장-근거-추론 구조를 갖추고 있으며, 논리적 연결이 대체로 명확하게 제시되었습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "자연스러운 한국어로 작성되었으며, 외국어 섞임이나 문법 오류가 없습니다."
+      }
+    },
+    "mean_llm_score": 3.38
+  },
+  {
+    "file": "tech_003_2v2_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_003",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "user 에이전트가 동일한 논거(Transformer 모델, Alibaba Cloud)를 여러 차례 반복하고, '모델 성능이 우수하더라도 항상 정확하고 공정하게 적용되는 것은 아니다'는 동일한 주장을 여러 번 되풀이했습니다."
+      },
+      "team_repetition": {
+        "score": 2,
+        "reason": "찬성 진영에서 user와 agent_3이 유사한 윤리적 안전장치의 중요성을 반복했고, 반대 진영에서도 모델 성능 우위 논거가 중복되었습니다."
+      },
+      "role_consistency": {
+        "score": 3,
+        "reason": "role_reversal 단계에서 입장 전환은 적절했으나, user가 한국어와 중국어를 섞어 쓴 부분에서 일관성이 떨어졌습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 4,
+        "reason": "전체적으로 전문적이고 예의 바른 논조를 유지했으나, 일부 발언에서 상대방 논거를 '설득력이 없다', '근거가 부족하다'고 단정적으로 평가한 부분이 있었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 수치('10% 이상', '15% 감소', '20% 높은 정확도', '수십억 달러')와 기업 사례를 다수 인용했음에도 검색 도구를 전혀 사용하지 않았습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "Google의 정확도가 '20% 높다', Alibaba Cloud가 '수십억 달러 절감' 등 구체적 수치를 검증 없이 단정적으로 제시하여 사실성에 문제가 있습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-결론 구조는 갖추었으나, 일부 논거에서 논리적 비약이 있고 상대방 반박에 대한 체계적 응답이 부족했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 2,
+        "reason": "대부분 한국어로 작성되었으나, synthesis 단계에서 user가 중국어 문장을 대량 삽입하여 언어 일관성을 크게 해쳤습니다."
+      }
+    },
+    "mean_llm_score": 2.38
+  },
+  {
+    "file": "tech_003_2v2_polarized.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_003",
+    "user_stance": "PRO",
+    "debate_format": "2:2",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "사용자가 opening과 이후 발언들에서 동일한 논거(Google AI, IBM Watson 등의 성능 사례)를 지속적으로 반복하여 새로운 논거 제시가 부족함"
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성 진영에서 agent_3와 사용자가 AI 편향성과 윤리적 안전장치 필요성을 공통적으로 다뤘으나, 구체적 사례는 다름"
+      },
+      "role_consistency": {
+        "score": 3,
+        "reason": "사용자가 opening에서 반대1이라고 잘못 소개했으나 내용은 찬성이었고, role_reversal에서 의도적으로 입장을 바꿨으므로 전체적으로는 규칙을 따름"
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "전체적으로 정중하고 전문적인 논조를 유지하며 인신공격이나 독성 표현이 없음"
+      },
+      "web_search_tool_use": {
+        "score": 1,
+        "reason": "구체적 통계나 수치가 필요한 상황에서 검색 도구를 전혀 사용하지 않고 단정적인 주장만 반복함"
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적인 수치나 사례를 제시했으나 검색 없이 단정적으로 서술하여 사실성에 의문이 있음"
+      },
+      "logic_evidence_synthesis": {
+        "score": 3,
+        "reason": "주장-근거-추론의 기본 구조는 갖추었으나 논리적 연결과 근거의 타당성이 약함"
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "전체적으로 자연스러운 한국어로 작성되었으며 외국어 섞임이나 문법 오류가 없음"
+      }
+    },
+    "mean_llm_score": 3.0
+  },
+  {
+    "file": "tech_003_3v3_balanced.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_003",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "User가 여러 발언에서 EU 사례, Google 윤리 지침, 윤리적 안전장치의 중요성 등 유사한 논거를 반복적으로 사용함"
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성팀이 EU 사례와 Google 윤리 지침을 중복적으로 언급하였지만, 각자 다른 측면을 다루려 노력함"
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "각 에이전트는 role_reversal 단계에서만 입장을 바꾸었고, 다른 단계에서는 일관된 입장을 유지함"
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 발언이 전문적이고 정중한 논조를 유지하며, 욕설이나 인신공격은 없음"
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 수치와 연구 결과를 인용하는 상황이 많았지만 대부분 검색 도구를 사용하지 않고 수치를 제시함"
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "Voronoi 연구, 구체적 수치(20%, 40% 등), 특정 연도 데이터 등을 검증 없이 단정적으로 인용하여 날조 가능성이 높음"
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-추론 구조를 갖추고 논리적으로 전개되었으나 일부 근거가 부실함"
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "모든 발언이 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 CoT 유출 없음"
+      }
+    },
+    "mean_llm_score": 3.5
+  },
+  {
+    "file": "tech_003_3v3_mixed.json",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
+    "topic_id": "tech_003",
+    "user_stance": "PRO",
+    "debate_format": "3:3",
+    "scores": {
+      "self_repetition": {
+        "score": 2,
+        "reason": "여러 참여자가 같은 논거를 반복했습니다. user는 Amazon 채용 편향 사례를 opening과 opening에서 거의 동일하게 사용했고, agent_1은 의료 분야 AI 정확도 사례를 여러 차례 반복 언급했습니다."
+      },
+      "team_repetition": {
+        "score": 3,
+        "reason": "찬성팀은 Amazon 편향 사례와 OECD 보고서를 공유하며 일부 논거를 중복 사용했으나, 각자 다른 관점(EU 규제, 일본 사례 등)도 제시했습니다. 반대팀도 McKinsey 조사 등 일부 중복이 있었습니다."
+      },
+      "role_consistency": {
+        "score": 5,
+        "reason": "모든 참여자가 각 단계에서 자신의 입장을 일관되게 유지했으며, role_reversal 단계에서의 입장 전환은 토론 규칙에 따른 의도적 변화였습니다."
+      },
+      "persona_tone_toxicity": {
+        "score": 5,
+        "reason": "모든 참여자가 전문적이고 예의 바른 논조를 유지했으며, 욕설이나 인신공격은 전혀 없었습니다."
+      },
+      "web_search_tool_use": {
+        "score": 2,
+        "reason": "구체적 통계와 수치를 많이 인용했으나(OECD 보고서, McKinsey 조사, 독일 편향성 40→70% 개선 등) 웹 검색 도구 사용 흔적이 전혀 보이지 않습니다."
+      },
+      "faithfulness_hallucination_control": {
+        "score": 2,
+        "reason": "구체적 수치들의 정확성이 의심됩니다. '독일 AI 편향성 40%→70% 개선', 'Google 클라우드 점유율 48%→55%', '미국 AI 전문가 45만 명' 등 검증되지 않은 구체적 수치를 단정적으로 제시했습니다."
+      },
+      "logic_evidence_synthesis": {
+        "score": 4,
+        "reason": "대부분의 발언이 주장-근거-결론 구조를 갖추고 있으며, 사례를 들어 논리적으로 연결했습니다. 다만 일부 발언에서 근거와 결론 간 논리적 연결이 다소 약했습니다."
+      },
+      "korean_language_compliance": {
+        "score": 5,
+        "reason": "모든 발언이 자연스러운 한국어로 작성되었으며, 외국어 섞임이나 깨진 문자, CoT 유출 등의 문제가 없었습니다."
+      }
+    },
+    "mean_llm_score": 3.5
+  }
+]
