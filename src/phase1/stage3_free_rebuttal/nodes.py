@@ -262,17 +262,10 @@ def _build_defense_prompt(
 ### 반박 끝"""
 
 
-# ── 메인 노드 ──────────────────────────────────────────────────────────────
+# ── 공통 setup ─────────────────────────────────────────────────────────────
 
-def free_rebuttal_node(state: DebateState) -> DebateState:
-    """3단계 자유 논박 노드 (멀티턴 메시지 체인).
-
-    이전 자유논박 대화 히스토리를 메시지 체인으로 구축하여
-    LLM이 대화 흐름을 기억한 상태에서 답변/공격을 생성한다.
-    """
-    _opening_mod._used_doc_ids = set()
-
-    # ── 상대 에이전트 확인
+def _setup_free_rebuttal(state: DebateState) -> Dict:
+    """defense / attack 노드가 공통으로 쓰는 셋업 — opponent, history, display 등."""
     selected_id = state.get("selected_opponent_id")
     if not selected_id:
         raise ValueError("[free_rebuttal] selected_opponent_id가 필요합니다.")
@@ -282,48 +275,133 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         raise ValueError(f"[free_rebuttal] 존재하지 않는 에이전트: {selected_id}")
 
     opponent = agent_map[selected_id]
-    # 진영별 URL 중복 제외 컨텍스트
     try:
         from src.graph.vector_store import set_current_stance
         set_current_stance(opponent.get("stance"))
     except Exception:
         pass
-    history: List[DebateEntry] = list(state["debate_history"])
-    current_turn: int = state["current_turn"]
+
     speaking_order = state["speaking_order"]
     stance_nums = build_agent_stance_nums(state["agents"], speaking_order)
-
     opponent_display = (
         f"{'찬성' if opponent['stance'] == 'PRO' else '반대'}"
         f"{stance_nums.get(selected_id, 0)}"
     )
-    print(f"\n[3단계: 자유 논박] 사용자 ↔ {opponent_display}\n")
+    return {
+        "selected_id": selected_id,
+        "opponent": opponent,
+        "history": list(state["debate_history"]),
+        "opponent_display": opponent_display,
+    }
 
-    # ── 입론 추출
-    my_opening = ""
-    opp_opening = ""
-    for e in history:
-        if e["phase"] == "opening" and e["speaker_id"] == selected_id:
-            my_opening = e["content"]
-        if e["phase"] == "opening" and e["speaker_id"] == "user":
-            opp_opening = e["content"]
 
-    # ── 멀티턴 메시지 체인 구축
+# ── 메인 노드 ──────────────────────────────────────────────────────────────
+
+def free_rebuttal_defense_node(state: DebateState) -> DebateState:
+    """방어 단계만 생성. 첫 턴이거나 사용자 공격이 없으면 entry 추가 없이 통과.
+
+    노드 단위 분리 이유: SSE 가 발화 단위로 즉시 push 되도록.
+    원래는 free_rebuttal_node 한 번에 방어+공격을 생성해 두 entry 가 동시에 history 에
+    추가됐고, frontend 가 시간차 없이 두 발화를 한꺼번에 받았다.
+    """
+    _opening_mod._used_doc_ids = set()
+    setup = _setup_free_rebuttal(state)
+    history = setup["history"]
+    selected_id = setup["selected_id"]
+    opponent = setup["opponent"]
+    current_turn = state["current_turn"]
+
+    user_entries = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "free_rebuttal"]
+    agent_entries = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
+    is_first_turn = len(agent_entries) == 0
+    user_latest_attack = user_entries[-1]["content"] if user_entries else ""
+
+    print(f"\n[3단계: 자유 논박] 사용자 ↔ {setup['opponent_display']}\n")
+
+    # 첫 턴이거나 사용자 공격이 없으면 방어 스킵 (state 불변)
+    if is_first_turn or not user_latest_attack:
+        print(f"  [방어 스킵] 첫 턴 또는 사용자 공격 없음 — 공격 단계로 직진\n")
+        return DebateState(**state)
+
+    final_turn = is_final_agent_turn(state)
+    print(f"  [Step 1 - 답변] 사용자 공격에 방어{' (최종 답변)' if final_turn else ''}\n")
+
+    my_opening = next(
+        (e["content"] for e in history if e["phase"] == "opening" and e["speaker_id"] == selected_id),
+        "",
+    )
     chain = _build_message_chain(opponent, history, selected_id, opponent["stance"])
+
+    # Pre-search: 사용자 공격 내용 기반 검색
+    from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
+    def_search_results, def_pre_tc = _pre_search_rebuttal(state["topic"], user_latest_attack)
+    tool_calls_log: List[Dict] = list(def_pre_tc)
+
+    defense_prompt = _build_defense_prompt(
+        user_latest_attack, my_opening, search_results=def_search_results,
+    )
+    defense, raw_def, tc_def = _generate_with_chain(list(chain), defense_prompt)
+    tool_calls_log.extend(tc_def)
+
+    history.append(DebateEntry(
+        turn=current_turn,
+        speaker_id=selected_id,
+        stance=opponent["stance"],
+        phase="free_rebuttal",
+        content=defense,
+        target_id="user",
+        tool_calls_log=tool_calls_log,
+        json_raw=raw_def,
+    ))
+    print(f"  [{setup['opponent_display']} - 답변] (turn={current_turn})")
+    print(f"  {defense}\n")
+
+    return DebateState(**{
+        **state,
+        "debate_history": history,
+        "current_turn": current_turn + 1,
+        "phase": "free_rebuttal",
+    })
+
+
+def free_rebuttal_attack_node(state: DebateState) -> DebateState:
+    """공격 단계만 생성. 마지막 턴이면 entry 추가 없이 통과.
+
+    직전 방어가 history 에 들어가 있으면 _build_message_chain 이 자동으로 포함하므로
+    별도로 chain 에 수동 append 할 필요 없음.
+    """
+    setup = _setup_free_rebuttal(state)
+    history = setup["history"]
+    selected_id = setup["selected_id"]
+    opponent = setup["opponent"]
+    current_turn = state["current_turn"]
+
+    final_turn = is_final_agent_turn(state)
+    if final_turn:
+        print(f"  [마지막 턴] 공격 생략 — 방어만 수행\n")
+        print(f"[3단계: 자유 논박] 에이전트 발언 완료 → 사용자 발언 대기\n")
+        return DebateState(**{**state, "phase": "free_rebuttal"})
 
     user_entries = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "free_rebuttal"]
     agent_entries = [e for e in history if e["speaker_id"] == selected_id and e["phase"] == "free_rebuttal"]
 
-    speeches = []
-    tool_calls_log: List[Dict] = []
-    is_first_turn = len(agent_entries) == 0
-    final_turn = is_final_agent_turn(state)  # 마지막 턴이면 방어만, 공격 없음
+    user_latest_defense = (
+        user_entries[-2]["content"] if len(user_entries) >= 2
+        else (user_entries[-1]["content"] if user_entries else "")
+    )
+    opp_opening = next(
+        (e["content"] for e in history if e["phase"] == "opening" and e["speaker_id"] == "user"),
+        "",
+    )
 
-    # 사용자 최근 발언 분리 (답변 + 공격이 별개)
-    user_latest_defense = user_entries[-2]["content"] if len(user_entries) >= 2 else (user_entries[-1]["content"] if user_entries else "")
-    user_latest_attack = user_entries[-1]["content"] if user_entries else ""
+    if user_latest_defense:
+        target_argument = user_latest_defense
+    else:
+        target_argument = _pick_one_argument(opp_opening)
 
-    # 이전 공격 내용 + 약점 분석 결과 수집 (중복 방지용)
+    print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
+
+    # 이전 공격·약점 분석 (중복 방지)
     prev_attacks = [e["content"][:100] for e in agent_entries]
     prev_attacks_text = "\n".join(f"- {a}" for a in prev_attacks[-3:]) if prev_attacks else ""
     prev_weaknesses = "\n".join(
@@ -333,96 +411,69 @@ def free_rebuttal_node(state: DebateState) -> DebateState:
         if log.get("name") == "analyze_weakness" and log.get("result")
     )
 
-    # ── Step 1: 답변 (사용자의 공격에 대한 방어)
-    if not is_first_turn and user_latest_attack:
-        print(f"  [Step 1 - 답변] 사용자 공격에 방어{' (최종 답변)' if final_turn else ''}\n")
+    weakness = analyze_weakness(target_argument, state["topic"], prev_weaknesses=prev_weaknesses)
+    tool_calls_log: List[Dict] = []
+    if weakness:
+        tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
+        print(f"  [약점 분석] {weakness[:60]}\n")
 
-        # Pre-search: 사용자 공격 내용 기반 검색 (stage2 패턴)
-        from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
-        def_search_results, def_pre_tc = _pre_search_rebuttal(state["topic"], user_latest_attack)
-        tool_calls_log.extend(def_pre_tc)
-        defense_prompt = _build_defense_prompt(
-            user_latest_attack, my_opening, search_results=def_search_results,
-        )
-        defense, raw_def, tc_def = _generate_with_chain(list(chain), defense_prompt)
-        tool_calls_log.extend(tc_def)
-        speeches.append(("답변", defense, raw_def))
+    from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
+    atk_search_results, atk_pre_tc = _pre_search_rebuttal(state["topic"], target_argument)
+    tool_calls_log.extend(atk_pre_tc)
 
-    # ── Step 2: 공격 (마지막 턴이면 스킵 — 사용자 응답 기회 없으므로)
-    if not final_turn:
-        if not is_first_turn and user_latest_defense:
-            target_argument = user_latest_defense
-        else:
-            target_argument = _pick_one_argument(opp_opening)
+    weakness_hint = (
+        f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n"
+        if weakness else ""
+    )
+    prev_hint = (
+        f"\n[이전 공격 — 아래 내용은 이미 사용했으니 반복 금지. 완전히 다른 관점으로 공격하라]\n{prev_attacks_text}\n"
+        if prev_attacks_text else ""
+    )
+    ref_block = atk_search_results if atk_search_results else ""
+    attack_prompt = _build_attack_prompt(
+        target_argument,
+        search_results=(ref_block + weakness_hint + prev_hint),
+        opp_opening=opp_opening,
+    )
+    # 직전 방어가 history 에 있으면 chain 에 자동 포함됨
+    chain = _build_message_chain(opponent, history, selected_id, opponent["stance"])
+    attack, raw_atk, tc_atk = _generate_with_chain(chain, attack_prompt)
+    tool_calls_log.extend(tc_atk)
 
-        print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
+    attack_question = _generate_attack_question(attack, opponent["stance"], state["topic"])
+    if attack_question:
+        tool_calls_log.append({"name": "attack_question", "result": attack_question})
+        print(f"  [공격 질문] {attack_question[:60]}\n")
+    if "?" not in attack:
+        q = attack_question if attack_question else "이에 대해 상대는 어떻게 설명하시겠습니까?"
+        attack = attack.rstrip() + " " + q
 
-        # 약점 분석 (이전 분석과 다른 약점 요청)
-        weakness = analyze_weakness(target_argument, state["topic"], prev_weaknesses=prev_weaknesses)
-        if weakness:
-            tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
-            print(f"  [약점 분석] {weakness[:60]}\n")
-
-        # Pre-search: 공격 대상 논거 기반 검색 (stage2 패턴)
-        from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
-        atk_search_results, atk_pre_tc = _pre_search_rebuttal(state["topic"], target_argument)
-        tool_calls_log.extend(atk_pre_tc)
-
-        weakness_hint = f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n" if weakness else ""
-        prev_hint = f"\n[이전 공격 — 아래 내용은 이미 사용했으니 반복 금지. 완전히 다른 관점으로 공격하라]\n{prev_attacks_text}\n" if prev_attacks_text else ""
-        ref_block = atk_search_results if atk_search_results else ""
-        attack_prompt = _build_attack_prompt(
-            target_argument,
-            search_results=(ref_block + weakness_hint + prev_hint),
-            opp_opening=opp_opening,
-        )
-        # 답변이 있으면 그 결과를 체인에 추가한 뒤 공격
-        attack_chain = list(chain)
-        if speeches:
-            attack_chain.append(AIMessage(content=speeches[0][1]))  # 답변을 체인에 포함
-        attack, raw_atk, tc_atk = _generate_with_chain(attack_chain, attack_prompt)
-        tool_calls_log.extend(tc_atk)
-
-        # 공격 결과를 읽고 맥락에 맞는 질문 생성
-        attack_question = _generate_attack_question(attack, opponent["stance"], state["topic"])
-        if attack_question:
-            tool_calls_log.append({"name": "attack_question", "result": attack_question})
-            print(f"  [공격 질문] {attack_question[:60]}\n")
-
-        # 후처리: 공격 끝에 질문 추가
-        if "?" not in attack:
-            q = attack_question if attack_question else "이에 대해 상대는 어떻게 설명하시겠습니까?"
-            attack = attack.rstrip() + " " + q
-
-        speeches.append(("공격", attack, raw_atk))
-    else:
-        print(f"  [마지막 턴] 공격 생략 — 방어만 수행\n")
-
-    # ── 발언 기록
-    for label, speech, raw in speeches:
-        history.append(DebateEntry(
-            turn=current_turn,
-            speaker_id=selected_id,
-            stance=opponent["stance"],
-            phase="free_rebuttal",
-            content=speech,
-            target_id="user",
-            tool_calls_log=tool_calls_log,
-            json_raw=raw,
-        ))
-        current_turn += 1
-
-        print(f"  [{opponent_display} - {label}] (turn={current_turn - 1})")
-        print(f"  {speech}\n")
-
+    history.append(DebateEntry(
+        turn=current_turn,
+        speaker_id=selected_id,
+        stance=opponent["stance"],
+        phase="free_rebuttal",
+        content=attack,
+        target_id="user",
+        tool_calls_log=tool_calls_log,
+        json_raw=raw_atk,
+    ))
+    print(f"  [{setup['opponent_display']} - 공격] (turn={current_turn})")
+    print(f"  {attack}\n")
     print(f"[3단계: 자유 논박] 에이전트 발언 완료 → 사용자 발언 대기\n")
 
     return DebateState(**{
         **state,
         "debate_history": history,
-        "current_turn": current_turn,
+        "current_turn": current_turn + 1,
         "phase": "free_rebuttal",
     })
+
+
+def free_rebuttal_node(state: DebateState) -> DebateState:
+    """방어 + 공격을 순차로 한 번에 처리. 노드 분리 전 호출 호환용."""
+    state = free_rebuttal_defense_node(state)
+    return free_rebuttal_attack_node(state)
 
 
 # ── 턴 라우터 ──────────────────────────────────────────────────────────────
