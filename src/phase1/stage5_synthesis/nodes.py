@@ -270,11 +270,105 @@ def _generate_with_synthesis_chain(
 
 # ── 메인 노드: 초기 의견 제시 ──────────────────────────────────────────────
 
-def synthesis_node(state: DebateState) -> DebateState:
-    """5단계 종합 — 모든 AI 에이전트가 최적해에 대한 초기 의견을 제시한다.
+def _ai_speakers(state: DebateState) -> List[str]:
+    """speaking_order 에서 AI 만 (사용자 제외)."""
+    return [s for s in state["speaking_order"] if s != "user"]
 
-    회의의 시작: 각 에이전트가 2~3문장으로 의견을 던진다.
-    이후 사용자와의 회의는 synthesis_discuss_node로 진행.
+
+def _current_synthesis_round_speeches(state: DebateState) -> List[str]:
+    """현재 진행 중인 synthesis 라운드에서 이미 말한 AI 발화 (앞 80자) 리스트.
+
+    라운드 = 사용자 1턴 + AI N턴. 마지막 사용자 발언 이후의 AI 발언만 수집.
+    """
+    history = state.get("debate_history", [])
+    last_user_idx = -1
+    for i, e in enumerate(history):
+        if e["phase"] == "synthesis" and e["speaker_id"] == "user":
+            last_user_idx = i
+    speeches = []
+    for e in history[last_user_idx + 1:]:
+        if e["phase"] == "synthesis" and e["speaker_id"] != "user":
+            speeches.append(e["content"][:80])
+    return speeches
+
+
+def synthesis_propose_one_node(state: DebateState) -> DebateState:
+    """초기 의견 제시 — 한 AI 에이전트만 발언. synthesis_propose_idx 카운터.
+
+    노드 분리 이유: 각 에이전트 발화가 별도 LangGraph chunk → SSE 즉시 push.
+    """
+    speakers = _ai_speakers(state)
+    idx = state.get("synthesis_propose_idx", 0)
+    if idx >= len(speakers):
+        return DebateState(**{**state, "phase": "synthesis"})
+
+    _opening_mod._used_doc_ids = set()
+
+    topic = state["topic"]
+    history: List[DebateEntry] = list(state["debate_history"])
+    current_turn: int = state["current_turn"]
+    agent_map = {a["agent_id"]: a for a in state["agents"]}
+    stance_nums = build_agent_stance_nums(state["agents"], state["speaking_order"])
+
+    speaker_id = speakers[idx]
+    agent = agent_map[speaker_id]
+    slabel = "찬성" if agent["stance"] == "PRO" else "반대"
+    snum = stance_nums.get(speaker_id, 1)
+    display = f"{slabel}{snum}"
+
+    perspective = _AGENT_PERSPECTIVES[idx % len(_AGENT_PERSPECTIVES)]
+    intensity = agent.get("intensity", 3)
+
+    print(f"  [{display}] 의견 제시 중... (관점: {perspective[:20]}, 강경도: {intensity})")
+
+    prompt = _build_proposal_prompt(
+        topic=topic, original_stance=agent["stance"],
+        perspective=perspective, intensity=intensity,
+    )
+    # 같은 라운드에서 다른 에이전트가 이미 한 말 (history 에서 추출)
+    this_round = _current_synthesis_round_speeches(state)
+    if this_round:
+        already_said = (
+            "\n[다른 참여자가 이미 한 말 — 같은 내용 반복 금지]\n"
+            + "\n".join(f"- {s}" for s in this_round)
+            + "\n위와 완전히 다른 관점에서 발언하라.\n"
+        )
+        prompt += f"\n{already_said}"
+
+    from src.graph.llm import build_debate_chain
+    debate_chain = build_debate_chain(history, speaker_id)
+    chain = _build_synthesis_chain(agent, history, speaker_id)
+    full_chain = debate_chain + [m for m in chain if m not in debate_chain]
+    speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, full_chain, topic)
+
+    entry = DebateEntry(
+        turn=current_turn,
+        speaker_id=speaker_id,
+        stance=agent["stance"],
+        phase="synthesis",
+        content=speech,
+        target_id=None,
+        tool_calls_log=[],
+        json_raw=raw,
+    )
+    history.append(entry)
+    current_turn += 1
+    print(f"  [{display}] {speech[:80]}...\n")
+
+    return DebateState(**{
+        **state,
+        "debate_history": history,
+        "current_turn": current_turn,
+        "synthesis_propose_idx": idx + 1,
+        "phase": "synthesis",
+        "is_finished": False,
+    })
+
+
+def synthesis_node(state: DebateState) -> DebateState:
+    """[legacy] 모든 AI 가 한 번에 초기 의견 제시. 분리 전 호출자 호환용.
+
+    회의 시작: 각 에이전트가 2~3문장으로 의견. 이후는 synthesis_discuss_node 로.
     """
     _opening_mod._used_doc_ids = set()
 
@@ -356,11 +450,97 @@ def synthesis_node(state: DebateState) -> DebateState:
 
 # ── 회의 응답 노드 (사용자 발언 후 AI 반응) ──────────────────────────────
 
-def synthesis_discuss_node(state: DebateState) -> DebateState:
-    """사용자의 최적해 의견에 대해 모든 AI 에이전트가 반응한다.
+def synthesis_discuss_one_node(state: DebateState) -> DebateState:
+    """사용자 발언에 대한 AI 응답 — 한 에이전트만. synthesis_discuss_idx 카운터.
 
-    Round 3(synthesis_user_turns >= 2)에는 모든 에이전트가 최적해를 선언한다
-    (user와 동일 프롬프트 사용 — UserProxy·에이전트 동등성).
+    노드 분리 이유: 발화 단위로 LangGraph chunk yield → SSE 즉시 push.
+    """
+    speakers = _ai_speakers(state)
+    idx = state.get("synthesis_discuss_idx", 0)
+    if idx >= len(speakers):
+        return DebateState(**{**state, "phase": "synthesis", "is_finished": False})
+
+    _opening_mod._used_doc_ids = set()
+
+    topic = state["topic"]
+    history: List[DebateEntry] = list(state["debate_history"])
+    current_turn: int = state["current_turn"]
+    agent_map = {a["agent_id"]: a for a in state["agents"]}
+    stance_nums = build_agent_stance_nums(state["agents"], state["speaking_order"])
+
+    is_final_round = state.get("synthesis_user_turns", 0) >= 2
+    user_messages = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "synthesis"]
+    user_latest = user_messages[-1]["content"] if user_messages else ""
+
+    speaker_id = speakers[idx]
+    agent = agent_map[speaker_id]
+    slabel = "찬성" if agent["stance"] == "PRO" else "반대"
+    snum = stance_nums.get(speaker_id, 1)
+    display = f"{slabel}{snum}"
+    perspective = _AGENT_PERSPECTIVES[idx % len(_AGENT_PERSPECTIVES)]
+    intensity = agent.get("intensity", 3)
+    negotiation = _INTENSITY_NEGOTIATION.get(intensity, _INTENSITY_NEGOTIATION[3])
+
+    print(f"  [{display}] 응답 중... (강경도: {intensity})")
+
+    # 같은 라운드에서 이미 한 말 (history 에서 추출)
+    this_round = _current_synthesis_round_speeches(state)
+    already_said = ""
+    if this_round:
+        already_said = (
+            "\n[이번 라운드에서 다른 참여자가 이미 한 말 — 같은 내용 반복 금지]\n"
+            + "\n".join(f"- {s}" for s in this_round)
+            + "\n"
+        )
+
+    from src.graph.llm import build_debate_chain
+    debate_chain = build_debate_chain(history, speaker_id)
+
+    if is_final_round:
+        prompt = _build_finalize_prompt(topic, agent["stance"], perspective=perspective, intensity=intensity)
+        if already_said:
+            prompt += already_said
+    else:
+        prompt = (
+            f"[너의 고유 관점 — 반드시 이 관점에서만 발언하라] {perspective}\n\n"
+            f"[너의 협상 태도] {negotiation}\n"
+            f"{already_said}\n"
+            f"사용자가 방금 '{user_latest[:100]}...'라고 말했다.\n\n"
+            f"위에서 이미 언급된 내용과 완전히 다른 관점에서 구체적 조건이나 미해결 쟁점을 제기하라. "
+            f"'동의합니다'/'좋은 의견입니다'/'좋은 출발점'으로 시작하지 마라. "
+            f"대화하듯이 자연스럽게. 1~2문장.\n\n"
+            f"### 반박 시작\n### 반박 끝"
+        )
+    speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, debate_chain, topic)
+
+    entry = DebateEntry(
+        turn=current_turn,
+        speaker_id=speaker_id,
+        stance=agent["stance"],
+        phase="synthesis",
+        content=speech,
+        target_id="user",
+        tool_calls_log=[],
+        json_raw=raw,
+    )
+    history.append(entry)
+    current_turn += 1
+    print(f"  [{display}] {speech[:80]}...\n")
+
+    return DebateState(**{
+        **state,
+        "debate_history": history,
+        "current_turn": current_turn,
+        "synthesis_discuss_idx": idx + 1,
+        "phase": "synthesis",
+        "is_finished": False,
+    })
+
+
+def synthesis_discuss_node(state: DebateState) -> DebateState:
+    """[legacy] 모든 AI 가 한 번에 응답 — 분리 전 호출자 호환용.
+
+    Round 3(synthesis_user_turns >= 2)에는 모든 에이전트가 최적해를 선언한다.
     """
     _opening_mod._used_doc_ids = set()
 

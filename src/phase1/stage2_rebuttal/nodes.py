@@ -444,7 +444,86 @@ def generate_ai_rebuttal(
 
 # ── 메인 노드 ─────────────────────────────────────────────────────────────────
 
+def _ensure_pairs(state: DebateState) -> List[Dict]:
+    """state.rebuttal_pairs 를 pickle-safe dict 리스트로 가져옴, 없으면 생성."""
+    pairs: List[Dict] = [dict(p) for p in (state.get("rebuttal_pairs") or [])]
+    if not pairs:
+        pairs = [dict(p) for p in build_chained_rebuttal_pairs(
+            state["agents"], state["user_stance"],
+        )]
+    return pairs
+
+
+def process_one_rebuttal_step(state: DebateState) -> DebateState:
+    """미완료 pair 중 다음 AI 공격 1개만 처리. 사용자 차례 만나면 멈춤.
+
+    노드 분리용 — 한 pair 처리할 때마다 LangGraph chunk yield → SSE 즉시 push.
+    """
+    _opening_mod._used_doc_ids = set()
+
+    topic = state["topic"]
+    history: List[DebateEntry] = list(state["debate_history"])
+    current_turn: int = state["current_turn"]
+    agent_map = {a["agent_id"]: a for a in state["agents"]}
+    pairs = _ensure_pairs(state)
+    stance_nums = build_agent_stance_nums(state["agents"], state["speaking_order"])
+
+    # 미완료 pair 중 첫 AI 공격을 찾아 처리
+    for pair_idx, pair in enumerate(pairs):
+        if pair["done"]:
+            continue
+        round_num = pair["round"]
+        attacker_id = pair["attacker_id"]
+        target_id = pair["target_id"]
+
+        if attacker_id == "user":
+            # 사용자 차례 — phase 그대로 두고 종료, 라우터가 사용자 노드로 보냄
+            print(f"  [라운드 {round_num}] 공격: 사용자 → {target_id} (API 대기)\n")
+            return DebateState(**{
+                **state,
+                "debate_history": history,
+                "current_turn": current_turn,
+                "rebuttal_pairs": pairs,
+                "phase": "chained_rebuttal",
+            })
+
+        # AI 공격 처리
+        agent = agent_map[attacker_id]
+        slabel = "찬성" if agent["stance"] == "PRO" else "반대"
+        display = f"{slabel}{stance_nums[attacker_id]}"
+        print(f"  [라운드 {round_num}] {display} → {target_id}")
+
+        entry = generate_ai_rebuttal(
+            topic=topic, history=history, agent=agent,
+            target_id=target_id, stance_num=stance_nums[attacker_id],
+            target_stance_num=stance_nums.get(target_id, 0),
+            current_turn=current_turn, is_response=False,
+        )
+        history.append(entry)
+        current_turn += 1
+        pairs[pair_idx]["done"] = True
+        print(f"  [라운드 {round_num}] 완료 (turn={entry['turn']})\n")
+        return DebateState(**{
+            **state,
+            "debate_history": history,
+            "current_turn": current_turn,
+            "rebuttal_pairs": pairs,
+            "phase": "chained_rebuttal",
+        })
+
+    # 모든 pair 완료
+    print("[2단계: 연쇄 논박] 완료 → 3단계 자유 논박으로 전환\n")
+    return DebateState(**{
+        **state,
+        "debate_history": history,
+        "current_turn": current_turn,
+        "rebuttal_pairs": pairs,
+        "phase": "free_rebuttal",
+    })
+
+
 def chained_rebuttal_node(state: DebateState) -> DebateState:
+    """[legacy] 모든 미완료 AI pair 를 한 번에 처리 — 분리 전 호출자 (streamlit_app, tests) 호환용."""
     _opening_mod._used_doc_ids = set()
 
     topic = state["topic"]
@@ -452,12 +531,7 @@ def chained_rebuttal_node(state: DebateState) -> DebateState:
     current_turn: int = state["current_turn"]
     agent_map = {a["agent_id"]: a for a in state["agents"]}
 
-    pairs: List[Dict] = [dict(p) for p in (state["rebuttal_pairs"] or [])]
-    if not pairs:
-        pairs = [dict(p) for p in build_chained_rebuttal_pairs(
-            state["agents"], state["user_stance"],
-        )]
-
+    pairs = _ensure_pairs(state)
     stance_nums = build_agent_stance_nums(state["agents"], state["speaking_order"])
 
     print(f"\n[2단계: 연쇄 논박] 총 {len(pairs)}개 라운드\n")
@@ -470,7 +544,6 @@ def chained_rebuttal_node(state: DebateState) -> DebateState:
         attacker_id = pair["attacker_id"]
         target_id = pair["target_id"]
 
-        # 공격만 수행 (응답 턴 제거)
         if attacker_id == "user":
             print(f"  [라운드 {round_num}] 공격: 사용자 → {target_id} (API 대기)\n")
             continue

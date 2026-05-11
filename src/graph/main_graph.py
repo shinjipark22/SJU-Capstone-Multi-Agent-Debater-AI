@@ -5,29 +5,37 @@ main_graph.py — LangGraph 메인 토론 그래프
 사용자 입력은 interrupt로 대기, FastAPI에서 Command(resume=)로 재개.
 
 [그래프 흐름]
-    ai_opening → user_opening → ai_rebuttal → user_rebuttal
-    → ai_free_rebuttal → user_free_rebuttal_defense → user_free_rebuttal_attack (루프)
-    → ai_free_final
+    ai_opening_pre (loop) → user_opening → ai_opening_post (loop)
+    → ai_rebuttal_step (loop) ↔ user_rebuttal
+    → ai_free_rebuttal_defense → ai_free_rebuttal_attack
+    → user_free_rebuttal_defense → user_free_rebuttal_attack (루프)
     → ai_role_reversal → user_role_reversal
     → ai_synthesis ↔ user_synthesis (루프)
     → user_finalize → END
+
+각 step 노드는 한 발화만 생성한 뒤 LangGraph 가 chunk 를 yield 하므로
+SSE 가 발화 단위로 즉시 push 됨 (TTFT 개선).
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import interrupt
 
 from src.state import DebateEntry, DebateState
-from src.phase1.stage1_opening.nodes import opening_arguments_node
-from src.phase1.stage2_rebuttal.nodes import chained_rebuttal_node, build_agent_stance_nums
-from src.phase1.stage3_free_rebuttal.nodes import free_rebuttal_node
+from src.phase1.stage2_rebuttal.nodes import process_one_rebuttal_step
+from src.phase1.stage3_free_rebuttal.nodes import (
+    free_rebuttal_attack_node as _fr_attack_impl,
+    free_rebuttal_defense_node as _fr_defense_impl,
+)
 from src.phase1.stage4_role_reversal.nodes import role_reversal_node
-from src.phase1.stage5_synthesis.nodes import synthesis_node, synthesis_discuss_node
+from src.phase1.stage5_synthesis.nodes import (
+    synthesis_propose_one_node,
+    synthesis_discuss_one_node,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,20 +112,49 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
     return {"debate_history": history, "current_turn": current_turn}
 
 
-def ai_opening_node(state: DebateState) -> dict:
-    """사용자 전의 AI 에이전트 입론만 생성."""
+def _opening_pre_speakers(state: DebateState) -> list:
+    """사용자 전에 발언할 AI speaker_id 리스트."""
     speaking_order = state["speaking_order"]
     user_idx = speaking_order.index("user")
-    before_user = speaking_order[:user_idx]
+    return [s for s in speaking_order[:user_idx] if s != "user"]
 
-    print(f"\n[1단계: 입론] 사용자 전 AI: {before_user}\n")
-    result = _generate_openings_for(state, before_user)
-    result["phase"] = "opening"
-    return result
+
+def _opening_post_speakers(state: DebateState) -> list:
+    """사용자 후에 발언할 AI speaker_id 리스트."""
+    speaking_order = state["speaking_order"]
+    user_idx = speaking_order.index("user")
+    return [s for s in speaking_order[user_idx + 1:] if s != "user"]
+
+
+def ai_opening_pre_step_node(state: DebateState) -> dict:
+    """사용자 전 AI 입론 — 한 명씩 생성. opening_pre_idx 카운터로 다음 에이전트 결정.
+
+    노드 분리 이유: 각 에이전트 발화가 LangGraph chunk 로 따로 yield 되어
+    SSE 가 발화 단위로 즉시 push 됨 (TTFT 개선).
+    """
+    pre_speakers = _opening_pre_speakers(state)
+    idx = state.get("opening_pre_idx", 0)
+    if idx >= len(pre_speakers):
+        return {"phase": "opening"}
+
+    speaker_id = pre_speakers[idx]
+    print(f"\n[1단계: 입론] 사용자 전 AI {idx+1}/{len(pre_speakers)}: {speaker_id}\n")
+    result = _generate_openings_for(state, [speaker_id])
+    return {
+        "debate_history": result["debate_history"],
+        "current_turn": result["current_turn"],
+        "opening_pre_idx": idx + 1,
+        "phase": "opening",
+    }
+
+
+def route_opening_pre(state: DebateState) -> str:
+    """사용자 전 AI 입론이 다 끝났으면 user_opening 으로, 아니면 다시 step."""
+    return "next" if state.get("opening_pre_idx", 0) < len(_opening_pre_speakers(state)) else "done"
 
 
 def user_opening_node(state: DebateState) -> dict:
-    """사용자 입론 interrupt → 이후 남은 AI 입론 생성."""
+    """사용자 입론 interrupt — 입력만 받음 (post AI 는 별도 step 노드에서 처리)."""
     user_content = interrupt("사용자 입론을 입력하세요")
 
     history = list(state["debate_history"])
@@ -132,35 +169,44 @@ def user_opening_node(state: DebateState) -> dict:
     ))
     history.sort(key=lambda e: e["turn"])
 
-    # 사용자 후 남은 AI 입론 생성
-    speaking_order = state["speaking_order"]
-    after_user = speaking_order[user_turn + 1:]
-    after_ai = [s for s in after_user if s != "user"]
-
-    if after_ai:
-        print(f"\n[1단계: 입론] 사용자 후 AI: {after_ai}\n")
-        temp_state = DebateState(**{
-            **state,
-            "debate_history": history,
-            "current_turn": state["current_turn"],
-        })
-        result = _generate_openings_for(temp_state, after_ai)
-        history = result["debate_history"]
-
-    history.sort(key=lambda e: e["turn"])
-
     return {
         "debate_history": history,
-        "current_turn": len(history),
-        "phase": "chained_rebuttal",
+        "current_turn": state["current_turn"] + 1,
+        "phase": "opening",
     }
+
+
+def ai_opening_post_step_node(state: DebateState) -> dict:
+    """사용자 후 AI 입론 — 한 명씩 생성. opening_post_idx 카운터."""
+    post_speakers = _opening_post_speakers(state)
+    idx = state.get("opening_post_idx", 0)
+    if idx >= len(post_speakers):
+        return {"phase": "chained_rebuttal"}
+
+    speaker_id = post_speakers[idx]
+    print(f"\n[1단계: 입론] 사용자 후 AI {idx+1}/{len(post_speakers)}: {speaker_id}\n")
+    result = _generate_openings_for(state, [speaker_id])
+    return {
+        "debate_history": result["debate_history"],
+        "current_turn": result["current_turn"],
+        "opening_post_idx": idx + 1,
+        "phase": "opening",
+    }
+
+
+def route_opening_post(state: DebateState) -> str:
+    """사용자 후 AI 입론이 다 끝났으면 chained_rebuttal 으로, 아니면 다시 step."""
+    return "next" if state.get("opening_post_idx", 0) < len(_opening_post_speakers(state)) else "done"
 
 
 # ── 2단계: 연쇄논박 ───────────────────────────────────────────────────────
 
-def ai_rebuttal_node(state: DebateState) -> dict:
-    """AI 연쇄논박 생성."""
-    updated = chained_rebuttal_node(state)
+def ai_rebuttal_step_node(state: DebateState) -> dict:
+    """미완료 pair 중 다음 AI 공격 1개만 처리. 사용자 차례면 entry 추가 없이 phase 그대로 두고 종료.
+
+    노드 분리 이유: 한 pair 처리할 때마다 LangGraph chunk yield → SSE 즉시 push.
+    """
+    updated = process_one_rebuttal_step(state)
     return {
         "debate_history": updated["debate_history"],
         "current_turn": updated["current_turn"],
@@ -169,8 +215,22 @@ def ai_rebuttal_node(state: DebateState) -> dict:
     }
 
 
+def route_rebuttal(state: DebateState) -> str:
+    """미완료 pair 중 다음이 사용자면 'to_user', AI면 'next', 모두 완료면 'done'."""
+    pairs = state.get("rebuttal_pairs") or []
+    for p in pairs:
+        if p["done"]:
+            continue
+        return "to_user" if p["attacker_id"] == "user" else "next"
+    return "done"
+
+
 def user_rebuttal_node(state: DebateState) -> dict:
-    """사용자 연쇄논박 — interrupt로 대기."""
+    """사용자 연쇄논박 — interrupt로 대기.
+
+    분리 후 동작: 사용자가 발언한 후 미완료 user pair 를 모두 done 마크 →
+    ai_rebuttal_step 으로 돌아가도 user pair 무한 loop 안 걸림.
+    """
     # 사용자를 공격한 에이전트 찾기
     attacker_id = None
     for e in reversed(state["debate_history"]):
@@ -191,25 +251,52 @@ def user_rebuttal_node(state: DebateState) -> dict:
         target_id=target_id,
     ))
 
+    # 미완료 user pair 모두 done 마크 (사용자가 한 번 발언했으니 user 측 발언 라운드 완료)
+    pairs = [dict(p) for p in (state.get("rebuttal_pairs") or [])]
+    for p in pairs:
+        if not p["done"] and p["attacker_id"] == "user":
+            p["done"] = True
+
     return {
         "debate_history": history,
         "current_turn": state["current_turn"] + 1,
-        "phase": "free_rebuttal",
+        "rebuttal_pairs": pairs,
+        "phase": "chained_rebuttal",
     }
 
 
 # ── 3단계: 자유논박 ───────────────────────────────────────────────────────
 
-def ai_free_rebuttal_node(state: DebateState) -> dict:
-    """AI 자유논박 공격/답변+공격."""
-    # 상대 에이전트 자동 선택 (아직 선택 안 됐으면)
-    if not state.get("selected_opponent_id"):
-        opposite = "CON" if state["user_stance"] == "PRO" else "PRO"
-        opponent = next((a for a in state["agents"] if a["stance"] == opposite), None)
-        if opponent:
-            state = DebateState(**{**state, "selected_opponent_id": opponent["agent_id"]})
+def _ensure_opponent_selected(state: DebateState) -> DebateState:
+    """selected_opponent_id 가 없으면 사용자 진영 반대 쪽 첫 에이전트로 자동 선택."""
+    if state.get("selected_opponent_id"):
+        return state
+    opposite = "CON" if state["user_stance"] == "PRO" else "PRO"
+    opponent = next((a for a in state["agents"] if a["stance"] == opposite), None)
+    if opponent:
+        return DebateState(**{**state, "selected_opponent_id": opponent["agent_id"]})
+    return state
 
-    updated = free_rebuttal_node(state)
+
+def ai_free_rebuttal_defense_node(state: DebateState) -> dict:
+    """AI 자유논박 — 방어 단계만. 첫 턴/사용자 공격 없으면 entry 없이 통과.
+
+    노드 분리 이유: SSE 가 발화 단위로 즉시 push 되도록 (방어 끝나면 바로 frontend 로,
+    공격은 다음 노드에서 이어서 push).
+    """
+    state = _ensure_opponent_selected(state)
+    updated = _fr_defense_impl(state)
+    return {
+        "debate_history": updated["debate_history"],
+        "current_turn": updated["current_turn"],
+        "selected_opponent_id": updated.get("selected_opponent_id", state.get("selected_opponent_id")),
+        "phase": "free_rebuttal",
+    }
+
+
+def ai_free_rebuttal_attack_node(state: DebateState) -> dict:
+    """AI 자유논박 — 공격 단계만. 마지막 턴이면 entry 없이 통과."""
+    updated = _fr_attack_impl(state)
     return {
         "debate_history": updated["debate_history"],
         "current_turn": updated["current_turn"],
@@ -319,26 +406,53 @@ def user_role_reversal_node(state: DebateState) -> dict:
 
 # ── 5단계: 종합 ───────────────────────────────────────────────────────────
 
-def ai_synthesis_node(state: DebateState) -> dict:
-    """AI 종합 의견 제시 / 응답."""
-    syn_entries = [e for e in state["debate_history"] if e["phase"] == "synthesis"]
+def _ai_speakers_count(state: DebateState) -> int:
+    return len([s for s in state["speaking_order"] if s != "user"])
 
-    if not syn_entries:
-        # 초기 의견
-        updated = synthesis_node(state)
+
+def _is_first_synthesis_round(state: DebateState) -> bool:
+    """현재 라운드가 초기 의견 제시 (사용자 발언 없음) 인지."""
+    return not any(
+        e["speaker_id"] == "user" and e["phase"] == "synthesis"
+        for e in state.get("debate_history", [])
+    )
+
+
+def ai_synthesis_step_node(state: DebateState) -> dict:
+    """종합 회의 — 한 AI 에이전트만 발언. 첫 라운드면 propose, 사용자 발언 후면 discuss.
+
+    카운터: synthesis_propose_idx (첫 라운드), synthesis_discuss_idx (응답 라운드).
+    한 AI 발언 = 한 LangGraph chunk → SSE 즉시 push.
+    """
+    if _is_first_synthesis_round(state):
+        updated = synthesis_propose_one_node(state)
     else:
-        # 사용자 발언에 대한 응답
-        updated = synthesis_discuss_node(state)
-
+        updated = synthesis_discuss_one_node(state)
     return {
         "debate_history": updated["debate_history"],
         "current_turn": updated["current_turn"],
+        "synthesis_propose_idx": updated.get("synthesis_propose_idx", state.get("synthesis_propose_idx", 0)),
+        "synthesis_discuss_idx": updated.get("synthesis_discuss_idx", state.get("synthesis_discuss_idx", 0)),
         "phase": "synthesis",
+        "is_finished": False,
     }
 
 
+def route_synthesis_step(state: DebateState) -> str:
+    """현재 라운드 AI 들이 다 말했는지 — 카운터 vs AI 수 비교."""
+    n_ai = _ai_speakers_count(state)
+    if _is_first_synthesis_round(state):
+        idx = state.get("synthesis_propose_idx", 0)
+    else:
+        idx = state.get("synthesis_discuss_idx", 0)
+    return "next" if idx < n_ai else "done"
+
+
 def user_synthesis_node(state: DebateState) -> dict:
-    """사용자 종합 의견 — interrupt로 대기. Round 3에는 개별 최적해 선언 유도."""
+    """사용자 종합 의견 — interrupt로 대기. Round 3에는 개별 최적해 선언 유도.
+
+    분리 후 동작: 사용자 발언 후 다음 discuss 라운드를 위해 synthesis_discuss_idx 를 0 으로 리셋.
+    """
     is_final_round = state.get("synthesis_user_turns", 0) >= 2
     if is_final_round:
         user_content = interrupt(
@@ -363,6 +477,7 @@ def user_synthesis_node(state: DebateState) -> dict:
         "debate_history": history,
         "current_turn": state["current_turn"] + 1,
         "synthesis_user_turns": new_user_turns,
+        "synthesis_discuss_idx": 0,  # 다음 discuss 라운드를 위해 카운터 리셋
     }
 
 
@@ -425,28 +540,49 @@ def build_debate_graph():
     graph = StateGraph(DebateState)
 
     # 노드 등록
-    graph.add_node("ai_opening", ai_opening_node)
+    # 1단계 입론: pre/post 모두 한 에이전트씩 step 노드로 — SSE 가 발화 단위로 즉시 push
+    graph.add_node("ai_opening_pre", ai_opening_pre_step_node)
     graph.add_node("user_opening", user_opening_node)
-    graph.add_node("ai_rebuttal", ai_rebuttal_node)
+    graph.add_node("ai_opening_post", ai_opening_post_step_node)
+    # 2단계 연쇄논박: pair 한 개씩 step 노드 — 사용자 차례 만나면 user_rebuttal 로 분기
+    graph.add_node("ai_rebuttal_step", ai_rebuttal_step_node)
     graph.add_node("user_rebuttal", user_rebuttal_node)
-    graph.add_node("ai_free_rebuttal", ai_free_rebuttal_node)
+    # 3단계 자유논박: 방어/공격 노드 분리
+    graph.add_node("ai_free_rebuttal_defense", ai_free_rebuttal_defense_node)
+    graph.add_node("ai_free_rebuttal_attack", ai_free_rebuttal_attack_node)
     graph.add_node("user_free_rebuttal_defense", user_free_rebuttal_defense_node)
     graph.add_node("user_free_rebuttal_attack", user_free_rebuttal_attack_node)
     graph.add_node("ai_role_reversal", ai_role_reversal_node)
     graph.add_node("user_role_reversal", user_role_reversal_node)
-    graph.add_node("ai_synthesis", ai_synthesis_node)
+    # 5단계 종합: AI 한 명씩 step 노드 — propose/discuss 모두
+    graph.add_node("ai_synthesis_step", ai_synthesis_step_node)
     graph.add_node("user_synthesis", user_synthesis_node)
     graph.add_node("user_finalize", user_finalize_node)
 
     # 엣지: 순차 흐름
-    graph.set_entry_point("ai_opening")
-    graph.add_edge("ai_opening", "user_opening")
-    graph.add_edge("user_opening", "ai_rebuttal")
-    graph.add_edge("ai_rebuttal", "user_rebuttal")
-    graph.add_edge("user_rebuttal", "ai_free_rebuttal")
+    # 1단계: pre step (loop) → user_opening → post step (loop) → 2단계
+    graph.set_entry_point("ai_opening_pre")
+    graph.add_conditional_edges("ai_opening_pre", route_opening_pre, {
+        "next": "ai_opening_pre",
+        "done": "user_opening",
+    })
+    graph.add_edge("user_opening", "ai_opening_post")
+    graph.add_conditional_edges("ai_opening_post", route_opening_post, {
+        "next": "ai_opening_post",
+        "done": "ai_rebuttal_step",
+    })
+    # 2단계: AI step (loop) → 사용자 차례 만나면 user_rebuttal → 다시 ai_rebuttal_step
+    # → done 이면 자유논박. user_rebuttal 노드가 user pair 들을 done 마크하므로 무한 loop 없음.
+    graph.add_conditional_edges("ai_rebuttal_step", route_rebuttal, {
+        "next": "ai_rebuttal_step",
+        "to_user": "user_rebuttal",
+        "done": "ai_free_rebuttal_defense",
+    })
+    graph.add_edge("user_rebuttal", "ai_rebuttal_step")
 
-    # 자유논박: AI 발언 후 → 사용자 답변 턴 or 역할반전
-    graph.add_conditional_edges("ai_free_rebuttal", route_after_ai_free, {
+    # AI 자유논박: 방어 → 공격 직진. 라우팅(역할반전 분기)은 공격 노드 뒤에서 결정.
+    graph.add_edge("ai_free_rebuttal_defense", "ai_free_rebuttal_attack")
+    graph.add_conditional_edges("ai_free_rebuttal_attack", route_after_ai_free, {
         "to_user": "user_free_rebuttal_defense",
         "end_free": "ai_role_reversal",
     })
@@ -454,20 +590,24 @@ def build_debate_graph():
     # 답변 → 공격 (공격 노드가 최종 턴이면 interrupt 없이 바로 카운터만 증가)
     graph.add_edge("user_free_rebuttal_defense", "user_free_rebuttal_attack")
 
-    # 사용자 자유논박 후 → continue면 AI 자유논박, done(2라운드 완료)이면 바로 역할반전
+    # 사용자 자유논박 후 → continue면 AI 방어부터 다시, done(2라운드 완료)이면 바로 역할반전
     graph.add_conditional_edges("user_free_rebuttal_attack", route_free_rebuttal, {
-        "continue": "ai_free_rebuttal",
+        "continue": "ai_free_rebuttal_defense",
         "done": "ai_role_reversal",  # user의 최종 답변 후 AI 응답 없이 역할반전으로
     })
 
     # 역할반전 → 종합
     graph.add_edge("ai_role_reversal", "user_role_reversal")
-    graph.add_edge("user_role_reversal", "ai_synthesis")
-    graph.add_edge("ai_synthesis", "user_synthesis")
+    graph.add_edge("user_role_reversal", "ai_synthesis_step")
 
-    # 종합 루프
+    # 5단계 종합: ai_synthesis_step (loop, AI 한 명씩) → 모두 끝나면 user_synthesis
+    graph.add_conditional_edges("ai_synthesis_step", route_synthesis_step, {
+        "next": "ai_synthesis_step",
+        "done": "user_synthesis",
+    })
+    # 사용자 발언 후 → 다음 라운드 (continue) 또는 finalize
     graph.add_conditional_edges("user_synthesis", route_synthesis, {
-        "continue": "ai_synthesis",
+        "continue": "ai_synthesis_step",
         "finalize": "user_finalize",
     })
     graph.add_edge("user_finalize", END)

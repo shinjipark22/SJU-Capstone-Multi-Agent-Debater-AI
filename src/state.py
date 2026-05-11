@@ -162,6 +162,11 @@ class DebateState(TypedDict):
     current_cycle: int
     max_cycle: int
 
+    # 입론 (1단계) — step 노드 카운터. TypedDict 에 정의돼야 LangGraph 체크포인트에 저장됨
+    # (정의 안 하면 노드가 idx+1 반환해도 다음 호출 때 초기값 0 으로 돌아가 무한 loop).
+    opening_pre_idx: int   # 사용자 전 AI 입론 step 인덱스 (0→len(pre_speakers))
+    opening_post_idx: int  # 사용자 후 AI 입론 step 인덱스
+
     # 연쇄 논박 (2단계)
     rebuttal_pairs: Optional[List[RebuttalPair]]
     current_rebuttal_round: int
@@ -176,6 +181,8 @@ class DebateState(TypedDict):
     # 종합 (5단계)
     synthesis_draft: Optional[str]
     synthesis_user_turns: int  # 사용자 의견 제출 수 (0→1→2, 2 도달 시 확정 화면)
+    synthesis_propose_idx: int  # 초기 의견 제시 step 인덱스 (첫 라운드)
+    synthesis_discuss_idx: int  # 사용자 발언 후 응답 step 인덱스 (라운드마다 user_synthesis 가 0 으로 리셋)
 
     # 종료
     is_finished: bool
@@ -330,6 +337,8 @@ def build_initial_state(
         phase="opening", # 토론은 항상 입론에서 시작
         current_cycle=0, # 자유논박은 시작 안 했으니 0
         max_cycle=max_cycle, # 기본으로 4
+        opening_pre_idx=0,         # 1단계 step 카운터 (사용자 전 AI)
+        opening_post_idx=0,        # 1단계 step 카운터 (사용자 후 AI)
         rebuttal_pairs=None,       # 2단계 진입 시 build_chained_rebuttal_pairs()로 생성
         current_rebuttal_round=0, # 라운드 시작 전, 기본은 0
         selected_opponent_id=None, # 3단계 진입 시 사용자가 선택
@@ -337,7 +346,9 @@ def build_initial_state(
         role_reversed=False, # 역할 반전 아직 시작 안 함
         synthesis_draft=None,      # 5단계 진입 전까지 None
         synthesis_user_turns=0, # 종합 회의 사용자 턴 수 (최대 2)
-        is_finished=False, # 토론 시작 상태이므로 종료 아님 
+        synthesis_propose_idx=0,   # 5단계 step 카운터 (초기 의견 제시 라운드)
+        synthesis_discuss_idx=0,   # 5단계 step 카운터 (사용자 발언 후 응답 라운드, 매 라운드 0 으로 리셋)
+        is_finished=False, # 토론 시작 상태이므로 종료 아님
     )
 
 

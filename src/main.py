@@ -203,7 +203,7 @@ def _create_initial_state(request: DebateInitRequest, topic_dict: dict) -> Debat
 async def initialize_debate(request: DebateInitRequest):
     """토론 세션 초기화 + AI 입론을 SSE로 실시간 스트리밍.
 
-    각 AI 에이전트의 입론이 생성될 때마다 'entry' 이벤트로 전송.
+    각 AI 에이전트의 입론이 생성될 때마다 'turn' 이벤트로 (발화 + 실시간 분석) 묶어서 전송.
     마지막에 'waiting' 이벤트로 사용자 입력 대기 알림.
     """
     topic_dict = _load_topic(request.topic)
@@ -237,11 +237,9 @@ async def initialize_debate(request: DebateInitRequest):
 
             for entry in new_entries:
                 entry_dict = dict(entry) if isinstance(entry, dict) else entry
-                yield _sse_event("entry", entry_dict)
-                # 실시간 분석 — 턴 발행 직후 점수 emit
+                # 발화 + 실시간 분석 결과를 한 이벤트로 묶어서 전송 (frontend 가 매칭 부담 없도록)
                 ev = await _run_judge_turn(judge, entry_dict)
-                if ev is not None:
-                    yield _sse_event("analysis", ev)
+                yield _sse_event("turn", {"entry": entry_dict, "analysis": ev})
 
             prev_history = list(cur_history)
 
@@ -262,7 +260,7 @@ async def initialize_debate(request: DebateInitRequest):
 async def submit_user_input(session_id: str, request: UserSubmitRequest):
     """사용자 입력으로 그래프 재개 + 다음 interrupt까지 SSE 스트리밍.
 
-    AI 에이전트의 발언이 생성될 때마다 'entry' 이벤트로 전송.
+    AI 에이전트의 발언이 생성될 때마다 'turn' 이벤트로 (발화 + 실시간 분석) 묶어서 전송.
     """
     config = {"configurable": {"thread_id": session_id}}
 
@@ -295,12 +293,9 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
 
             for entry in new_entries:
                 entry_dict = dict(entry) if isinstance(entry, dict) else entry
-                yield _sse_event("entry", entry_dict)
-                # 실시간 분석 — 턴 발행 직후 점수 emit
-                if judge is not None:
-                    ev = await _run_judge_turn(judge, entry_dict)
-                    if ev is not None:
-                        yield _sse_event("analysis", ev)
+                # 발화 + 실시간 분석 결과를 한 이벤트로 묶어서 전송 (frontend 가 매칭 부담 없도록)
+                ev = await _run_judge_turn(judge, entry_dict) if judge is not None else None
+                yield _sse_event("turn", {"entry": entry_dict, "analysis": ev})
 
             prev_history = list(cur_history)
 
