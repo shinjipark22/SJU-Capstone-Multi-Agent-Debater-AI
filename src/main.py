@@ -96,6 +96,7 @@ async def _run_judge_turn(judge: DebatrixJudge, entry: dict) -> Optional[dict]:
 class UserSubmitRequest(BaseModel):
     """사용자 입력 제출 (모든 단계 공용)."""
     content: str
+    target_id: Optional[str] = None  # 자유논박: 사용자가 선택한 상대 에이전트 ID
 
     @field_validator("content")
     @classmethod
@@ -273,6 +274,10 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
         )
 
     judge = _session_judges.get(session_id)
+
+    # 자유논박에서 사용자가 상대를 선택한 경우 state에 반영 (resume 전에 수행)
+    if request.target_id:
+        debate_graph.update_state(config, {"selected_opponent_id": request.target_id})
 
     async def event_stream():
         # 현재 히스토리 길이 기록
