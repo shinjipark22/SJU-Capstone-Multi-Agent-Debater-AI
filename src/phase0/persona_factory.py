@@ -205,6 +205,7 @@ def create_agents(
     pro = topic["pro"]
     con = topic["con"]
     description = topic.get("description_long")
+    topic_id = topic.get("id", "")
 
     stance_list = STANCE_DISTRIBUTION[(debate_format, user_stance)]
 
@@ -214,6 +215,13 @@ def create_agents(
             f"agent_intensities 길이({len(agent_intensities)})가 "
             f"필요한 AI 수({len(stance_list)})와 다릅니다."
         )
+
+    # focus_area 사전 할당용 — search_queries 와 같은 stance 내 0-based 인덱스 기반.
+    # opening 시 동적 계산하던 걸 세션 초기화 단계로 끌어올려, 사용자 어시스턴트가
+    # 이 진영에서 이미 쓰는 focus 를 정확히 알고 제외할 수 있도록 한다.
+    from src.phase1.stage1_opening.nodes import _get_focus_area
+
+    stance_pos: Dict[str, int] = {"PRO": 0, "CON": 0}
 
     agents: List[AgentPersona] = []
 
@@ -229,6 +237,9 @@ def create_agents(
             agent_id, stance, intensity, title, pro, con, description,
         )
 
+        focus_area = _get_focus_area(stance, topic_id, index=stance_pos[stance])
+        stance_pos[stance] += 1
+
         agents.append(
             AgentPersona(
                 agent_id=agent_id,
@@ -236,7 +247,7 @@ def create_agents(
                 intensity=intensity,
                 role_description=role_description,
                 system_prompt=system_prompt,
-                focus_area="",
+                focus_area=focus_area,
             )
         )
 

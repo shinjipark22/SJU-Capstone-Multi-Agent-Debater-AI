@@ -143,6 +143,11 @@ llm_with_tools = llm.bind_tools([search_web])
 # 종합 회의용 (짧은 응답)
 llm_short = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 512, "temperature": 0.7})
 
+# 어시스턴트(DebateAssistant) 용 — 자유논박처럼 prompt+history 가 길어
+# 내부 추론 후 출력 분량이 모자라 잘리는 사례가 있어 한도 상향.
+llm_assistant = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 3072})
+llm_assistant_with_tools = llm_assistant.bind_tools([search_web])
+
 
 # ── 공통 유틸 ──────────────────────────────────────────────────────────────
 
@@ -170,15 +175,30 @@ def invoke_with_retry(target_llm, messages: list, *, label: str = "llm") -> AIMe
                 raise
 
 
-def invoke_with_tools(messages: list, *, label: str = "llm") -> tuple:
+def invoke_with_tools(
+    messages: list,
+    *,
+    label: str = "llm",
+    tools_llm=None,
+    final_llm=None,
+) -> tuple:
     """tool calling LLM 호출. tool call이 있으면 실행 후 재호출.
+
+    Parameters
+    ----------
+    tools_llm : tool 바인딩된 ChatOpenAI. None 이면 기본 `llm_with_tools` 사용.
+    final_llm : tool 결과 받은 뒤 최종 출력용 ChatOpenAI. None 이면 기본 `llm` 사용.
+        어시스턴트처럼 더 큰 max_tokens 가 필요한 경우 override.
 
     Returns:
         (speech_text, raw_text, tool_calls_log)
     """
     from langchain_core.messages import ToolMessage
 
-    response = invoke_with_retry(llm_with_tools, messages, label=label)
+    _tools_llm = tools_llm if tools_llm is not None else llm_with_tools
+    _final_llm = final_llm if final_llm is not None else llm
+
+    response = invoke_with_retry(_tools_llm, messages, label=label)
     raw = response.content if isinstance(response.content, str) else str(response.content)
     tool_calls_log = []
 
@@ -193,7 +213,7 @@ def invoke_with_tools(messages: list, *, label: str = "llm") -> tuple:
             messages.append(ToolMessage(content=result, tool_call_id=tc["id"]))
 
         # 도구 결과 포함하여 재호출 (도구 없이)
-        final = invoke_with_retry(llm, messages, label=f"{label}_final")
+        final = invoke_with_retry(_final_llm, messages, label=f"{label}_final")
         raw = final.content if isinstance(final.content, str) else str(final.content)
 
     return raw, tool_calls_log

@@ -464,21 +464,37 @@ if os.path.exists(_SEARCH_QUERIES_PATH):
     with open(_SEARCH_QUERIES_PATH, encoding="utf-8") as _f:
         _SEARCH_QUERIES = json.load(_f)
 
-# 에이전트별 쿼리 인덱스 (같은 stance 에이전트가 다른 쿼리를 사용하도록)
-_query_idx: Dict[str, int] = {}
+def _get_focus_area(stance: str, topic_id: str = "", index: int = 0) -> str:
+    """에이전트별 논증 초점 영역을 반환한다.
 
+    `data/search_queries.json` 의 (topic_id, stance) 키워드 리스트에서 명시된
+    `index` 위치의 키워드를 반환한다. 이전에는 모듈 전역 카운터를 썼는데
+    프로세스 재시작 사이에만 0으로 리셋되어 세션마다 다른 인덱스에서 시작하는
+    문제가 있었음 — 이제 호출자가 명시적 인덱스를 넘긴다.
 
-def _get_focus_area(stance: str, topic_id: str = "") -> str:
-    """에이전트별 논증 초점 영역을 반환한다. search_queries.json에서 순환 할당."""
+    Parameters
+    ----------
+    index : 같은 진영 내 몇 번째 AI 인지 (0-based).
+        같은 stance 다른 AI 끼리 다른 focus 를 받도록 호출자가 위치 계산해서 전달.
+
+    Returns
+    -------
+    str : focus_area 키워드. topic_id/진영 미매칭 시 "".
+    """
     if topic_id and topic_id in _SEARCH_QUERIES:
         keywords = _SEARCH_QUERIES[topic_id].get(stance, [])
         if keywords:
-            key = f"{topic_id}_{stance}"
-            idx = _query_idx.get(key, 0)
-            focus = keywords[idx % len(keywords)]
-            _query_idx[key] = idx + 1
-            return focus
+            return keywords[index % len(keywords)]
     return ""
+
+
+def _focus_index_within_stance(agent: Dict, agents: list) -> int:
+    """agents 리스트에서 같은 stance 의 몇 번째 위치인지 (0-based) 반환."""
+    same = [a for a in agents if a.get("stance") == agent.get("stance")]
+    for i, a in enumerate(same):
+        if a.get("agent_id") == agent.get("agent_id"):
+            return i
+    return 0
 
 
 def _pre_search(topic: str, stance: str, topic_id: str = "") -> Tuple[str, List[Dict]]:
@@ -602,6 +618,13 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
     except Exception:
         pass
 
+    _tag = f"agent={agent.get('agent_id','?')} stance={agent.get('stance','?')}"
+    _t0 = time.time()
+    def _tlog(step: str, dt: float, extra: str = ""):
+        msg = f"[opening_timing] t={time.time()-_t0:6.2f}s {_tag} step={step} dt={dt:.2f}s {extra}"
+        print(msg, flush=True)
+        logger.warning(msg)
+
     messages = [
         SystemMessage(content=agent["system_prompt"]),
         HumanMessage(content=prompt),
@@ -609,7 +632,10 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
     tool_calls_log: List[Dict] = []
 
     # 1차 호출 (도구 바인딩)
+    _s = time.time()
     response: AIMessage = _invoke_with_retry(_llm_with_tools, messages, label="opening")
+    _has_tc = bool(getattr(response, "tool_calls", None))
+    _tlog("llm_call_1_with_tools", time.time() - _s, f"emitted_tool_call={_has_tc}")
 
     # tool call이 있으면 실행 후 재호출
     if hasattr(response, 'tool_calls') and response.tool_calls:
@@ -620,6 +646,7 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
             tool_id = tc.get("id", "")
             if tool_name in _TOOL_MAP:
                 from src.graph.llm import safe_search_invoke
+                _ts = time.time()
                 if tool_name == "search_web":
                     result = safe_search_invoke(tool_args)
                 else:
@@ -628,12 +655,15 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
                     except Exception as _e:
                         logger.warning("[tool %s] 실패: %s", tool_name, _e)
                         result = f"[{tool_name} 실패] {_e}"
+                _tlog(f"tool_exec_{tool_name}", time.time() - _ts, f"args={tool_args}")
                 result = _truncate_tool_result(str(result))
                 tool_calls_log.append({"name": tool_name, "args": tool_args, "result": result})
                 messages.append(ToolMessage(content=result, tool_call_id=tool_id))
                 logger.info("[opening] tool call: %s(%s)", tool_name, tool_args)
         # 검색 결과 포함하여 재호출 (도구 없이)
+        _s = time.time()
         response = _invoke_with_retry(_llm, messages, label="opening_with_search")
+        _tlog("llm_call_2_with_search_results", time.time() - _s)
 
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_delimited_text(raw))
@@ -652,7 +682,9 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
         logger.warning("[opening] 재시도: %s / 누락 소제목: %s", reason, missing)
         messages.append(AIMessage(content=raw))
         messages.append(HumanMessage(content=f'{retry_hint}\n\n### 답변 시작\n### 자기소개와 입장 표명\n(자기소개)\n### 논거 1: 소제목\n(논거)\n### 논거 2: 소제목\n(논거)\n### 결론\n(결론)\n### 답변 끝'))
+        _s = time.time()
         retry: AIMessage = _invoke_with_retry(_llm, messages, label="opening_retry")
+        _tlog("llm_call_quality_retry", time.time() - _s, f"reason={reason} missing={missing}")
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
 
@@ -664,7 +696,9 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
         logger.warning("[opening] 인용-검색 불일치 감지, 재시도 %d/2", attempt + 1)
         messages.append(AIMessage(content=raw))
         messages.append(HumanMessage(content=cite_feedback))
+        _s = time.time()
         retry: AIMessage = _invoke_with_retry(_llm_with_tools, messages, label="opening_cite_retry")
+        _tlog(f"llm_call_cite_retry_{attempt+1}", time.time() - _s, f"emitted_tool_call={bool(getattr(retry,'tool_calls',None))}")
         # tool call 처리 (재시도 중에도 검색 가능)
         if hasattr(retry, "tool_calls") and retry.tool_calls:
             messages.append(retry)
@@ -673,15 +707,20 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
                 tool_args = tc.get("args", {})
                 tool_id = tc.get("id", "")
                 if tool_name in _TOOL_MAP:
+                    _ts = time.time()
                     result = _TOOL_MAP[tool_name].invoke(tool_args)
+                    _tlog(f"cite_retry_tool_exec_{tool_name}", time.time() - _ts)
                     result = _truncate_tool_result(str(result))
                     tool_calls_log.append({"name": tool_name, "args": tool_args, "result": result})
                     messages.append(ToolMessage(content=result, tool_call_id=tool_id))
                     logger.info("[opening] retry tool call: %s(%s)", tool_name, tool_args)
+            _s = time.time()
             retry = _invoke_with_retry(_llm, messages, label="opening_cite_retry_final")
+            _tlog(f"llm_call_cite_retry_final_{attempt+1}", time.time() - _s)
         raw = retry.content if isinstance(retry.content, str) else str(retry.content)
         speech = _postprocess_speech(_extract_delimited_text(raw))
 
+    _tlog("TOTAL", time.time() - _t0, f"output_chars={len(speech)} tool_calls={len(tool_calls_log)}")
     return speech, raw, tool_calls_log
 
 
@@ -713,9 +752,11 @@ def opening_arguments_node(state: DebateState) -> DebateState:
 
         print(f"  [{display}] 입론 생성 중...")
 
-        # 1. focus area — persona의 각도명을 우선 사용, 없으면 검색쿼리 rotation
+        # 1. focus area — persona의 각도명을 우선 사용, 없으면 같은 stance 내 위치 기반
         focus_area = agent.get("focus_area") or _get_focus_area(
-            agent["stance"], topic_id=state.get("topic_id", ""),
+            agent["stance"],
+            topic_id=state.get("topic_id", ""),
+            index=_focus_index_within_stance(agent, state["agents"]),
         )
         if focus_area:
             print(f"    [focus] {focus_area}")

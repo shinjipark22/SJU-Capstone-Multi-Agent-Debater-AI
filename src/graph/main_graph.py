@@ -51,6 +51,7 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
     import re
     from src.phase1.stage1_opening.nodes import (
         _generate_opening, _get_focus_area, _build_opening_prompt, _is_valid_speech,
+        _focus_index_within_stance,
     )
     import src.phase1.stage1_opening.nodes as _opening_mod
     _opening_mod._used_doc_ids = set()
@@ -78,7 +79,11 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
 
         print(f"  [{display}] 입론 생성 중...")
 
-        focus_area = _get_focus_area(agent["stance"], topic_id=state.get("topic_id", ""))
+        focus_area = agent.get("focus_area") or _get_focus_area(
+            agent["stance"],
+            topic_id=state.get("topic_id", ""),
+            index=_focus_index_within_stance(agent, state["agents"]),
+        )
         prompt = _build_opening_prompt(topic, agent["stance"], display, focus_area)
         final_text, raw, tool_calls_log = _generate_opening(agent, prompt)
 

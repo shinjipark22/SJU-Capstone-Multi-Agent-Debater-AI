@@ -1,12 +1,16 @@
 #!/bin/bash
-# vLLM 서빙 스크립트 — Qwen2.5-32B-Instruct AWQ + Marlin + CUDA Graphs
-# GPU 0+1 텐서병렬 (2장, KV 캐시 여유 확보)
+# vLLM 서빙 스크립트 (어시스턴트 최적화 실험용) — Qwen2.5-32B-AWQ_MARLIN + prefix caching
+# GPU 2+3 텐서병렬 (운영 vLLM 인스턴스의 GPU 0+1 과 분리)
+# 포트 8002 사용 (운영 8000 과 분리)
 #
-# 최적화:
-# - quantization awq → awq_marlin (Marlin W4A16 커널, ~30% 가속)
-# - enforce-eager 제거 → CUDA Graphs 활성 (추가 15~25% 가속)
-# - compilation-config 로 torch.compile 우회 (PyTorch FakeTensorMode 버그 회피)
-# - enable-prefix-caching 유지
+# 1단계 변경: AWQ → AWQ_MARLIN (~30% 가속), prefix-caching ON
+# speculative decoding 은 효과 미미해서 제거 (필요시 다시 추가)
+#
+# 사용:
+#   bash scripts/serve/start_vllm_speculative.sh
+#
+# 어시스턴트가 이 인스턴스를 사용하게 하려면:
+#   VLLM_BASE_URL=http://localhost:8002/v1 python tests/assistant_guide_e2e.py
 
 set -e
 
@@ -19,18 +23,18 @@ export PATH="/home/user/miniconda3/envs/sj_agent/bin:$PATH"
 
 HF_HOME="${HF_HOME:-/disk1/SJ/huggingface/hub}"
 export HF_HOME
+export CUDA_VISIBLE_DEVICES=2,3
 
-echo "[GPU 0+1] Qwen2.5-32B-Instruct-AWQ 시작 (포트 8000)..."
-echo "  텐서병렬: 2장"
-echo "  양자화: AWQ_MARLIN"
-echo "  CUDA graphs: ON (torch.compile 우회)"
+echo "[GPU 2+3] Qwen2.5-32B-AWQ_MARLIN + prefix-caching 시작 (포트 8002)..."
+echo "  텐서병렬: 2장 (GPU 2, 3)"
+echo "  양자화: AWQ_MARLIN (W4A16 marlin 커널, ~30% 가속)"
 echo "  prefix caching: ON"
 echo "  tool calling: hermes"
 echo ""
 
 /home/user/miniconda3/envs/sj_agent/bin/vllm serve \
     Qwen/Qwen2.5-32B-Instruct-AWQ \
-    --port 8000 \
+    --port 8002 \
     --tensor-parallel-size 2 \
     --gpu-memory-utilization 0.90 \
     --max-model-len 16384 \
