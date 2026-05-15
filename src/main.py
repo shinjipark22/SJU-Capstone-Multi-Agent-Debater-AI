@@ -20,6 +20,12 @@ from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 from pydantic import BaseModel, field_validator
 
+from src.debate_assistant import (
+    GuideContext,
+    HistoryEntry,
+    build_guide_message,
+    get_user_slot_focus_area,
+)
 from src.final_evaluator import build_final_report
 from src.graph.main_graph import build_debate_graph
 from src.live_analyzer import DebatrixJudge, project_frontend_event
@@ -415,6 +421,136 @@ def delete_session_cache(session_id: str):
         "final_report": _final_reports.pop(session_id, None) is not None,
     }
     return {"session_id": session_id, "removed": removed}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 어시스턴트 안내문 — 단계 시작 시 사용자에게 보여줄 친근체 가이드 생성
+# ═══════════════════════════════════════════════════════════════════════════
+
+_ASSISTANT_PHASES = {"opening", "chained_rebuttal", "free_rebuttal", "role_reversal", "synthesis"}
+
+
+def _derive_opponent_speech(
+    history: list,
+    phase: str,
+    user_stance: str,
+    opponent_id: Optional[str] = None,
+) -> str:
+    """현재 단계에서 사용자가 받아쳐야 할 상대 발언을 history 에서 도출.
+
+    우선순위:
+      1) opponent_id 지정 시 → 해당 agent 의 가장 최근 발언
+      2) 현재 phase 의 마지막 user 가 아닌 발언
+      3) 그것도 없으면 history 전체에서 마지막 user 가 아닌 발언
+
+    역할반전(role_reversal)에서는 사용자가 반대 진영을 옹호하는 발언을 준비하므로
+    "받아칠 상대" 의 의미가 약하지만, 사전 검색 자료의 맥락 토대로 가장 최근
+    AI 발언을 그대로 전달한다.
+    """
+    if opponent_id:
+        for entry in reversed(history):
+            if entry.get("speaker_id") == opponent_id:
+                return entry.get("content", "")
+
+    for entry in reversed(history):
+        if entry.get("speaker_id") == "user":
+            continue
+        if entry.get("phase") == phase:
+            return entry.get("content", "")
+
+    for entry in reversed(history):
+        if entry.get("speaker_id") != "user":
+            return entry.get("content", "")
+    return ""
+
+
+def _build_assistant_ctx(
+    state: dict,
+    topic_dict: dict,
+    phase: str,
+    opponent_id: Optional[str],
+) -> GuideContext:
+    """LangGraph state 를 어시스턴트용 GuideContext 로 변환."""
+    history = state.get("debate_history", [])
+    agents = state.get("agents", [])
+    user_stance = state.get("user_stance", "PRO")
+
+    # 사용자 진영 AI 가 이미 쓰는 focus_area 는 제외해 사용자 슬롯에 다른 자료 노출
+    excluded = [
+        (a.get("focus_area") if isinstance(a, dict) else getattr(a, "focus_area", ""))
+        for a in agents
+        if (a.get("stance") if isinstance(a, dict) else getattr(a, "stance", "")) == user_stance
+    ]
+    excluded = [f for f in excluded if f]
+    user_focus_area = get_user_slot_focus_area(
+        state.get("topic_id", ""), user_stance, excluded_focuses=excluded
+    )
+
+    opponent_speech = _derive_opponent_speech(history, phase, user_stance, opponent_id)
+
+    hist_entries = [
+        HistoryEntry(
+            speaker_id=e.get("speaker_id", ""),
+            stance=e.get("stance", ""),
+            phase=e.get("phase", ""),
+            content=e.get("content", ""),
+        )
+        for e in history
+    ]
+
+    return GuideContext(
+        topic=state.get("topic", ""),
+        user_stance=user_stance,
+        pro_claim=topic_dict.get("pro", "찬성"),
+        con_claim=topic_dict.get("con", "반대"),
+        topic_id=state.get("topic_id", ""),
+        user_focus_area=user_focus_area,
+        assistant_name="비비드",
+        opponent_speech=opponent_speech,
+        history=hist_entries,
+        links=[],
+    )
+
+
+@app.get("/debate/{session_id}/assistant/{phase}")
+async def get_assistant_guide(
+    session_id: str,
+    phase: str,
+    opponent_id: Optional[str] = None,
+):
+    """단계 시작 시 사용자에게 노출할 어시스턴트 안내문 생성.
+
+    - `phase`: opening | chained_rebuttal | free_rebuttal | role_reversal | synthesis
+    - `opponent_id` (query): 자유논박 등에서 사용자가 받아칠 상대 agent_id 지정 시
+      해당 agent 의 가장 최근 발언을 opponent_speech 로 사용.
+    """
+    if phase not in _ASSISTANT_PHASES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"지원하지 않는 phase '{phase}'. 지원: {sorted(_ASSISTANT_PHASES)}",
+        )
+
+    config = {"configurable": {"thread_id": session_id}}
+    graph_state = debate_graph.get_state(config)
+    if not graph_state or not graph_state.values:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    state = graph_state.values
+    topic_id = state.get("topic_id", "")
+    try:
+        topic_dict = _load_topic(topic_id)
+    except HTTPException:
+        topic_dict = {"id": topic_id, "title": state.get("topic", ""), "pro": "찬성", "con": "반대"}
+
+    ctx = _build_assistant_ctx(state, topic_dict, phase, opponent_id)
+
+    try:
+        text = await asyncio.to_thread(build_guide_message, phase, ctx)
+    except Exception as e:
+        logger.exception("[assistant] %s 생성 실패", phase)
+        raise HTTPException(status_code=500, detail=f"어시스턴트 안내문 생성 실패: {e}")
+
+    return {"session_id": session_id, "phase": phase, "text": text}
 
 
 @app.get("/topics")
