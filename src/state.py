@@ -279,18 +279,28 @@ def build_chained_rebuttal_pairs(
     pairs: List[RebuttalPair] = []
     round_num = 1
     for pro_id, con_id in zip(pro_ids, con_ids):
+        # 사용자 진영의 상대방이 먼저 공격
+        if user_stance == "PRO":
+            # 사용자가 찬성이면 반대(상대)가 먼저 공격
+            first_attacker, first_target = con_id, pro_id
+            second_attacker, second_target = pro_id, con_id
+        else:
+            # 사용자가 반대면 찬성(상대)이 먼저 공격
+            first_attacker, first_target = pro_id, con_id
+            second_attacker, second_target = con_id, pro_id
+
         pairs.append(RebuttalPair(
             round=round_num,
-            attacker_id=con_id,
-            target_id=pro_id,
+            attacker_id=first_attacker,
+            target_id=first_target,
             awaiting_response=False,
             done=False,
         ))
         round_num += 1
         pairs.append(RebuttalPair(
             round=round_num,
-            attacker_id=pro_id,
-            target_id=con_id,
+            attacker_id=second_attacker,
+            target_id=second_target,
             awaiting_response=False,
             done=False,
         ))
