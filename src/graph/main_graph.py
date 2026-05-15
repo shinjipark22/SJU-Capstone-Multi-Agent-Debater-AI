@@ -79,7 +79,7 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
 
         print(f"  [{display}] 입론 생성 중...")
 
-        focus_area = _get_focus_area(
+        focus_area = agent.get("focus_area") or _get_focus_area(
             agent["stance"],
             topic_id=state.get("topic_id", ""),
             index=_focus_index_within_stance(agent, state["agents"]),
