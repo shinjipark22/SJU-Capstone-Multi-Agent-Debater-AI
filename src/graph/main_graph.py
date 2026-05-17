@@ -273,13 +273,8 @@ def user_rebuttal_node(state: DebateState) -> dict:
 # ── 3단계: 자유논박 ───────────────────────────────────────────────────────
 
 def _ensure_opponent_selected(state: DebateState) -> DebateState:
-    """selected_opponent_id 가 없으면 사용자 진영 반대 쪽 첫 에이전트로 자동 선택."""
-    if state.get("selected_opponent_id"):
-        return state
-    opposite = "CON" if state["user_stance"] == "PRO" else "PRO"
-    opponent = next((a for a in state["agents"] if a["stance"] == opposite), None)
-    if opponent:
-        return DebateState(**{**state, "selected_opponent_id": opponent["agent_id"]})
+    """selected_opponent_id 가 없으면 None 반환 (자동 선택 안 함)."""
+    # 자동 선택 제거 — 프론트에서 사용자가 직접 선택해야 함
     return state
 
 
@@ -289,6 +284,13 @@ def ai_free_rebuttal_defense_node(state: DebateState) -> dict:
     노드 분리 이유: SSE 가 발화 단위로 즉시 push 되도록 (방어 끝나면 바로 frontend 로,
     공격은 다음 노드에서 이어서 push).
     """
+    # selected_opponent_id가 없으면 사용자 선택 대기 (interrupt)
+    if not state.get("selected_opponent_id"):
+        print("[ai_free_rebuttal_defense] selected_opponent_id 없음 — 사용자 선택 대기")
+        from langgraph.types import interrupt
+        interrupt("자유논박 상대를 선택하세요")
+        # interrupt 후 resume되면 selected_opponent_id가 설정되어 있어야 함
+
     state = _ensure_opponent_selected(state)
     updated = _fr_defense_impl(state)
     return {
