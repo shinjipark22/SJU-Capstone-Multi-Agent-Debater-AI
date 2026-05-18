@@ -7,6 +7,7 @@ main_graph.py — LangGraph 메인 토론 그래프
 [그래프 흐름]
     ai_opening_pre (loop) → user_opening → ai_opening_post (loop)
     → ai_rebuttal_step (loop) ↔ user_rebuttal
+    → user_select_opponent (자유논박 상대 선택)
     → ai_free_rebuttal_defense → ai_free_rebuttal_attack
     → user_free_rebuttal_defense → user_free_rebuttal_attack (루프)
     → ai_role_reversal → user_role_reversal
@@ -278,19 +279,35 @@ def _ensure_opponent_selected(state: DebateState) -> DebateState:
     return state
 
 
+def user_select_opponent_node(state: DebateState) -> dict:
+    """사용자가 자유논박 상대를 선택하는 노드. interrupt 로 입력 대기.
+
+    연쇄논박 종료 후 자유논박 진입 직전에 한 번만 실행된다.
+    resume value 는 agent_id 문자열 (예: "agent_1"). FastAPI submit 의
+    `content` 필드로 그대로 보내면 됨. `target_id` 도 함께 보내면 state.update
+    경로로 사전 주입 가능하나, 안 보내도 resume 값으로 채워진다.
+
+    LangGraph 룰: interrupt 는 user 노드에서만 호출해야 한다. AI 노드 안
+    interrupt 호출은 재실행/resume 흐름이 깨져 500 에러 발생.
+    """
+    selected = interrupt("자유논박 상대 에이전트를 선택하세요 (agent_1, agent_2 등)")
+    # state 에 사전 주입되어 있으면 그것 우선 (FastAPI 의 update_state 경로)
+    chosen = state.get("selected_opponent_id") or (selected.strip() if isinstance(selected, str) else None)
+    return {
+        "selected_opponent_id": chosen,
+        "phase": "free_rebuttal",
+    }
+
+
 def ai_free_rebuttal_defense_node(state: DebateState) -> dict:
     """AI 자유논박 — 방어 단계만. 첫 턴/사용자 공격 없으면 entry 없이 통과.
 
     노드 분리 이유: SSE 가 발화 단위로 즉시 push 되도록 (방어 끝나면 바로 frontend 로,
     공격은 다음 노드에서 이어서 push).
-    """
-    # selected_opponent_id가 없으면 사용자 선택 대기 (interrupt)
-    if not state.get("selected_opponent_id"):
-        print("[ai_free_rebuttal_defense] selected_opponent_id 없음 — 사용자 선택 대기")
-        from langgraph.types import interrupt
-        interrupt("자유논박 상대를 선택하세요")
-        # interrupt 후 resume되면 selected_opponent_id가 설정되어 있어야 함
 
+    selected_opponent_id 는 user_select_opponent_node 에서 미리 설정되어 있어야 한다.
+    여기서는 interrupt 호출하지 않고 state 값을 그대로 읽어 사용.
+    """
     state = _ensure_opponent_selected(state)
     updated = _fr_defense_impl(state)
     return {
@@ -555,6 +572,7 @@ def build_debate_graph():
     graph.add_node("ai_rebuttal_step", ai_rebuttal_step_node)
     graph.add_node("user_rebuttal", user_rebuttal_node)
     # 3단계 자유논박: 방어/공격 노드 분리
+    graph.add_node("user_select_opponent", user_select_opponent_node)
     graph.add_node("ai_free_rebuttal_defense", ai_free_rebuttal_defense_node)
     graph.add_node("ai_free_rebuttal_attack", ai_free_rebuttal_attack_node)
     graph.add_node("user_free_rebuttal_defense", user_free_rebuttal_defense_node)
@@ -583,9 +601,12 @@ def build_debate_graph():
     graph.add_conditional_edges("ai_rebuttal_step", route_rebuttal, {
         "next": "ai_rebuttal_step",
         "to_user": "user_rebuttal",
-        "done": "ai_free_rebuttal_defense",
+        "done": "user_select_opponent",
     })
     graph.add_edge("user_rebuttal", "ai_rebuttal_step")
+
+    # 연쇄논박 종료 → 자유논박 진입 전 사용자가 상대 선택 → AI 방어부터 시작
+    graph.add_edge("user_select_opponent", "ai_free_rebuttal_defense")
 
     # AI 자유논박: 방어 → 공격 직진. 라우팅(역할반전 분기)은 공격 노드 뒤에서 결정.
     graph.add_edge("ai_free_rebuttal_defense", "ai_free_rebuttal_attack")
