@@ -127,6 +127,7 @@ def _extract_new_entries(prev_history: list, cur_history: list) -> list:
 
 _WAITING_ALIAS = {
     # 내부 노드 분할이 API 계약에 노출되지 않도록 통합 이름으로 매핑
+    "user_select_opponent_node": "user_select_opponent",
     "user_free_rebuttal_defense": "user_free_rebuttal",
     "user_free_rebuttal_attack": "user_free_rebuttal",
 }
