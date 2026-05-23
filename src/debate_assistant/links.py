@@ -35,9 +35,11 @@ _TAVILY_EXCLUDE = [
 ]
 
 
-# 어시스턴트 전용 Pinecone namespace — 토론 측 'search-cache' 인덱스와 분리해
-# 인터랙티브 캐시를 쌓되 벤치마크 인덱스는 오염시키지 않는다.
-ASSISTANT_NAMESPACE = "assistant-cache"
+# 어시스턴트와 토론 측이 동일 Pinecone namespace (search-cache) 를 공유한다.
+# 분리했을 때 명분 (오염 방지) 대비 사용자가 올린 자료 (위키 등) 가 어시스턴트
+# 측에 안 보이는 손실이 더 컸음 — 통합으로 자료 풀 일원화.
+# 기존 'assistant-cache' 벡터는 일회 마이그레이션 후 비워짐.
+ASSISTANT_NAMESPACE = "search-cache"
 
 # 어시스턴트용 의미 유사도 임계값.
 # 0.85 로 두니 phase 간 stance 만 다른 유사 쿼리 (찬성/반대 vs 동일 토픽 50자)에
