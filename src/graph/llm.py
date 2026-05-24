@@ -55,7 +55,9 @@ def search_web(query: str) -> str:
                             cached[0]["score"], len(cached), len(excluded))
                 if mark_urls_used:
                     mark_urls_used(r.get("url", "") for r in cached)
-                return format_cached_results(cached)
+                return "[검색 결과 — vectorDB cache]\n" + "\n".join(
+                    f"- {r['content'][:500]}" for r in cached
+                )
         except Exception as e:
             logger.warning("[search_web] 캐시 조회 실패, Tavily로 폴백: %s", e)
 
@@ -89,8 +91,8 @@ def search_web(query: str) -> str:
         # 사용된 URL 누적 (다음 검색에서 중복 제외)
         if mark_urls_used:
             mark_urls_used(r.get("url", "") for r in items)
-        return "[검색 결과]\n" + "\n".join(
-            f"- {r['content'][:300]}" for r in items
+        return "[검색 결과 — web search (Tavily)]\n" + "\n".join(
+            f"- {r['content'][:500]}" for r in items
         )
     except Exception as e:
         return f"[검색 오류] {e}"
@@ -131,8 +133,8 @@ _LLM_KWARGS = dict(
     model=os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-32B-Instruct-AWQ"),
     base_url=_VLLM_BASE_URL,
     api_key=os.environ.get("LLM_API_KEY", "fake"),
-    temperature=0.6,
-    max_tokens=2048,
+    temperature=0.4,  # 0.6 → 0.4: 답변 분산 완화 (evaluation 결과의 randomness 줄임)
+    max_tokens=2560,  # 2048 → 2560: plan + 검색 결과 + 본문 합쳐 token 한도 도달 방지
     top_p=0.9,
     timeout=180,  # 32B는 좀 더 오래 걸림
 )

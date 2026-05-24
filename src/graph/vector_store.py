@@ -282,5 +282,7 @@ def semantic_cache_lookup(
 def format_cached_results(results: List[Dict]) -> str:
     """캐시 결과를 search_web과 동일한 출력 포맷으로 직렬화."""
     if not results:
-        return "[검색 결과] 관련 결과를 찾을 수 없습니다."
-    return "[검색 결과]\n" + "\n".join(f"- {r['content'][:300]}" for r in results)
+        return "[검색 결과 — vectorDB cache] 관련 결과를 찾을 수 없습니다."
+    return "[검색 결과 — vectorDB cache]\n" + "\n".join(
+        f"- {r['content'][:500]}" for r in results
+    )

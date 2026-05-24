@@ -71,12 +71,23 @@ def project_frontend_event(analysis: Dict[str, Any], live_debate: Dict[str, floa
         analysis: TurnAnalysis.model_dump() 또는 state["judge_analyses"]의 원소
         live_debate: state["judge_live"]
     """
+    arg = analysis.get("argument") or {}
+    ev = analysis.get("evidence") or {}
+    lang = analysis.get("language") or {}
     return {
         "turn_index": analysis.get("turn_index"),
         "speaker_id": analysis.get("speaker_id"),
-        "argument_score": analysis["argument"]["score"] if "argument" in analysis else None,
-        "evidence_score": analysis["evidence"]["score"] if "evidence" in analysis else None,
-        "language_score": analysis["language"]["score"] if "language" in analysis else None,
+        "argument_score": arg.get("score"),
+        "evidence_score": ev.get("score"),
+        "language_score": lang.get("score"),
         "pro_percent": live_debate.get("pro_percent"),
         "con_percent": live_debate.get("con_percent"),
+        # 분석 피드백 (점수와 함께 노출)
+        "dimension_feedbacks": {
+            "argument": arg.get("summary", ""),
+            "evidence": ev.get("summary", ""),
+            "language": lang.get("summary", ""),
+        },
+        "overall_feedback": analysis.get("overall_summary", ""),
+        "weighted_score": analysis.get("weighted_score"),
     }

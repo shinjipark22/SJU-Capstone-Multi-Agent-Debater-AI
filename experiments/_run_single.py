@@ -86,12 +86,11 @@ class UserProxy:
 
     # ── 스테이지별 발언 생성 (타 에이전트와 동일 경로) ────────────────────
     def opening(self, display: str = "찬성1") -> Tuple[str, List[Dict]]:
-        """stage1_opening의 _build_opening_prompt + _generate_opening 사용."""
-        from src.phase1.stage1_opening.nodes import _build_opening_prompt, _generate_opening
-        prompt = _build_opening_prompt(
-            self.topic["title"], self.stance, display, self.focus_area,
+        """stage1_opening 의 Plan-and-Execute pipeline 사용."""
+        from src.phase1.stage1_opening.nodes import _generate_opening
+        text, _raw, tc_log = _generate_opening(
+            self.agent, self.topic["title"], self.stance, display, self.focus_area,
         )
-        text, _raw, tc_log = _generate_opening(self.agent, prompt)
         return text, tc_log
 
     def chained_rebuttal(

@@ -91,8 +91,8 @@ _LLM_KWARGS = dict(
     model=os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-32B-Instruct-AWQ"),
     base_url=_VLLM_BASE_URL,
     api_key=os.environ.get("LLM_API_KEY", "fake"),
-    temperature=0.6,
-    max_tokens=2048,
+    temperature=0.4,  # 답변 분산 완화
+    max_tokens=2560,  # plan + 자료 + 본문 합쳐 token 한도 도달 방지
     top_p=0.9,
     timeout=120,
 )
@@ -513,33 +513,111 @@ def _pre_search(topic: str, stance: str, topic_id: str = "") -> Tuple[str, List[
     return result, tool_calls_log
 
 
+def _build_plan_prompt(topic: str, stance: str, focus_area: str) -> str:
+    """Step 1 (Plan) — focus_area 기반 논거 outline + 검색 쿼리 도출."""
+    stance_kr = "찬성" if stance == "PRO" else "반대"
+    return f"""[Step 1 — 계획 수립] '{topic}'에 대한 {stance_kr} 입론 작성 전 계획을 세워라.
+
+[너의 논증 초점]
+focus_area: {focus_area}
+
+[지시]
+focus_area 의 두 측면을 어떻게 자기 진영 옹호 논거로 풀어낼지 계획하고, 각 논거를 뒷받침할 검색 쿼리를 도출하라.
+
+[출력 형식 — JSON 객체 하나만]
+```json
+{{
+  "argument_outline": [
+    "논거 1 핵심 주장 (1문장, focus_area 의 한 측면, {stance_kr} 진영 옹호 방향)",
+    "논거 2 핵심 주장 (1문장, focus_area 의 다른 측면, {stance_kr} 진영 옹호 방향)"
+  ],
+  "search_queries": [
+    "논거 1 자료 검색용 쿼리 (focus_area 핵심 키워드 포함, {stance_kr} 측 옹호 자료가 hit 될 방향)",
+    "논거 2 자료 검색용 쿼리"
+  ]
+}}
+```
+
+[규칙]
+- 쿼리는 focus_area 의 핵심 키워드를 그대로 포함하라. 임의 변형 금지.
+- 쿼리는 자기 진영 ({stance_kr}) 의 주장을 뒷받침할 자료가 hit 되는 방향으로 짜라 (반대 진영을 비판하는 자료 X, 자기 진영을 옹호하는 자료 O).
+- 입론 본문은 절대 작성하지 마라. 위 JSON 만 출력하라."""
+
+
+def _extract_plan_json(raw: str) -> dict:
+    """plan LLM 출력에서 JSON 추출. 실패 시 빈 plan 반환."""
+    text = (raw or "").strip()
+    # ```json ... ``` 추출
+    m = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', text)
+    if m:
+        try:
+            return json.loads(m.group(1))
+        except Exception:
+            pass
+    # 첫 { ... } 추출
+    decoder = json.JSONDecoder()
+    for idx, ch in enumerate(text):
+        if ch != '{':
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(text[idx:])
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            continue
+    return {"argument_outline": [], "search_queries": []}
+
+
+def _generate_plan(agent: Dict, topic: str, stance: str, focus_area: str) -> Tuple[dict, str]:
+    """Step 1 실행 — Plan LLM 호출."""
+    plan_prompt = _build_plan_prompt(topic, stance, focus_area)
+    messages = [
+        SystemMessage(content=agent["system_prompt"]),
+        HumanMessage(content=plan_prompt),
+    ]
+    response = _invoke_with_retry(_llm, messages, label="opening_plan")
+    raw = response.content if isinstance(response.content, str) else str(response.content)
+    plan = _extract_plan_json(raw)
+    return plan, raw
+
+
 def _build_opening_prompt(
     topic: str, stance: str, agent_name: str,
     focus_area: str = "",
+    plan: Optional[dict] = None,
+    search_results: Optional[List[dict]] = None,
 ) -> str:
     stance_kr = "찬성" if stance == "PRO" else "반대"
 
     focus_block = ""
     if focus_area:
-        focus_block = f"\n[너의 논증 초점]\n이 방향으로 논거를 구성하라: {focus_area}\n"
+        focus_block = f"\n[너의 논증 초점]\nfocus_area: {focus_area}\n"
 
-    return f"""'{topic}'에 대한 {stance_kr} 입론을 작성하라.
-{focus_block}
+    plan_block = ""
+    if plan and plan.get("argument_outline"):
+        plan_block = "\n[Step 1 — 너의 계획 (이 방향으로 논거 전개)]\n"
+        for i, outline in enumerate(plan["argument_outline"], 1):
+            plan_block += f"논거 {i}: {outline}\n"
+
+    context_block = ""
+    if search_results:
+        context_block = "\n[Step 2 — 검색 결과]\n"
+        for i, sr in enumerate(search_results, 1):
+            context_block += f"\n--- 쿼리 {i}: {sr.get('query','')} ---\n{sr.get('result','')}\n"
+
+    return f"""[Step 3 — 입론 작성] '{topic}'에 대한 {stance_kr} 입론을 작성하라.
+{focus_block}{plan_block}{context_block}
 [구조]
 - "{agent_name}"이라고 자기소개
-- 논거 2개, 각 3~5줄. 논리적 추론과 사례·근거를 엮어 설득력 있게 구성하라
+- 논거 2개, 각 3~5줄. Step 1 의 계획에 따라 작성하라.
 - 핵심 문장에 **강조** 사용
-- 막연한 주장 금지. "~은 문제입니다" 수준의 추상적 진술 대신, 구체적 사례·맥락·인과를 풀어 설득하라
+- 막연한 주장 금지
 
-[인용 규칙 — 절대 준수]
-- 다음을 쓰려면 반드시 먼저 search_web 을 호출하고, 검색 결과에 나온 것만 인용하라:
-  · 수치·%·금액·통계
-  · 회사명·인물명·기관명·보고서명
-  · 사건명·법안명·연도+사건
-  · 구체적 정책·법령·판례·사례
-- 머릿속에서 떠오른 사례·수치·기관명·법안명은 단 하나도 쓰지 마라. 환각 위험.
-- "상당수", "대체로", "최근" 같은 일반화 표현으로만 채워진 논거는 부실하다. **각 논거에 최소 1개의 검색 기반 구체 사례를 포함하라.**
-- 검색 결과 중 자기 진영을 옹호하는 부분만 선별 인용. 상대 진영 옹호 자료는 무시.
+[자료 활용 룰 — 절대 준수]
+- 검색 결과의 자료가 **자기 진영·focus_area 의 주장을 직접 옹호**할 때만 인용하라.
+- 자료가 자기 주장과 충돌하거나 (자기 진영을 비판하는 자료), 주제·focus_area 와 무관하면 **인용하지 마라**. 그 경우 사례·수치 없이 **순수 논리·일반화 표현으로 논거를 전개**하라 ("상당수", "대체로", "최근" 등 허용).
+- 자료를 자기 framing 에 맞춰 곡해하지 마라. 자료의 원 결론·tone 과 다른 해석으로 끌어가지 마라.
+- 머릿속 수치·기관명·법안명은 절대 금지. 검색 결과에 명시된 것만 인용.
 - 존재하지 않는 연구·기관·법안·사건을 지어내지 마라.
 
 [형식]
@@ -614,9 +692,18 @@ def _validate_citation_search(speech: str, tool_calls_log: List[Dict]) -> Tuple[
 
 # ── 입론 생성 (사전 검색 + 단일 LLM 호출) ───────────────────────────────────
 
-def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
-    """tool calling으로 입론 생성. 모델이 수치 필요 시 search_web 호출."""
-    # 진영별 URL 중복 제외 컨텍스트 설정
+def _generate_opening(
+    agent: Dict, topic: str, stance: str, agent_name: str, focus_area: str,
+) -> Tuple[str, str, List[Dict]]:
+    """Plan-and-Execute 입론 생성: Plan → Search → Generate.
+
+    1) Plan: focus_area 기반 논거 outline + 검색 쿼리 도출 (LLM 호출)
+    2) Search: plan 의 쿼리로 search_web (병렬 가능)
+    3) Generate: plan + 검색 결과 → 본문 작성 (tools 비활성, 1회 호출)
+
+    ReAct 의 "사후 보강 검색" 패턴이 자료 misread 를 유발해 plan-and-execute 로 전환.
+    Pre-Act (2025) 와 RAG hallucination 연구 참조.
+    """
     try:
         from src.graph.vector_store import set_current_stance
         set_current_stance(agent.get("stance"))
@@ -630,45 +717,47 @@ def _generate_opening(agent: Dict, prompt: str) -> Tuple[str, str, List[Dict]]:
         print(msg, flush=True)
         logger.warning(msg)
 
-    messages = [
-        SystemMessage(content=agent["system_prompt"]),
-        HumanMessage(content=prompt),
-    ]
     tool_calls_log: List[Dict] = []
 
-    # 1차 호출 (도구 바인딩)
+    # ── Step 1: Plan ──────────────────────────────────────────────────────
     _s = time.time()
-    response: AIMessage = _invoke_with_retry(_llm_with_tools, messages, label="opening")
-    _has_tc = bool(getattr(response, "tool_calls", None))
-    _tlog("llm_call_1_with_tools", time.time() - _s, f"emitted_tool_call={_has_tc}")
+    plan, plan_raw = _generate_plan(agent, topic, stance, focus_area)
+    queries = plan.get("search_queries", []) or []
+    # Fallback chain — plan JSON 추출 실패 또는 빈 queries 일 때
+    if not queries:
+        stance_kr = "찬성" if stance == "PRO" else "반대"
+        if focus_area:
+            queries = [focus_area]  # primary fallback
+        else:
+            # 마지막 fallback — topic + stance 키워드
+            topic_short = topic.split("아닌")[0].strip() if "아닌" in topic else topic[:30]
+            queries = [f"{topic_short} {stance_kr} 근거"]
+        logger.warning("[opening] plan queries empty, fallback to %r", queries)
+    _tlog("plan", time.time() - _s, f"queries={len(queries)} outline={len(plan.get('argument_outline', []))}")
 
-    # tool call이 있으면 실행 후 재호출
-    if hasattr(response, 'tool_calls') and response.tool_calls:
-        messages.append(response)
-        for tc in response.tool_calls:
-            tool_name = tc.get("name", "")
-            tool_args = tc.get("args", {})
-            tool_id = tc.get("id", "")
-            if tool_name in _TOOL_MAP:
-                from src.graph.llm import safe_search_invoke
-                _ts = time.time()
-                if tool_name == "search_web":
-                    result = safe_search_invoke(tool_args)
-                else:
-                    try:
-                        result = _TOOL_MAP[tool_name].invoke(tool_args)
-                    except Exception as _e:
-                        logger.warning("[tool %s] 실패: %s", tool_name, _e)
-                        result = f"[{tool_name} 실패] {_e}"
-                _tlog(f"tool_exec_{tool_name}", time.time() - _ts, f"args={tool_args}")
-                result = _truncate_tool_result(str(result))
-                tool_calls_log.append({"name": tool_name, "args": tool_args, "result": result})
-                messages.append(ToolMessage(content=result, tool_call_id=tool_id))
-                logger.info("[opening] tool call: %s(%s)", tool_name, tool_args)
-        # 검색 결과 포함하여 재호출 (도구 없이)
+    # ── Step 2: Search ────────────────────────────────────────────────────
+    search_results: List[Dict] = []
+    from src.graph.llm import safe_search_invoke
+    for q in queries[:3]:  # 최대 3 쿼리
         _s = time.time()
-        response = _invoke_with_retry(_llm, messages, label="opening_with_search")
-        _tlog("llm_call_2_with_search_results", time.time() - _s)
+        result = safe_search_invoke({"query": q})
+        result = _truncate_tool_result(str(result))
+        _tlog("search", time.time() - _s, f"query={q!r}")
+        tool_calls_log.append({"name": "search_web", "args": {"query": q}, "result": result})
+        search_results.append({"query": q, "result": result})
+
+    # ── Step 3: Generate ──────────────────────────────────────────────────
+    gen_prompt = _build_opening_prompt(
+        topic, stance, agent_name,
+        focus_area=focus_area, plan=plan, search_results=search_results,
+    )
+    messages = [
+        SystemMessage(content=agent["system_prompt"]),
+        HumanMessage(content=gen_prompt),
+    ]
+    _s = time.time()
+    response = _invoke_with_retry(_llm, messages, label="opening_generate")
+    _tlog("generate", time.time() - _s)
 
     raw = response.content if isinstance(response.content, str) else str(response.content)
     speech = _postprocess_speech(_extract_delimited_text(raw))
@@ -766,11 +855,13 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         if focus_area:
             print(f"    [focus] {focus_area}")
 
-        # 2. 프롬프트 구성 + LLM 호출 (tool calling으로 필요시 검색)
-        prompt = _build_opening_prompt(
-            topic, agent["stance"], display, focus_area,
+        # 2. Plan-and-Execute pipeline 으로 입론 생성
+        #    Step 1 (Plan): focus_area → 논거 outline + 검색 쿼리
+        #    Step 2 (Search): plan 쿼리로 search_web
+        #    Step 3 (Generate): plan + 자료 → 본문 작성
+        final_text, raw, tool_calls_log = _generate_opening(
+            agent, topic, agent["stance"], display, focus_area,
         )
-        final_text, raw, tool_calls_log = _generate_opening(agent, prompt)
 
         # 3. 자기소개 소제목 보장 (입론 전용)
         if '### 자기소개' not in final_text and '### 입장 표명' not in final_text:

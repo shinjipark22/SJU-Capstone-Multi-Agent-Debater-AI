@@ -85,8 +85,9 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
             topic_id=state.get("topic_id", ""),
             index=_focus_index_within_stance(agent, state["agents"]),
         )
-        prompt = _build_opening_prompt(topic, agent["stance"], display, focus_area)
-        final_text, raw, tool_calls_log = _generate_opening(agent, prompt)
+        final_text, raw, tool_calls_log = _generate_opening(
+            agent, topic, agent["stance"], display, focus_area,
+        )
 
         if not _is_valid_speech(final_text):
             final_text = (
