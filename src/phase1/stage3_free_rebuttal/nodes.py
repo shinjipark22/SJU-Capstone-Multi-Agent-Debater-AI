@@ -192,6 +192,7 @@ def _build_attack_prompt(
     target_argument: str,
     search_results: str = "",
     opp_opening: str = "",
+    my_previous: str = "",
 ) -> str:
     """상대 발언을 공격하는 프롬프트. 상대 입론도 참고하여 모순을 찾는다."""
     ref_block = ""
@@ -202,9 +203,16 @@ def _build_attack_prompt(
     if opp_opening:
         opp_block = f"\n[상대 입론 — 지금 발언과 모순되는 부분이 있으면 지적하라]\n{opp_opening[:300]}\n"
 
+    prev_block = ""
+    if my_previous:
+        prev_block = (
+            f"\n[너의 이전 라운드 발언 — 같은 사례·논거·표현 반복 금지, "
+            f"다른 측면·새로운 사례로 공격하라]\n{my_previous[:500]}\n"
+        )
+
     return f"""상대 발언:
 {target_argument}
-{ref_block}{opp_block}
+{ref_block}{opp_block}{prev_block}
 반드시 아래 3단 구조로 반박하라:
 1) 상대 핵심 주장을 1문장으로 요약
 2) 그 주장의 가장 치명적 약점 1개를 지목
@@ -226,10 +234,114 @@ def _build_attack_prompt(
 
 # ── 방어 프롬프트 (사용자 공격에 대한 방어) ─────────────────────────────────
 
+def _plan_independent_attack(
+    agent: Dict,
+    topic: str,
+    stance: str,
+    opp_opening: str = "",
+    my_previous: str = "",
+) -> Tuple[Dict, str]:
+    """Round 2 전용 — 사용자 입론과 무관한 새 공격 각도 + 검색 쿼리 CoT.
+
+    Round 1 은 사용자 입론에서 논거 추출해 공격 → round 2 도 같은 방식이면
+    같은 측면 반복. Round 2 는 사용자가 입론에서 안 다룬 새 측면을 자기
+    진영 옹호 방향으로 도출 + 그 측면 검색 쿼리.
+
+    Returns:
+        (plan_dict, raw_response)
+        plan_dict = {"attack_angle": str, "search_query": str}
+    """
+    from src.phase1.stage1_opening.nodes import _invoke_with_retry, _llm, _extract_plan_json
+
+    stance_kr = "찬성" if stance == "PRO" else "반대"
+    plan_prompt = f"""[Round 2 공격 계획] '{topic}' 자유논박 두 번째 라운드의 공격 각도를 설계하라.
+
+[사용자 입론 — Round 1 에서 이미 공격함. 이번엔 직접 다루지 마라]
+{(opp_opening or "(없음)")[:500]}
+
+[너의 Round 1 공격 — 같은 측면·사례·자료 반복 금지]
+{(my_previous or "(없음)")[:400]}
+
+[지시]
+{stance_kr} 진영 옹호 입장에서, 사용자가 입론에서 다루지 않은 **새로운 측면** 으로 공격할 각도를 찾아라.
+사용자 발언의 흠을 잡는 게 아니라, 자기 진영 옹호 논거를 새 각도로 던지는 것이다.
+
+[출력 형식 — JSON 객체 하나만]
+```json
+{{
+  "attack_angle": "새 공격 각도 1문장 ({stance_kr} 진영 옹호 방향, 사용자가 안 다룬 측면)",
+  "search_query": "그 각도 뒷받침 자료 검색용 쿼리"
+}}
+```
+
+[규칙]
+- 사용자 입론의 측면 재사용 금지
+- Round 1 공격과 완전히 다른 측면
+- {stance_kr} 진영 옹호 방향만"""
+
+    messages = [
+        SystemMessage(content=agent["system_prompt"]),
+        HumanMessage(content=plan_prompt),
+    ]
+    response = _invoke_with_retry(_llm, messages, label="round2_plan")
+    raw = response.content if isinstance(response.content, str) else str(response.content)
+    parsed = _extract_plan_json(raw)
+    return parsed, raw
+
+
+def _build_independent_attack_prompt(
+    new_angle: str,
+    search_results: str = "",
+    opp_opening: str = "",
+    my_previous: str = "",
+) -> str:
+    """Round 2 전용 attack prompt — 사용자 입론과 무관한 새 각도 공격."""
+    ref_block = ""
+    if search_results:
+        ref_block = f"\n[참고 자료 — 새 공격 각도 뒷받침용]\n{search_results}\n"
+
+    opp_block = ""
+    if opp_opening:
+        opp_block = (
+            f"\n[사용자 입론 — Round 1 에서 이미 다뤘으므로 이번엔 직접 인용·반박하지 마라]\n"
+            f"{opp_opening[:300]}\n"
+        )
+
+    prev_block = ""
+    if my_previous:
+        prev_block = (
+            f"\n[너의 Round 1 공격 — 같은 사례·논거·자료 반복 금지]\n{my_previous[:500]}\n"
+        )
+
+    return f"""이번 라운드 (Round 2) 는 사용자 입론을 직접 공격하지 않고, 사용자가 아직 다루지 않은
+**새로운 공격 각도** 를 제시하라.
+
+[너의 새 공격 각도]
+{new_angle}
+{ref_block}{opp_block}{prev_block}
+[작성 구조]
+1) 새 공격 각도를 1문장으로 명확히 제시
+2) 참고 자료의 사실·사례로 그 각도를 뒷받침 (자료 없으면 논리로)
+3) 사용자가 이 각도에 어떻게 답할지 묻는 질문 1개
+
+[규칙]
+- 반드시 합니다체. 총 3~4문장 이내
+- 핵심 주장에 **강조** 표시
+- 사용자 입론을 직접 인용·반박하지 마라 — 새 측면을 던져라
+- Round 1 공격과 다른 키워드·사례·자료 사용
+
+반드시 아래 형식으로만 출력:
+
+### 반박 시작
+(반박 내용)
+### 반박 끝"""
+
+
 def _build_defense_prompt(
     user_attack: str,
     my_opening: str = "",
     search_results: str = "",
+    my_previous: str = "",
 ) -> str:
     """사용자의 공격에 대해 나의 입론을 근거로 방어하는 프롬프트."""
     my_block = ""
@@ -240,9 +352,16 @@ def _build_defense_prompt(
     if search_results:
         ref_block = f"\n[참고 자료]\n{search_results}\n"
 
+    prev_block = ""
+    if my_previous:
+        prev_block = (
+            f"\n[너의 이전 라운드 발언 — 같은 사례·근거 반복 금지, "
+            f"새로운 사례·다른 측면으로 반격하라]\n{my_previous[:500]}\n"
+        )
+
     return f"""상대의 공격:
 {user_attack}
-{my_block}{ref_block}
+{my_block}{ref_block}{prev_block}
 반드시 아래 구조로 방어하라:
 1) 상대가 질문했으면 그 질문에 1문장으로 직접 답하라
 2) 상대 공격의 논리적 허점 1개를 지적하라
@@ -332,6 +451,14 @@ def free_rebuttal_defense_node(state: DebateState) -> DebateState:
     )
     chain = _build_message_chain(opponent, history, selected_id, opponent["stance"])
 
+    # 자기의 직전 자유논박 발언 — prompt 의 [이전 라운드 발언] 블록으로 박아
+    # round 간 같은 사례·논거 반복을 명시적으로 차단한다.
+    my_previous_in_phase = next(
+        (e["content"] for e in reversed(history)
+         if e.get("phase") == "free_rebuttal" and e.get("speaker_id") == selected_id),
+        "",
+    )
+
     # Pre-search: 사용자 공격 내용 기반 검색
     from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
     def_search_results, def_pre_tc = _pre_search_rebuttal(state["topic"], user_latest_attack)
@@ -339,6 +466,7 @@ def free_rebuttal_defense_node(state: DebateState) -> DebateState:
 
     defense_prompt = _build_defense_prompt(
         user_latest_attack, my_opening, search_results=def_search_results,
+        my_previous=my_previous_in_phase,
     )
     defense, raw_def, tc_def = _generate_with_chain(list(chain), defense_prompt)
     tool_calls_log.extend(tc_def)
@@ -399,7 +527,10 @@ def free_rebuttal_attack_node(state: DebateState) -> DebateState:
     else:
         target_argument = _pick_one_argument(opp_opening)
 
-    print(f"  [Step 2 - 공격] 상대 논거 허점 공격\n")
+    # Round 구분: free_rebuttal_user_turns counter 활용
+    # round 1 attack 시점: counter = 0 (사용자 첫 attack 전)
+    # round 2 attack 시점: counter = 1 (사용자 round 1 attack 후)
+    is_round2 = state.get("free_rebuttal_user_turns", 0) >= 1
 
     # 이전 공격·약점 분석 (중복 방지)
     prev_attacks = [e["content"][:100] for e in agent_entries]
@@ -410,31 +541,77 @@ def free_rebuttal_attack_node(state: DebateState) -> DebateState:
         for log in e.get("tool_calls_log", [])
         if log.get("name") == "analyze_weakness" and log.get("result")
     )
-
-    weakness = analyze_weakness(target_argument, state["topic"], prev_weaknesses=prev_weaknesses)
-    tool_calls_log: List[Dict] = []
-    if weakness:
-        tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
-        print(f"  [약점 분석] {weakness[:60]}\n")
+    # 자기 직전 자유논박 발언 — my_previous 블록으로 명시 전달.
+    # prev_attacks_text 가 100자 단위 요약이라 부족 — 직전 full 발언을 따로 박는다.
+    my_previous_full = next(
+        (e["content"] for e in reversed(history)
+         if e.get("phase") == "free_rebuttal" and e.get("speaker_id") == selected_id),
+        "",
+    )
 
     from src.phase1.stage2_rebuttal.nodes import _pre_search_rebuttal
-    atk_search_results, atk_pre_tc = _pre_search_rebuttal(state["topic"], target_argument)
-    tool_calls_log.extend(atk_pre_tc)
+    tool_calls_log: List[Dict] = []
 
-    weakness_hint = (
-        f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n"
-        if weakness else ""
-    )
-    prev_hint = (
-        f"\n[이전 공격 — 아래 내용은 이미 사용했으니 반복 금지. 완전히 다른 관점으로 공격하라]\n{prev_attacks_text}\n"
-        if prev_attacks_text else ""
-    )
-    ref_block = atk_search_results if atk_search_results else ""
-    attack_prompt = _build_attack_prompt(
-        target_argument,
-        search_results=(ref_block + weakness_hint + prev_hint),
-        opp_opening=opp_opening,
-    )
+    if is_round2:
+        # ── Round 2: CoT 로 사용자 입론과 무관한 새 공격 각도 + 검색 ──────────
+        print(f"  [Step 2 - Round 2 공격: CoT 로 새 각도 도출 후 공격]\n")
+        plan, plan_raw = _plan_independent_attack(
+            opponent, state["topic"], opponent["stance"],
+            opp_opening=opp_opening, my_previous=my_previous_full,
+        )
+        new_angle = (plan.get("attack_angle") or "").strip() or _pick_one_argument(opp_opening)
+        search_query = (plan.get("search_query") or "").strip() or new_angle
+        tool_calls_log.append({
+            "name": "round2_plan",
+            "args": {"opp_opening_chars": len(opp_opening or "")},
+            "result": (plan_raw or "")[:500],
+        })
+
+        from src.graph.llm import safe_search_invoke
+        atk_result = safe_search_invoke({"query": search_query})
+        atk_result = _truncate_tool_result(str(atk_result))
+        tool_calls_log.append({
+            "name": "search_web",
+            "args": {"query": search_query},
+            "result": atk_result,
+        })
+        print(f"  [Round 2 각도] {new_angle[:80]}")
+        print(f"  [Round 2 쿼리] {search_query[:80]}")
+
+        attack_prompt = _build_independent_attack_prompt(
+            new_angle=new_angle,
+            search_results=atk_result,
+            opp_opening=opp_opening,
+            my_previous=my_previous_full,
+        )
+    else:
+        # ── Round 1: 기존 흐름 (사용자 입론 기반 공격) ──────────────────────
+        print(f"  [Step 2 - Round 1 공격: 사용자 입론 허점 공격]\n")
+        weakness = analyze_weakness(
+            target_argument, state["topic"], prev_weaknesses=prev_weaknesses,
+        )
+        if weakness:
+            tool_calls_log.append({"name": "analyze_weakness", "result": weakness})
+            print(f"  [약점 분석] {weakness[:60]}\n")
+
+        atk_search_results, atk_pre_tc = _pre_search_rebuttal(state["topic"], target_argument)
+        tool_calls_log.extend(atk_pre_tc)
+
+        weakness_hint = (
+            f"\n[약점 분석 — 이 부분을 집중 공격하라]\n{weakness}\n"
+            if weakness else ""
+        )
+        prev_hint = (
+            f"\n[이전 공격 — 아래 내용은 이미 사용했으니 반복 금지. 완전히 다른 관점으로 공격하라]\n{prev_attacks_text}\n"
+            if prev_attacks_text else ""
+        )
+        ref_block = atk_search_results if atk_search_results else ""
+        attack_prompt = _build_attack_prompt(
+            target_argument,
+            search_results=(ref_block + weakness_hint + prev_hint),
+            opp_opening=opp_opening,
+            my_previous=my_previous_full,
+        )
     # 직전 방어가 history 에 있으면 chain 에 자동 포함됨
     chain = _build_message_chain(opponent, history, selected_id, opponent["stance"])
     attack, raw_atk, tc_atk = _generate_with_chain(chain, attack_prompt)

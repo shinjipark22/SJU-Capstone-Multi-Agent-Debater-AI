@@ -53,9 +53,11 @@ from evaluation import analyze_user_before_after  # noqa: E402
 
 _DEFAULT_BASE_URL = os.environ.get("FASTAPI_BASE_URL", "http://localhost:8001")
 _INTENSITY_PRESETS = {
+    # 실험 통제 — 모든 agent 강경도 균일 (3, 균형). 강경도 변수 제거.
+    # 종합 단계의 다양성은 perspective_style + starter pool 로 보장 (stage5_synthesis/nodes.py).
     "1:1": [3],
-    "2:2": [3, 2, 4],
-    "3:3": [3, 2, 4, 3, 2],
+    "2:2": [3, 3, 3],
+    "3:3": [3, 3, 3, 3, 3],
 }
 
 
@@ -105,13 +107,56 @@ class FlowLog:
         self.pre_post_inputs: Dict[str, str] = {}
         # user 슬롯의 tool_calls (UserProxy 가 만든 검색 — graph transcript 에는 안 들어감)
         self.user_tool_calls: Dict[str, List[Dict[str, Any]]] = {}
+        # 시간순 통합 timeline — 분석 시 어시스턴트 가이드와 turn 흐름을 함께 읽기 위함
+        # 각 entry: {type: "assistant_guide" | "turn", ...}
+        self.timeline: List[Dict[str, Any]] = []
         self.timings: Dict[str, float] = {}
 
     def log_phase(self, label: str, events: List[Dict[str, Any]]) -> None:
         self.phases.append({"label": label, "events": events})
+        # timeline 에 phase 의 turn 들 시간순으로 추가 — primitive 값만 (cycle 회피)
+        for ev in events:
+            if ev["event"] != "turn":
+                continue
+            entry = ev["data"].get("entry", {}) or {}
+            analysis = ev["data"].get("analysis") or {}
+            # tool_calls 는 string summary 로만 (nested reference 회피)
+            tc_summary = []
+            for tc in (entry.get("tool_calls_log") or []):
+                tc_summary.append({
+                    "name": str(tc.get("name", "")),
+                    "query": str((tc.get("args") or {}).get("query", "")),
+                    "result_preview": str(tc.get("result", ""))[:300],
+                })
+            self.timeline.append({
+                "type": "turn",
+                "phase_label": str(label),
+                "speaker_id": str(entry.get("speaker_id", "")),
+                "stance": str(entry.get("stance", "")),
+                "phase": str(entry.get("phase", "")),
+                "target_id": str(entry.get("target_id") or ""),
+                "content": str(entry.get("content", "")),
+                "tool_calls": tc_summary,
+                "argument_score": analysis.get("argument_score"),
+                "evidence_score": analysis.get("evidence_score"),
+                "language_score": analysis.get("language_score"),
+                "weighted_score": analysis.get("weighted_score"),
+                "feedback_argument": str((analysis.get("dimension_feedbacks") or {}).get("argument", "")),
+                "feedback_evidence": str((analysis.get("dimension_feedbacks") or {}).get("evidence", "")),
+                "feedback_language": str((analysis.get("dimension_feedbacks") or {}).get("language", "")),
+                "feedback_overall": str(analysis.get("overall_feedback", "")),
+                "pro_percent": analysis.get("pro_percent"),
+                "con_percent": analysis.get("con_percent"),
+            })
 
     def log_assistant(self, phase: str, text: str) -> None:
         self.assistant_guides.append({"phase": phase, "text": text})
+        # 어시스턴트 가이드를 호출 시점에 timeline 에 삽입 (사용자가 가이드 후 응답하는 흐름 반영)
+        self.timeline.append({
+            "type": "assistant_guide",
+            "phase": phase,
+            "text": text,
+        })
 
     def log_user_tc(self, phase_label: str, tc_log: List[Dict[str, Any]]) -> None:
         if tc_log:
@@ -119,8 +164,29 @@ class FlowLog:
 
     def dump(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
+
+        def _drop_cycles(obj, seen=None):
+            """객체 안 circular reference 를 잘라 JSON 직렬화 가능하게 만든다."""
+            if seen is None:
+                seen = set()
+            if isinstance(obj, dict):
+                if id(obj) in seen:
+                    return "<CYCLE_DICT>"
+                seen = seen | {id(obj)}
+                return {k: _drop_cycles(v, seen) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple)):
+                if id(obj) in seen:
+                    return "<CYCLE_LIST>"
+                seen = seen | {id(obj)}
+                return [_drop_cycles(x, seen) for x in obj]
+            # primitive (str, int, float, bool, None) 또는 알 수 없는 타입
+            if isinstance(obj, (str, int, float, bool, type(None))):
+                return obj
+            return str(obj)[:500]  # 마지막 fallback
+
         out = {
             "meta": self.meta,
+            "timeline": self.timeline,
             "phases": self.phases,
             "assistant_guides": self.assistant_guides,
             "final_report": self.final_report,
@@ -129,7 +195,10 @@ class FlowLog:
             "user_tool_calls": self.user_tool_calls,
             "timings": self.timings,
         }
-        path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+        safe_out = _drop_cycles(out)
+        path.write_text(
+            json.dumps(safe_out, ensure_ascii=False, indent=2), encoding="utf-8",
+        )
 
 
 # ── API 호출 헬퍼 ───────────────────────────────────────────────────────────
@@ -293,7 +362,22 @@ def run_full_flow(
         print(f"[ERROR] topic_id 못 찾음: {topic_id}")
         return 1
 
-    proxy = UserProxy(topic=topic_dict, stance=user_stance, intensity=3, topic_id=topic_id)
+    # user 슬롯 focus_area 는 같은 진영 AI 가 차지한 인덱스 다음 자리 (남는 자리)
+    # 3v3 PRO: AI 가 PRO 2명 → PRO[0],[1] 차지 → user 가 PRO[2]
+    # 2v2 PRO: AI 가 PRO 1명 → PRO[0] 차지 → user 가 PRO[1]
+    _stance_list = {
+        ("1:1", "PRO"): ["CON"],
+        ("1:1", "CON"): ["PRO"],
+        ("2:2", "PRO"): ["CON", "CON", "PRO"],
+        ("2:2", "CON"): ["PRO", "PRO", "CON"],
+        ("3:3", "PRO"): ["CON", "CON", "CON", "PRO", "PRO"],
+        ("3:3", "CON"): ["PRO", "PRO", "PRO", "CON", "CON"],
+    }.get((fmt, user_stance), [])
+    same_stance_ai_count = sum(1 for st in _stance_list if st == user_stance)
+    proxy = UserProxy(
+        topic=topic_dict, stance=user_stance, intensity=3,
+        topic_id=topic_id, slot_index=same_stance_ai_count,
+    )
 
     flow = FlowLog(meta={
         "topic_id": topic_id,
