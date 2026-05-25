@@ -25,6 +25,11 @@ class DebateInitRequest(BaseModel):
     user_intensity: int
     agent_intensities: List[int]
     debate_format: Literal["1:1", "2:2", "3:3"]
+    # 토론 모드:
+    #   "debate"        — 입론·연쇄논박·자유논박까지 (3단계). 평가는 /evaluation 으로 별도.
+    #   "constructive"  — 전체 5단계 (역할반전·종합 포함).
+    # 미지정 시 기존 동작 (전체 5단계) 유지.
+    mode: Literal["debate", "constructive"] = "constructive"
 
     @field_validator("user_intensity")
     @classmethod

@@ -154,49 +154,73 @@ def get_user_slot_focus_area(
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 
-OPENING_TEMPLATE = """안녕! 난 너의 토론을 도와줄 {assistant_name}{josa_ya}. 입론은 너의 주장과 입장을 명확하게 보여주는 첫 번째 단계지. 여기서는 핵심 논점을 소개하고, 앞으로 펼칠 주요 논거들의 개요를 잡아주면 돼. 명확하고 논리적인 구조로 청중의 주의를 사로잡아봐! {tips}
+OPENING_TEMPLATE = """안녕! 난 너의 토론을 도와줄 **{assistant_name}**{josa_ya}. 입론은 너의 주장과 입장을 명확하게 보여주는 첫 번째 단계지. 여기서는 핵심 논점을 소개하고, 앞으로 펼칠 주요 논거들의 개요를 잡아주면 돼. 명확하고 논리적인 구조로 청중의 주의를 사로잡아봐!
 
-더 자세히 보고 싶다면 아래 링크를 참고해봐!
-
-{links}"""
-
-
-CHAINED_REBUTTAL_TEMPLATE = """이제 상대방의 주장을 반박할 단계야. 상대 주요 논점들을 정확히 짚고, 논리적 오류나 근거가 부족한 부분을 찾아내야 해. 상대 주장을 존중하면서도 너의 관점에서 문제점을 명확히 제시하고, 신뢰할 만한 증거나 사례로 받아쳐봐.
+---
 
 {tips}
 
-더 자세히 보고 싶다면 아래 링크를 참고해봐!
+---
+
+**더 자세히 보고 싶다면 아래 링크를 참고해봐!**
 
 {links}"""
 
 
-FREE_REBUTTAL_TEMPLATE = """자유논박은 상대방과 주고받으며 진행되는 역동적인 단계야. 여기서는 공격과 방어가 쌍을 이루며 번갈아 진행돼.
+CHAINED_REBUTTAL_TEMPLATE = """이제 상대방의 주장을 **반박할 단계**야. 상대 주요 논점들을 정확히 짚고, 논리적 오류나 근거가 부족한 부분을 찾아내야 해. 상대 주장을 존중하면서도 너의 관점에서 문제점을 명확히 제시하고, 신뢰할 만한 증거나 사례로 받아쳐봐.
+
+---
+
+{tips}
+
+---
+
+**더 자세히 보고 싶다면 아래 링크를 참고해봐!**
+
+{links}"""
+
+
+FREE_REBUTTAL_TEMPLATE = """**자유논박**은 상대방과 주고받으며 진행되는 역동적인 단계야. 여기서는 공격과 방어가 쌍을 이루며 번갈아 진행돼.
+
+---
 
 **방어할 때는**
 
 {defense_tips}
 
+---
+
 **공격할 때는**
 
 {attack_tips}
 
-더 자세히 보고 싶다면 아래 링크를 참고해봐!
+---
+
+**더 자세히 보고 싶다면 아래 링크를 참고해봐!**
 
 {links}"""
 
 
-ROLE_REVERSAL_TEMPLATE = """역할반전 단계에서는 상대방의 주장을 옹호하고 방어해야 해. 지금까지 토론하면서 알게 된 내용을 바탕으로, 상대 관점에서 주장들을 재구성해서 펼쳐봐. 이 단계를 통해 상대 입장을 깊이 이해하고, 양쪽 입장의 장점과 약점을 객관적으로 볼 수 있게 돼.
+ROLE_REVERSAL_TEMPLATE = """**역할반전 단계**에서는 상대방의 주장을 옹호하고 방어해야 해. 지금까지 토론하면서 알게 된 내용을 바탕으로, 상대 관점에서 주장들을 재구성해서 펼쳐봐. 이 단계를 통해 상대 입장을 깊이 이해하고, 양쪽 입장의 장점과 약점을 객관적으로 볼 수 있게 돼.
+
+---
 
 {tips}
 
-더 자세히 보고 싶다면 아래 링크를 참고해봐!
+---
+
+**더 자세히 보고 싶다면 아래 링크를 참고해봐!**
 
 {links}"""
 
 
-SYNTHESIS_TEMPLATE = """마지막 단계인 종합 및 재개념화야. 여기서는 양쪽 주장을 모두 고려해서 더 높은 차원의 통합된 결론을 만들어내는 거지.
+SYNTHESIS_TEMPLATE = """마지막 단계인 **종합 및 재개념화**야. 여기서는 양쪽 주장을 모두 고려해서 더 높은 차원의 통합된 결론을 만들어내는 거지.
+
+---
 
 {tips}
+
+---
 
 우리 목표는 상대를 이기는 게 아니라, 서로 이해해서 더 나은 결론과 최적해를 찾아가는 거야. 잊지 마!"""
 
@@ -251,11 +275,8 @@ OPENING_TIPS_PROMPT = (
    - 부제는 그 논거의 핵심 키워드를 짧게 (예: 산업혁명 자동화 사례, 재교육 프로그램 실효성).
    - 본문은 **보편 논거** — 사용자 진영에서 누구나 가장 먼저 떠올리는 흔한 카드.
    - 위 '사용자가 옹호하는 입장'을 **뒷받침하는** 잘 알려진 사례 카테고리·방향 1개.
-   - 보편 논거 후보 예시 (해당 진영의 대표 카드 — 가장 먼저 이런 류로 떠올려라):
-     · 신뢰성·안전 옹호 PRO → **알고리즘 편향과 차별 사례** (얼굴 인식·채용 AI 편향 등)
-     · 기술·혁신·성능 옹호 CON → **자동화 생산성 효과·산업 사례**
-     · 환경 보호·재생에너지 PRO → 화석연료 한계·재생에너지 비용 하락 사례
-     · 일반적으로: 그 토픽 진영의 가장 흔히 인용되는 well-known 사례 1개.
+   - 보편 논거 후보: 그 토픽·진영에서 **가장 흔히 인용되는 well-known 사례 카테고리 1개**를 너 스스로 판단해 떠올려라.
+     (이 가이드에는 의도적으로 구체 예시를 두지 않는다 — 사용자가 옹호하는 입장을 보고 그 진영의 대표 카드를 직접 골라라.)
    - 주장 + 그 사례 카테고리를 한 덩어리로.
    - **구체 수치·기관·연도·인명은 발명 금지.** 잘 알려진 카테고리·방향만 짚어라.
    - 사용자가 본인 지식으로 살을 붙여 입론에 쓰면 되는 정도까지.
@@ -265,7 +286,7 @@ OPENING_TIPS_PROMPT = (
 
 **논거 2: 부제**
 
-   - 부제는 focus_area 의 핵심 키워드를 짧게 그대로 옮긴다 (예: focus 가 "딥페이크·저작권 피해 사례" 이면 부제도 "딥페이크 저작권 피해" 같이).
+   - 부제는 focus_area 의 핵심 키워드를 짧게 그대로 옮긴다 (focus 의 핵심 단어 2~3개를 그대로 이어 붙이면 된다 — 절대 이 가이드의 예시 단어를 그대로 베끼지 말고, 실제 주어진 focus_area 에서 단어를 가져와라).
    - 본문은 **focus_area 기반 논거** (focus 가 있을 때만, 사용자 슬롯의 신선한 각도).
    - **focus_area 의 키워드는 본문 첫 문장 또는 두 번째 문장에 그대로 등장해야 한다.** focus 의 핵심 단어 (예: 딥페이크, 저작권, 챗봇 정신병, AGI 등) 가 본문에 명시적으로 나오지 않으면 논거 2 의 의미가 없다.
    - 본문은 focus 키워드의 구체 사례를 풀어라. 사전 검색 결과에서 **그 키워드가 직접 다뤄지는 인용·통계·사례·연도** 를 우선 찾아 박는다.
@@ -280,8 +301,8 @@ OPENING_TIPS_PROMPT = (
 
 헤더 형식: 본문에 정확히 다음과 같이 출력 (마크다운 볼드, 다른 기호 없이):
 
-**논거 1: 알고리즘 편향**
-**논거 2: 딥페이크 저작권 피해**
+**논거 1: [focus_area 핵심 키워드 1]**
+**논거 2: [focus_area 핵심 키워드 2]**
 
 위 예시처럼 줄 시작에 별표 2개, 줄 끝에 별표 2개. **절대 백틱 (`) 이나 따옴표로 감싸지 마라.**
 
@@ -550,24 +571,39 @@ def _reversed_kr(stance: str) -> str:
     return "반대" if stance == "PRO" else "찬성"
 
 
-def _stance_block(ctx: GuideContext) -> str:
+def _stance_block(ctx: GuideContext, flip: bool = False) -> str:
     """사용자 진영과 양측 핵심 주장을 한 묶음 텍스트로.
 
     pro_claim/con_claim 가 있으면 LLM 이 \"찬성/반대\"가 이 토픽에서 정확히
     무엇을 옹호하는지 헷갈리지 않고 그 입장에서 논거를 구성한다.
+
+    flip=True 면 역할반전 단계용 — 사용자가 이번 단계에서 옹호할 입장을
+    '반대편' 으로 뒤집어 넘긴다.
     """
-    user_kr = _stance_kr(ctx.user_stance)
+    effective_stance = (
+        ("CON" if ctx.user_stance == "PRO" else "PRO") if flip else ctx.user_stance
+    )
+    user_kr = _stance_kr(effective_stance)
     if not (ctx.pro_claim or ctx.con_claim):
         return f"- 사용자 진영: {user_kr}"
 
-    user_claim = ctx.pro_claim if ctx.user_stance == "PRO" else ctx.con_claim
-    opp_claim = ctx.con_claim if ctx.user_stance == "PRO" else ctx.pro_claim
-    lines = [
-        f"- 사용자 진영: {user_kr}",
-        f"- 사용자가 옹호하는 입장: {user_claim}",
-        f"- 상대 입장: {opp_claim}",
-        "- (사용자가 옹호하는 입장 = 사용자 진영의 핵심 주장. 안내·논거는 이 입장 그대로 끌어가라.)",
-    ]
+    user_claim = ctx.pro_claim if effective_stance == "PRO" else ctx.con_claim
+    opp_claim = ctx.con_claim if effective_stance == "PRO" else ctx.pro_claim
+    if flip:
+        lines = [
+            f"- 사용자 원래 진영: {_stance_kr(ctx.user_stance)}",
+            f"- 이번 단계(역할반전)에서 옹호할 진영: {user_kr}",
+            f"- 이번 단계에서 옹호할 입장: {user_claim}",
+            f"- 이번 단계에서 반박 대상이 될 입장(원래 자기 진영): {opp_claim}",
+            "- (역할반전 단계다. 안내·논거는 '이번 단계에서 옹호할 입장' 을 그대로 끌어가라. 원래 진영의 입장을 다시 옹호하지 마라.)",
+        ]
+    else:
+        lines = [
+            f"- 사용자 진영: {user_kr}",
+            f"- 사용자가 옹호하는 입장: {user_claim}",
+            f"- 상대 입장: {opp_claim}",
+            "- (사용자가 옹호하는 입장 = 사용자 진영의 핵심 주장. 안내·논거는 이 입장 그대로 끌어가라.)",
+        ]
     return "\n".join(lines)
 
 
@@ -729,7 +765,7 @@ def build_tips_prompt(
             topic=ctx.topic,
             stance_kr=stance_kr,
             reversed_stance_kr=_reversed_kr(ctx.user_stance),
-            stance_block=stance_block,
+            stance_block=_stance_block(ctx, flip=True),
             history_block=_format_history(ctx.history),
             search_block=search_block,
         )
