@@ -85,8 +85,9 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
             topic_id=state.get("topic_id", ""),
             index=_focus_index_within_stance(agent, state["agents"]),
         )
-        prompt = _build_opening_prompt(topic, agent["stance"], display, focus_area)
-        final_text, raw, tool_calls_log = _generate_opening(agent, prompt)
+        final_text, raw, tool_calls_log = _generate_opening(
+            agent, topic, agent["stance"], display, focus_area,
+        )
 
         if not _is_valid_speech(final_text):
             final_text = (
@@ -531,17 +532,30 @@ def user_finalize_node(state: DebateState) -> dict:
 # 라우터 (조건부 엣지)
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _free_rebuttal_end_target(state: DebateState) -> str:
+    """자유논박 완료 시 다음 분기 결정.
+
+    debate 모드      → END (역할반전·종합 스킵, 평가는 /evaluation 별도 API)
+    constructive 모드 → 역할반전 (기존 흐름)
+
+    mode 누락 시 기존 동작(constructive) 유지하여 backwards-compat.
+    """
+    if state.get("mode", "constructive") == "debate":
+        return "end_debate"
+    return "to_role_reversal"
+
+
 def route_free_rebuttal(state: DebateState) -> str:
-    """자유논박 루프 라우터: 사용자 2턴 완료 → done, 아니면 continue."""
+    """자유논박 루프 라우터: 사용자 2턴 완료 → 종료 분기, 아니면 continue."""
     if state.get("free_rebuttal_user_turns", 0) >= 2:
-        return "done"
+        return _free_rebuttal_end_target(state)
     return "continue"
 
 
 def route_after_ai_free(state: DebateState) -> str:
-    """AI 자유논박 후: 사용자 2턴 완료 상태면 역할반전으로, 아니면 사용자 턴."""
+    """AI 자유논박 후: 사용자 2턴 완료 상태면 종료 분기로, 아니면 사용자 턴."""
     if state.get("free_rebuttal_user_turns", 0) >= 2:
-        return "end_free"
+        return _free_rebuttal_end_target(state)
     return "to_user"
 
 
@@ -609,19 +623,22 @@ def build_debate_graph():
     graph.add_edge("user_select_opponent", "ai_free_rebuttal_defense")
 
     # AI 자유논박: 방어 → 공격 직진. 라우팅(역할반전 분기)은 공격 노드 뒤에서 결정.
+    # mode="debate" 면 end_debate → END, 아니면 to_role_reversal → ai_role_reversal.
     graph.add_edge("ai_free_rebuttal_defense", "ai_free_rebuttal_attack")
     graph.add_conditional_edges("ai_free_rebuttal_attack", route_after_ai_free, {
         "to_user": "user_free_rebuttal_defense",
-        "end_free": "ai_role_reversal",
+        "to_role_reversal": "ai_role_reversal",
+        "end_debate": END,
     })
 
     # 답변 → 공격 (공격 노드가 최종 턴이면 interrupt 없이 바로 카운터만 증가)
     graph.add_edge("user_free_rebuttal_defense", "user_free_rebuttal_attack")
 
-    # 사용자 자유논박 후 → continue면 AI 방어부터 다시, done(2라운드 완료)이면 바로 역할반전
+    # 사용자 자유논박 후 → continue면 AI 방어부터 다시, 완료면 모드에 따라 END/역할반전 분기.
     graph.add_conditional_edges("user_free_rebuttal_attack", route_free_rebuttal, {
         "continue": "ai_free_rebuttal_defense",
-        "done": "ai_role_reversal",  # user의 최종 답변 후 AI 응답 없이 역할반전으로
+        "to_role_reversal": "ai_role_reversal",  # constructive: user의 최종 답변 후 역할반전
+        "end_debate": END,                        # debate: 자유논박 종료 후 바로 END
     })
 
     # 역할반전 → 종합

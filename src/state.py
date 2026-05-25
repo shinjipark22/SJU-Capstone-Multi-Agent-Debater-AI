@@ -39,6 +39,12 @@ DebatePhase = Literal[
 ]
 
 
+# ── 토론 모드 ─────────────────────────────────────────────────────────────────
+#   "debate"        — 입론·연쇄논박·자유논박까지 (3단계). 평가는 /evaluation API.
+#   "constructive"  — 전체 5단계 (역할반전·종합 포함).
+DebateMode = Literal["debate", "constructive"]
+
+
 # ── 히스토리 엔트리 타입 ──────────────────────────────────────────────────────
 class DebateEntry(TypedDict):
     """단일 발언 기록.
@@ -187,6 +193,10 @@ class DebateState(TypedDict):
     # 종료
     is_finished: bool
 
+    # 토론 모드 ("debate" | "constructive"). 그래프 라우터가 자유논박 종료 후
+    # 역할반전·종합으로 갈지(=constructive) 바로 END 할지(=debate) 결정한다.
+    mode: DebateMode
+
 
 # ── 내부 유틸리티 ─────────────────────────────────────────────────────────────
 
@@ -316,6 +326,7 @@ def build_initial_state(
     agents: List[AgentSnapshot],
     max_cycle: int = 4,
     topic_id: str = "",
+    mode: DebateMode = "constructive",
 ) -> DebateState:
     """Phase 0 초기화 시 LangGraph에 주입할 기본 State를 생성한다.
 
@@ -359,6 +370,7 @@ def build_initial_state(
         synthesis_propose_idx=0,   # 5단계 step 카운터 (초기 의견 제시 라운드)
         synthesis_discuss_idx=0,   # 5단계 step 카운터 (사용자 발언 후 응답 라운드, 매 라운드 0 으로 리셋)
         is_finished=False, # 토론 시작 상태이므로 종료 아님
+        mode=mode, # 토론 모드 — 자유논박 종료 후 분기 결정에 사용
     )
 
 

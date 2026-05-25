@@ -55,7 +55,16 @@ class UserProxy:
         stance: str,
         intensity: int = 3,
         topic_id: str = "",
+        slot_index: int = 0,
     ):
+        """UserProxy 초기화.
+
+        Args:
+            slot_index: 같은 진영 내 사용자가 차지할 focus_area 인덱스.
+                같은 진영 AI 들이 차지한 인덱스 다음 자리 (남는 자리) 를 받아야
+                중복 없이 다양화. 호출자가 같은 진영 AI 수를 계산해 전달한다.
+                기본 0 (단독 사용 시 호환).
+        """
         from src.phase0.persona_factory import _build_system_prompt
         from src.phase1.stage1_opening.nodes import _get_focus_area
 
@@ -72,7 +81,7 @@ class UserProxy:
         self.stance = stance
         self.stance_kr = stance_kr
         self.intensity = intensity
-        self.focus_area = _get_focus_area(stance, topic_id=topic_id)
+        self.focus_area = _get_focus_area(stance, topic_id=topic_id, index=slot_index)
 
         # 다른 에이전트와 동일한 AgentSnapshot 형태
         self.agent: dict = {
@@ -86,12 +95,11 @@ class UserProxy:
 
     # ── 스테이지별 발언 생성 (타 에이전트와 동일 경로) ────────────────────
     def opening(self, display: str = "찬성1") -> Tuple[str, List[Dict]]:
-        """stage1_opening의 _build_opening_prompt + _generate_opening 사용."""
-        from src.phase1.stage1_opening.nodes import _build_opening_prompt, _generate_opening
-        prompt = _build_opening_prompt(
-            self.topic["title"], self.stance, display, self.focus_area,
+        """stage1_opening 의 Plan-and-Execute pipeline 사용."""
+        from src.phase1.stage1_opening.nodes import _generate_opening
+        text, _raw, tc_log = _generate_opening(
+            self.agent, self.topic["title"], self.stance, display, self.focus_area,
         )
-        text, _raw, tc_log = _generate_opening(self.agent, prompt)
         return text, tc_log
 
     def chained_rebuttal(
@@ -138,13 +146,22 @@ class UserProxy:
 
         all_tc: List[Dict] = []
 
+        # 자기 (user) 의 직전 자유논박 발언 — 반복 회피 prompt 블록용
+        my_previous = next(
+            (e.get("content", "") for e in reversed(history)
+             if e.get("phase") == "free_rebuttal" and e.get("speaker_id") == "user"),
+            "",
+        )
+
         # 방어
         defense_text = ""
         def_tc: List[Dict] = []
         if opp_attack:
             def_sr, def_pre_tc = _pre_search_rebuttal(self.topic["title"], opp_attack)
             all_tc.extend(def_pre_tc)
-            dprompt = _build_defense_prompt(opp_attack, my_opening, search_results=def_sr)
+            dprompt = _build_defense_prompt(
+                opp_attack, my_opening, search_results=def_sr, my_previous=my_previous,
+            )
             defense_text, _r, def_tc = _generate_with_chain(_chain(), dprompt)
             all_tc.extend(def_tc)
 
@@ -152,7 +169,9 @@ class UserProxy:
         target = _pick_one_argument(opp_opening) if opp_opening else ""
         atk_sr, atk_pre_tc = _pre_search_rebuttal(self.topic["title"], target) if target else ("", [])
         all_tc.extend(atk_pre_tc)
-        aprompt = _build_attack_prompt(target, search_results=atk_sr, opp_opening=opp_opening)
+        aprompt = _build_attack_prompt(
+            target, search_results=atk_sr, opp_opening=opp_opening, my_previous=my_previous,
+        )
         attack_text, _r2, att_tc = _generate_with_chain(_chain(), aprompt)
         all_tc.extend(att_tc)
         return defense_text, attack_text, all_tc

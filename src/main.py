@@ -200,6 +200,7 @@ def _create_initial_state(request: DebateInitRequest, topic_dict: dict) -> Debat
         user_intensity=request.user_intensity,
         agents=snapshots,
         topic_id=request.topic,
+        mode=request.mode,
     )
 
 
@@ -537,6 +538,13 @@ async def get_assistant_guide(
         raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
 
     state = graph_state.values
+
+    # debate 모드 가드 — 자유논박까지만 진행하므로 역할반전·종합 단계 안내 거부
+    if state.get("mode") == "debate" and phase in {"role_reversal", "synthesis"}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"phase '{phase}' 는 'debate' 모드에서 지원되지 않습니다. constructive 모드에서만 사용 가능합니다.",
+        )
     topic_id = state.get("topic_id", "")
     try:
         topic_dict = _load_topic(topic_id)
