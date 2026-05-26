@@ -498,29 +498,36 @@ FREE_ATTACK_PROMPT = (
 ROLE_REVERSAL_TIPS_PROMPT = (
     _TIPS_BASE
     + """
-[현재 단계: 역할 반전]
-사용자는 원래 {stance_kr} 진영이지만, 이 단계에서는 반대편({reversed_stance_kr}) 입장으로 옹호 발언을 한다.
-지금까지의 토론 내용 + 사전 검색 자료를 토대로 반대편의 핵심 논거를 진정성 있게 재구성해서 안내한다.
-
-[안내 방식]
-- 아래 사전 검색 결과(반대편 입장 자료)가 있으면 그 구체 통계·사례·기관을 직접 인용해 논거를 풍부하게.
-- 검색 결과에 없는 수치·기관·인명은 **발명 금지.**
-- 형식적 인정 ("단점도 있을 수 있어요") 금지 — 진짜 약점·강점을 짚어라.
+[작업]
+아래 진영의 입장으로 입론 논거를 안내해라.
 
 [입력]
 - 토론 주제: {topic}
-- 사용자 원래 진영: {stance_kr}
-- 사용자가 이번에 옹호할 진영: {reversed_stance_kr}
 {stance_block}
-- 지금까지의 발언 요약:
-{history_block}
 {search_block}
 
-[출력]
-- 반대편 입장의 핵심 논거 2~3개 (구체 통계·사례 직접 인용)
-- 진정성 있는 옹호 톤 잡는 법 1~2줄
+[규칙]
+- 아래 사전 검색 결과의 구체 통계·사례·기관을 직접 인용.
+- 검색 결과에 없는 수치·기관·인명은 **발명 금지.**
+- 형식적 인정 ("단점도 있을 수 있어요") 금지 — 진짜 강점을 짚어라.
+
+[출력 형식 — 정확히 이 구조로]
+1) **짧은 안내 한 문장** (입론 흐름 잡기). 헤더 없이.
+2) `**논거 1: [부제]**` 헤더 별도 줄. 별표 두 개로 감싼 마크다운 볼드.
+3) 논거 1 본문 (2~3문장, 구체 통계·사례 인용).
+4) `**논거 2: [부제]**` 헤더 별도 줄.
+5) 논거 2 본문 (2~3문장, 구체 통계·사례 인용).
+6) 짧은 마무리 한 문장 — 헤더 없이.
+
+각 영역 사이 빈 줄 1개.
+
+[헤더 규칙]
+- 정확히 `**논거 1: 부제**` 형식. 백틱·따옴표 금지.
+- 부제는 그 논거의 핵심 키워드 짧게 (예: "AI 안전 사고와 시장 신뢰").
+- 본문 핵심 문장 1개는 `**굵게**` 강조해 가독성 살려라.
+
 250~400자. 친근체.
-**마지막 문장은 반드시 완결**된 형태로 끝낸다. 미완 줄임 금지.
+**마지막 문장은 반드시 완결**된 형태로 끝낸다.
 """
 )
 
@@ -577,8 +584,9 @@ def _stance_block(ctx: GuideContext, flip: bool = False) -> str:
     pro_claim/con_claim 가 있으면 LLM 이 \"찬성/반대\"가 이 토픽에서 정확히
     무엇을 옹호하는지 헷갈리지 않고 그 입장에서 논거를 구성한다.
 
-    flip=True 면 역할반전 단계용 — 사용자가 이번 단계에서 옹호할 입장을
-    '반대편' 으로 뒤집어 넘긴다.
+    flip=True 면 역할반전 단계용 — 옹호 진영을 반대편으로 뒤집어 넘긴다.
+    이 단계 prompt 는 '입론 작성' 톤으로 단순하게 처리하므로 별도 메타 설명 없이
+    그냥 effective_stance 를 사용자 진영처럼 평이하게 박는다.
     """
     effective_stance = (
         ("CON" if ctx.user_stance == "PRO" else "PRO") if flip else ctx.user_stance
@@ -589,22 +597,12 @@ def _stance_block(ctx: GuideContext, flip: bool = False) -> str:
 
     user_claim = ctx.pro_claim if effective_stance == "PRO" else ctx.con_claim
     opp_claim = ctx.con_claim if effective_stance == "PRO" else ctx.pro_claim
-    if flip:
-        lines = [
-            f"- 사용자 원래 진영: {_stance_kr(ctx.user_stance)}",
-            f"- 이번 단계(역할반전)에서 옹호할 진영: {user_kr}",
-            f"- 이번 단계에서 옹호할 입장: {user_claim}",
-            f"- 이번 단계에서 반박 대상이 될 입장(원래 자기 진영): {opp_claim}",
-            "- (역할반전 단계다. 안내·논거는 '이번 단계에서 옹호할 입장' 을 그대로 끌어가라. 원래 진영의 입장을 다시 옹호하지 마라.)",
-        ]
-    else:
-        lines = [
-            f"- 사용자 진영: {user_kr}",
-            f"- 사용자가 옹호하는 입장: {user_claim}",
-            f"- 상대 입장: {opp_claim}",
-            "- (사용자가 옹호하는 입장 = 사용자 진영의 핵심 주장. 안내·논거는 이 입장 그대로 끌어가라.)",
-        ]
-    return "\n".join(lines)
+    return "\n".join([
+        f"- 사용자 진영: {user_kr}",
+        f"- 사용자가 옹호하는 입장: {user_claim}",
+        f"- 상대 입장: {opp_claim}",
+        "- (사용자가 옹호하는 입장 = 사용자 진영의 핵심 주장. 안내·논거는 이 입장 그대로 끌어가라.)",
+    ])
 
 
 def _has_jongseong(s: str) -> bool:
@@ -716,12 +714,21 @@ def _fetch_topic_assets(topic: str, user_stance: str) -> Dict:
         return {"content": "", "links": []}
 
 
-def _search_results_block(pre_search_text: str) -> str:
-    """focus_area 없는 단계용 — 검색 결과만 prompt 에 박는 블록."""
+def _search_results_block(pre_search_text: str, *, for_reversed: bool = False) -> str:
+    """focus_area 없는 단계용 — 검색 결과만 prompt 에 박는 블록.
+
+    for_reversed=True 면 역할반전 단계용 — 검색 콘텐츠가 '반대편(=이번에 옹호할 입장)'
+    자료임을 라벨에 명시해 stance_block(flip=True) 과 라벨이 어긋나지 않도록 한다.
+    """
     if not pre_search_text:
         return ""
+    label = (
+        "참고 자료 검색 결과 — **이번 단계에서 옹호할 입장(=반대편)** 의 자료. 직접 인용해라"
+        if for_reversed
+        else "참고 자료 검색 결과 — 사용자 진영 논거에 활용할 자료. 직접 인용해라"
+    )
     return (
-        f"\n[참고 자료 검색 결과 — 사용자 진영 논거에 활용할 자료. 직접 인용해라]\n"
+        f"\n[{label}]\n"
         f"{pre_search_text}\n"
         f"  ↑ 위 결과의 구체 통계·기관·사례·연도를 답변에 직접 박아라.\n"
         f"  ↑ 검색 결과에 없는 수치·기관·인명은 **발명 절대 금지.**\n"
@@ -744,7 +751,10 @@ def build_tips_prompt(
     """
     stance_kr = _stance_kr(ctx.user_stance)
     stance_block = _stance_block(ctx)
-    search_block = _search_results_block(pre_search_text)
+    # 역할반전은 검색 콘텐츠가 '반대편(=옹호할 입장)' 자료라 라벨도 다르게 박는다
+    search_block = _search_results_block(
+        pre_search_text, for_reversed=(phase == "role_reversal")
+    )
     if phase == "opening":
         # opening 만 focus_area 적용 — focus_block 안에 search 결과 포함
         focus_block = _focus_block(ctx, pre_search_text)
@@ -761,12 +771,12 @@ def build_tips_prompt(
             search_block=search_block,
         )
     if phase == "role_reversal":
+        # 역할반전은 "반대편 진영의 입론 작성" 톤으로 단순 처리.
+        # history 는 사용자의 원래 진영 발언이라 의도적으로 제외 — 모델이 그 패턴을
+        # 따라가지 않도록.
         return ROLE_REVERSAL_TIPS_PROMPT.format(
             topic=ctx.topic,
-            stance_kr=stance_kr,
-            reversed_stance_kr=_reversed_kr(ctx.user_stance),
             stance_block=_stance_block(ctx, flip=True),
-            history_block=_format_history(ctx.history),
             search_block=search_block,
         )
     if phase == "synthesis":
