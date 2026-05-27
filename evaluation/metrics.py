@@ -1,33 +1,58 @@
+"""평가 지표 정의.
+
+Wachsmuth et al. (2017) "Computational Argumentation Quality Assessment in
+Natural Language" (EACL) 의 argumentation quality taxonomy 에서 다섯 개
+하위 차원을 그대로 선택해 사용한다 — 논리(Cogency) 3개 + 수사(Effectiveness)
+2개. 정의는 모두 논문 원문에서 직접 인용한 표현을 한국어로 옮긴 것이며,
+임의로 가공된 anchor·예시는 두지 않는다.
+"""
+
 METRICS = [
     {
-        "key": "evidence_expansion",
-        "label": "근거 확장성",
-        "alias": "depth",
-        "description": "답변에 새롭고 서로 다른 논거가 얼마나 충분히 포함되어 있는지 평가합니다. 비슷한 근거의 반복은 증가로 보지 않습니다.",
+        "key": "local_acceptability",
+        "label": "지역적 수용 가능성 (Local acceptability)",
+        "alias": "acceptability",
+        "description": (
+            "논증의 전제는 다음의 경우 수용 가능하다: 그것이 합리적으로 진실이라고 "
+            "믿을 만한 가치가 있을 때. (Wachsmuth et al., 2017)"
+        ),
     },
     {
-        "key": "knowledge_specificity",
-        "label": "지식의 구체성",
-        "alias": "specificity",
-        "description": "수치, 고유명사, 사례, 제도, 데이터처럼 구체적인 정보가 얼마나 포함되어 있는지 평가합니다.",
+        "key": "local_relevance",
+        "label": "지역적 관련성 (Local relevance)",
+        "alias": "relevance",
+        "description": (
+            "논증의 전제는 다음의 경우 관련성이 있다: 논증의 결론을 수용하거나 "
+            "거부하는 데 기여할 때. (Wachsmuth et al., 2017)"
+        ),
     },
     {
-        "key": "evidence_validity",
-        "label": "근거 타당성",
-        "alias": "support",
-        "description": "제시한 근거가 최종 주장이나 결론을 실제로 얼마나 잘 뒷받침하는지 평가합니다.",
+        "key": "local_sufficiency",
+        "label": "지역적 충분성 (Local sufficiency)",
+        "alias": "sufficiency",
+        "description": (
+            "논증의 전제들은 다음의 경우 충분하다: 합쳐서 그 결론을 합리적으로 "
+            "도출하기에 충분한 지지를 제공할 때. (Wachsmuth et al., 2017)"
+        ),
     },
     {
-        "key": "reasoning_density",
-        "label": "논리 추론 밀도",
-        "alias": "inference",
-        "description": "근거에서 결론으로 이어지는 논리 연결이 자연스럽고 탄탄한지, 논리적 비약이 적은지 평가합니다.",
+        "key": "clarity",
+        "label": "명확성 (Clarity)",
+        "alias": "clarity",
+        "description": (
+            "논증은 다음의 경우 명확한 문체를 가진다: 올바르고 광범위하게 모호하지 "
+            "않은 언어를 사용하며, 불필요한 복잡성과 주제 이탈을 회피할 때. "
+            "(Wachsmuth et al., 2017)"
+        ),
     },
     {
-        "key": "perspective_diversity",
-        "label": "관점 다각성",
-        "alias": "diversity",
-        "description": "윤리, 경제, 사회, 정책, 기술 등 서로 다른 관점에서 입체적으로 접근하는지 평가합니다.",
+        "key": "appropriateness",
+        "label": "적절성 (Appropriateness)",
+        "alias": "appropriateness",
+        "description": (
+            "논증은 다음의 경우 적절한 문체를 가진다: 사용된 언어가 신뢰성과 감정의 "
+            "창출을 지지하며, 동시에 그 이슈에 비례할 때. (Wachsmuth et al., 2017)"
+        ),
     },
 ]
 
