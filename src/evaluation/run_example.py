@@ -10,7 +10,7 @@ QWEN_LOCAL_MODEL_PATH를 실제 경로로 바꾸세요.
   예: "/content/drive/MyDrive/models/Qwen2.5-7B-Instruct"
 """
 
-from evaluation import (
+from src.evaluation import (
     analyze_user_before_after,
     print_evaluation_report,
     save_result_json,

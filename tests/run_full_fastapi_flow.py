@@ -48,7 +48,7 @@ _load_env()
 
 
 from experiments._run_single import UserProxy  # noqa: E402
-from evaluation import analyze_user_before_after  # noqa: E402
+from src.evaluation import analyze_user_before_after  # noqa: E402
 
 
 _DEFAULT_BASE_URL = os.environ.get("FASTAPI_BASE_URL", "http://localhost:8001")

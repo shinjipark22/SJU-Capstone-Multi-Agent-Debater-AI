@@ -584,7 +584,7 @@ def health_check():
 # 5가지 지표(근거 확장성/지식 구체성/근거 타당성/논리 추론 밀도/관점 다각성)를
 # 토론 전·후 × 찬·반 4쌍에 대해 채점하고, 100점 환산 + 변화량(delta) 까지 반환.
 
-from evaluation import analyze_user_before_after
+from src.evaluation import analyze_user_before_after
 
 
 class EvaluateRequest(BaseModel):
