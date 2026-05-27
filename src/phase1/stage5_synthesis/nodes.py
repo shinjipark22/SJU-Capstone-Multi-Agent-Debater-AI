@@ -15,6 +15,8 @@ nodes.py — 5단계: 종합 및 재개념화(Synthesis & Reconceptualization) �
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import re
 from typing import Dict, List, Optional, Tuple
@@ -41,6 +43,108 @@ from src.state import DebateEntry, DebateState
 
 # ── 종합 전용 LLM ──────────────────────────────────────────────────────────
 _syn_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 1024, "temperature": 0.7})
+
+# 사용자 발언 의도 추출 전용 LLM (결정적·짧은 출력)
+_intent_llm = ChatOpenAI(**{**_LLM_KWARGS, "max_tokens": 400, "temperature": 0.0})
+
+# 추출 결과 캐시 — 같은 사용자 발언에 대해 여러 에이전트가 호출해도 1회만 LLM 호출
+_USER_INTENT_CACHE: Dict[str, dict] = {}
+
+
+_USER_INTENT_PROMPT = """다음은 토론 중 사용자가 한 발언이다. 이 발언에서 회의 참여자들이 응답해야 할 핵심 요소를 JSON 으로 추출해라.
+
+[토론 주제] {topic}
+
+[사용자 발언]
+{user_speech}
+
+[추출 형식 — JSON 만 출력, 다른 텍스트 X]
+{{
+  "questions": ["사용자가 던진 **명시적 질문** (?, 어떤, 어떻게 등) - 있을 때만, 원문 짧게 인용"],
+  "implicit_issues": ["사용자가 명시 질문은 안 했지만 답·구체화를 원하는 implicit 쟁점·요구 (예: 사용자가 '~수준은 안 된다'고 하면 → '그러면 적정 수준은 어떻게 정하는지' 같은 implicit issue)"],
+  "claims": ["사용자가 주장한 핵심 입장·주장 1~2개 (짧게)"],
+  "acknowledgments": ["사용자가 상대 측에 인정·수긍한 부분 (있을 때만, 짧게)"]
+}}
+
+[규칙]
+- 없는 항목은 빈 리스트 [].
+- 각 항목 최대 60자.
+- questions 는 발언에 명시된 것만 (?표·의문사 있는 문장).
+- implicit_issues 는 발언에서 자연스럽게 도출되는 후속 질문. 사용자가 어떤 주장·우려를 표명했으면 그것을 해소하려면 무엇이 답해져야 하는지.
+- 한국어로.
+"""
+
+
+def _extract_user_intent(user_speech: str, topic: str) -> dict:
+    """사용자 발언에서 (명시 질문, implicit 쟁점, 주장, 인정) 을 LLM 으로 1회 추출.
+
+    같은 발언에 대해 모든 에이전트가 같은 추출 결과를 공유 (캐시).
+    추출 실패 시 빈 dict 반환 — 호출자는 inject 안 함.
+    """
+    empty = {"questions": [], "implicit_issues": [], "claims": [], "acknowledgments": []}
+    if not user_speech or len(user_speech.strip()) < 10:
+        return empty
+
+    cache_key = hashlib.md5(user_speech.encode("utf-8")).hexdigest()
+    if cache_key in _USER_INTENT_CACHE:
+        return _USER_INTENT_CACHE[cache_key]
+
+    try:
+        prompt = _USER_INTENT_PROMPT.format(
+            topic=topic, user_speech=user_speech[:1500]
+        )
+        response: AIMessage = _invoke_with_retry(
+            _intent_llm, [HumanMessage(content=prompt)], label="user_intent_extract"
+        )
+        raw = (response.content or "").strip()
+        match = re.search(r"\{[\s\S]*\}", raw)
+        if not match:
+            return empty
+        intent = json.loads(match.group(0))
+        for key in ("questions", "implicit_issues", "claims", "acknowledgments"):
+            v = intent.get(key)
+            intent[key] = v if isinstance(v, list) else []
+        _USER_INTENT_CACHE[cache_key] = intent
+        return intent
+    except Exception as e:
+        print(f"  [user_intent_extract 실패] {e}")
+        return empty
+
+
+def _format_user_intent_block(intent: dict) -> str:
+    """추출된 user intent 를 prompt 에 박을 블록으로 포맷.
+
+    빈 intent 면 빈 문자열 반환 (호출자가 그대로 박아도 무해).
+    """
+    if not intent:
+        return ""
+    q = intent.get("questions", [])
+    ii = intent.get("implicit_issues", [])
+    c = intent.get("claims", [])
+    a = intent.get("acknowledgments", [])
+    if not (q or ii or c or a):
+        return ""
+
+    lines = ["\n[사용자 발언 핵심 — 회의 응답에 반드시 반영]"]
+    if q:
+        lines.append("- 사용자가 던진 **명시적 질문/요청**:")
+        for item in q[:3]:
+            lines.append(f"  · {item}")
+        lines.append("  → 위 질문은 **첫 문장에서 구체 직답**. 추상 합의로 회피 금지.")
+    if ii:
+        lines.append("- 사용자 발언이 **답을 요구하는 implicit 쟁점**:")
+        for item in ii[:3]:
+            lines.append(f"  · {item}")
+        lines.append("  → 위 쟁점 중 하나에 자기 perspective 로 **구체 답·예시·조건**을 던져라. \"단계적 도입으로 균형\" 같은 추상 회피 금지.")
+    if c:
+        lines.append("- 사용자의 핵심 주장/입장:")
+        for item in c[:3]:
+            lines.append(f"  · {item}")
+    if a:
+        lines.append("- 사용자가 인정·수긍한 부분:")
+        for item in a[:3]:
+            lines.append(f"  · {item}")
+    return "\n".join(lines) + "\n"
 
 
 # ── 토론 히스토리 요약 ────────────────────────────────────────────────────
@@ -102,6 +206,93 @@ _AGENT_PERSPECTIVES = [
     "국제 비교 관점: 다른 나라에서 비슷한 문제를 어떻게 해결했는지 사례를 들어라",
     "구조적 원인 관점: 표면적 증상이 아닌 근본 원인이 무엇인지 짚어라",
 ]
+
+
+# ── 에이전트별 회의 역할 (perspective 와 다른 축, 단조로움 차단) ──────────
+# perspective 는 "어떤 렌즈" 인 반면, 역할은 "회의에서 어떤 기능".
+# 두 축을 같이 적용하면 자기 진영 + perspective + 역할 조합으로 발언이 구조적으로 분기.
+_AGENT_ROLES: Dict[str, Dict[str, str]] = {
+    "bridge_builder": {
+        "label": "공감·다리 잇기",
+        "desc": (
+            "사용자·다른 발언자 의견의 진짜 가치를 짚어주고 자기 진영 입장과 연결해라. "
+            "단, 형식적 인정 ('좋은 의견입니다', '맞는 말입니다') 금지 — "
+            "구체적으로 어느 부분이 왜 가치 있는지 짚고, 그것을 자기 입장의 어떤 측면과 어떻게 연결하는지 분명히 해라. "
+            "**시작 어구 다양화**: '말씀하신 ~' 만 반복하지 말고 아래 풀에서 골라라: "
+            "'그 시각은 ~한 점에서 흥미로운데', '~ 부분 짚어보면', '사용자께서 ~ 라고 보셨는데', "
+            "'그 지적은 ~ 측면에서 일리가 있는데', '~ 라는 관점은 ~한 면에서 유효한데', "
+            "'~ 라고 보시는 부분은 ~한 의미가 있는데'."
+        ),
+    },
+    "implementer": {
+        "label": "구체화·실행 제안",
+        "desc": (
+            "추상 합의·일반론을 구체 실행 방안으로 전환하는 역할이다. "
+            "다른 발언자가 '균형이 중요' 라고 끝나면 너는 '그래서 누가·어떤 단계로·어떤 조건에서·어떤 이해관계자가 어떻게' 를 던져라. "
+            "발언에 반드시 **단계·이해관계자·실행 조건·예외 시나리오** 중 하나 이상 포함. "
+            "**구체 수치 (%, 년수, 비용 등) 는 사용 금지** — 종합 단계는 검색이 없어 수치를 발명하면 환각이다. "
+            "이미 알려진 실명 사례 (예: EU AI Act, IBM, OpenAI) 로 구체화하라."
+        ),
+    },
+    "devils_advocate": {
+        "label": "반례·검증 도발",
+        "desc": (
+            "자기 진영을 옹호하되, **너무 쉬운 합의는 의심하라.** "
+            "다른 발언자가 '균형'·'단계적 도입' 같은 안전한 결론으로 빠지면 그 가정의 약점을 직접 짚어라. "
+            "반례·예외 사례·구현 실패 시나리오 1개를 던져 회의가 안일하게 수렴하는 것을 차단하라. "
+            "단, 사용자 진영 자체는 옹호."
+        ),
+    },
+    "brainstormer": {
+        "label": "새 각도 브레인스토밍",
+        "desc": (
+            "지금까지 회의에 안 나온 **새 차원·이해관계자·시나리오**를 제기하는 역할이다. "
+            "토픽과 합리적으로 연결되는 범위에서 (무리한 상상 금지) 신선한 angle 1개를 던져라. "
+            "이미 다룬 차원 (비용·규제·신뢰 등) 재탕 금지."
+        ),
+    },
+    "synthesizer": {
+        "label": "종합·미해결 정리",
+        "desc": (
+            "지금까지 회의 흐름의 핵심을 짧게 요약 + **아직 답 못 한 쟁점·사용자 질문**을 명시하는 역할이다. "
+            "단순 동의로 마무리 X — 미해결 지점을 가시화해 회의가 안일하게 끝나는 것을 막아라."
+        ),
+    },
+}
+
+
+_ROLE_ASSIGNMENT_BY_COUNT: Dict[int, List[str]] = {
+    # 1 AI (1:1 포맷): 정리자 (혼자라 모든 역할 어려움 → 미해결 정리에 집중)
+    1: ["synthesizer"],
+    # 3 AI (2:2 포맷): 가장 충돌·생산성 좋은 3개 조합
+    3: ["bridge_builder", "implementer", "devils_advocate"],
+    # 5 AI (3:3 포맷): 5개 역할 다
+    5: ["bridge_builder", "implementer", "devils_advocate", "brainstormer", "synthesizer"],
+}
+
+
+def _assign_roles_for_format(num_ai_agents: int) -> List[str]:
+    """포맷별 (AI 수별) 역할 키 리스트 반환.
+
+    매핑 누락 시 fallback: perspective 만큼 반복.
+    """
+    if num_ai_agents in _ROLE_ASSIGNMENT_BY_COUNT:
+        return _ROLE_ASSIGNMENT_BY_COUNT[num_ai_agents]
+    # fallback: 모든 역할 순환
+    keys = list(_AGENT_ROLES.keys())
+    return [keys[i % len(keys)] for i in range(num_ai_agents)]
+
+
+def _build_role_block(role_key: str) -> str:
+    """역할 키 → prompt 에 박을 블록 텍스트. 비어있으면 빈 문자열."""
+    if not role_key or role_key not in _AGENT_ROLES:
+        return ""
+    role = _AGENT_ROLES[role_key]
+    return (
+        f"\n[너의 회의 역할 — {role['label']}]\n"
+        f"{role['desc']}\n"
+        f"(intensity 가 강하면 강하게, 약하면 부드럽게 — 역할 톤을 intensity 에 맞춰라.)\n"
+    )
 
 
 # ── perspective 별 발언 시작 어구 풀 (mode collapse 회피) ──────────────────
@@ -250,16 +441,19 @@ def _build_proposal_prompt(
     prev_speaker: str = "",
     prev_speech: str = "",
     used_starters: Optional[List[str]] = None,
+    role_key: str = "",
 ) -> str:
     """Round 1 회의 오프닝 — 자연 대화 톤으로 의견 제시.
 
     이전 'mechanical' 한 schema (수용+타협안 강제) 대신, 회의실에서 사람들이
     자연스럽게 발언하듯 직전 발언자에 직접 반응하는 흐름을 유도.
+    role_key: 회의 역할 (perspective 와 다른 축). 단조로움 차단.
     """
     stance_kr = "찬성" if original_stance == "PRO" else "반대"
 
     perspective_block = f"\n[너의 관점] {perspective}\n" if perspective else ""
     negotiation = _INTENSITY_NEGOTIATION.get(intensity, _INTENSITY_NEGOTIATION[3])
+    role_block = _build_role_block(role_key)
 
     prev_block = ""
     if prev_speaker and prev_speech:
@@ -274,15 +468,33 @@ def _build_proposal_prompt(
 
     return f"""[5단계 — 최적해 도출 회의 (Round 1, 발산 단계)]
 '{topic}' 토론이 끝났다. 지금은 회의의 **첫 라운드 — 자기 진영 입장을 자기 perspective 로 분명히 던지는 발산 단계**다.
-{prev_block}{perspective_block}[너의 협상 태도] {negotiation}
+{prev_block}{perspective_block}{role_block}[너의 협상 태도] {negotiation}
 [원래 입장] {stance_kr}
 {style_block}{starters_block}
 
-[Round 1 모드 — 자기 입장 주장]
+[Round 1 모드 — 자기 입장 주장 (발산)]
 - 이번 라운드는 회의의 첫 발언이다. 자기 perspective 의 차원에서 **자기 진영 ({stance_kr}) 입장을 강하게 옹호**하라.
 - 상대 진영 의견을 인정하지 마라. 자기 입장의 핵심 측면 1개를 분명히 던져라.
 - 양보·합의 표현 금지 ("그래도 ~", "양측 모두 ~" 등). 합의는 다음 라운드에서 다룬다.
 - 본인 perspective 의 분석 측면에서 자기 진영을 옹호하는 구체적 한 가지 (조건·우려·사례·이유) 를 명확히 제시.
+
+[수치·통계 금지 — 매우 중요]
+- 종합 단계는 검색을 호출하지 않는다. **구체 수치 (%, 년수, 비용·금액, 통계, 인원수) 인용 절대 금지** — 모두 환각이 된다.
+- "약 2년", "20% 추가", "30% 절감" 같은 표현 금지. 다른 발언자가 그런 수치를 던졌어도 그대로 차용 금지.
+- 대신 **논리·인과·이름 있는 실명 사례 (EU AI Act, IBM, OpenAI 등) ·조건적 추론** 으로 구체화하라.
+- 정량적 표현이 꼭 필요하면 "상당한", "장기적으로", "일부", "다수" 같은 일반화 어휘만 허용.
+
+[실명 사례 (회사·기관·법안) 재인용 금지 — entity echo 차단]
+- 위 [이미 한 말] / 메시지 체인에서 **다른 발언자가 이미 인용한 실명 사례** (회사·기관·법안·제품명) 는 **재인용 금지**.
+- 예: 직전 발언자가 IBM 사례 던졌으면 너는 IBM 다시 쓰지 마라. 다른 entity (Microsoft, Anthropic, OpenAI 등) 또는 자기 perspective 의 새 angle 로 가라.
+- 같은 entity 재사용은 인용 echo 라 회의가 단조로워진다.
+- 단, 토론 주제 자체에 박힌 핵심 entity (예: 토픽이 'EU AI Act' 라면 EU AI Act) 는 예외.
+
+[사용자 대화 layer — 발산 모드 안에서도 인터랙티브하게]
+- 위 메시지 체인의 이전 발언 중 **사용자가 던진 질문·요청·궁금증**이 보이면, 자기 입장 주장 안에 **그 질문을 짚으면서 자기 perspective 로 답하는 흐름**으로 풀어라.
+  예: "사용자께서 ~를 물으셨는데, 제 perspective 에서 보면 ~한 측면이 핵심입니다."
+- 질문이 없으면 무시. 억지로 만들지 마라. 보통의 입장 주장으로 진행.
+- 사용자 발언을 인용할 때는 정확히 그 부분만 짧게 (10~20자) 짚어라. 길게 요약하지 마라.
 
 [발언 가이드]
 - 회의실에서 사람들이 말하는 것처럼 자연스럽게. 보고서 작성이 아니라 토론자들과의 대화다.
@@ -307,15 +519,18 @@ def _build_finalize_prompt(
     prev_speaker: str = "",
     prev_speech: str = "",
     used_starters: Optional[List[str]] = None,
+    role_key: str = "",
 ) -> str:
     """Round 3 — 지금까지 흐름을 종합한 자기 결론.
 
     이전엔 "제가 생각하는 최적해는 ~입니다" 강제로 5명 모두 같은 시작 → 단조.
     이제 결론 어조는 자유롭게 (단정·제안·요약 형식 다양). 본질은 같음.
+    role_key: 회의 역할 (perspective 와 다른 축). 단조로움 차단.
     """
     stance_kr = "찬성" if original_stance == "PRO" else "반대"
     perspective_block = f"\n[너의 관점] {perspective}\n" if perspective else ""
     negotiation = _INTENSITY_NEGOTIATION.get(intensity, _INTENSITY_NEGOTIATION[3])
+    role_block = _build_role_block(role_key)
 
     prev_block = ""
     if prev_speaker and prev_speech:
@@ -326,27 +541,50 @@ def _build_finalize_prompt(
     style_block = _build_style_block(perspective)
     starters_block = _build_starters_block(perspective, used_starters or [])
 
-    return f"""[5단계 — Round 3: 종결 단계, 종합 + 자기 결론]
-'{topic}' 에 대한 2라운드 동안의 회의 논의를 종합해 **본인의 최종 결론**을 짧게 정리하라.
-{prev_block}{perspective_block}[원래 입장] {stance_kr}
+    return f"""[5단계 — Round 3: 종결 단계, 자기 perspective 의 최종 결론]
+'{topic}' 에 대한 2라운드 동안의 회의 논의를 종합해 **본인 perspective 차원의 최종 결론**을 짧게 정리하라.
+{prev_block}{perspective_block}{role_block}[원래 입장] {stance_kr}
 [너의 협상 태도] {negotiation}
 {style_block}{starters_block}
 
-[Round 3 모드 — 종결 정리]
-- Round 1 (자기 입장 주장) + Round 2 (상대 일부 인정) 흐름을 거쳤다. 이제 본인 관점에서 **합의된 부분 + 끝까지 유지한 본인 입장** 을 정리하라.
-- 새 쟁점 꺼내지 마라. 지금까지 회의에서 다룬 내용을 자기 perspective 의 어조로 종합.
-- 결론 형식 자유: "정리하자면..." / "결국..." / "저는 이렇게 정리합니다" 등 자연스럽게 시작.
-- 본인 perspective 의 tone 유지.
+[Round 3 모드 — perspective-locked 결론]
+- Round 1·2 흐름을 종합하되, **본인 perspective 차원의 핵심 메시지**를 명확히 박아라.
+- 결론 마지막 문장은 반드시 **본인 perspective 의 angle 로 마무리**:
+  · 실현 가능성 → "비용·일정·실행 단계로 볼 때 ~"
+  · 피해자/수혜자 → "~ 집단에 미치는 영향이 ~"
+  · 장기적 영향 → "5~10년 후를 보면 ~"
+  · 국제 비교 → "다른 나라 사례를 보면 ~"
+  · 구조적 원인 → "근본 원인은 ~"
+- 새 쟁점 꺼내지 마라.
+
+[금지 — 단조로움 차단]
+- "균형이 중요" / "양쪽의 균형을 맞추는 것이 가장 이상적" / "조화롭게 발전" / "성능과 안전성 모두 고려" 같은 **추상 합의 결론 금지.**
+- "결국 ~이 가장 효과적일 것입니다" 같은 모든 perspective 가 같이 쓸 만한 일반 결론 금지.
+- 위 [이미 한 말] 의 결론 어구를 그대로 또 쓰면 실격.
+
+[수치·통계 금지 — 매우 중요]
+- 종합 단계는 검색을 호출하지 않는다. **구체 수치 (%, 년수, 비용·금액, 통계, 인원수) 인용 절대 금지** — 모두 환각이 된다.
+- 다른 발언자가 그런 수치를 던졌어도 그대로 차용 금지.
+- 대신 **논리·인과·이름 있는 실명 사례·조건적 추론** 으로 결론을 박아라.
+- "상당한", "장기적으로", "일부", "다수" 같은 일반화 어휘만 허용.
+
+[실명 사례 (회사·기관·법안) 재인용 금지 — entity echo 차단]
+- 위 [이미 한 말] / 메시지 체인에서 **다른 발언자가 이미 인용한 실명 사례** (회사·기관·법안·제품명) 는 **재인용 금지**.
+- 예: 직전 발언자가 IBM 사례 던졌으면 너는 IBM 다시 쓰지 마라. 다른 entity 또는 자기 perspective 의 새 angle 로 가라.
+- 토픽 자체에 박힌 핵심 entity 는 예외.
+
+[결론 작성 규칙 — 매우 중요]
+- 마지막 문장은 본인 입장이 어느 쪽인지 명확해야 한다 ({stance_kr} 진영의 자기 perspective 카드).
+- 양쪽 다 인정하고 끝내는 합의형 마무리 금지. 자기 입장의 핵심 조건·우선순위 1개를 분명히 박아라.
 
 [발언 가이드]
 - 2~4문장. 핵심 결론에 **강조** 하나만.
 - 합니다체. 회의 마무리 발언 톤 (보고서 X).
-- 직전 발언자 결론과의 차이·접점을 자연스럽게 비춰도 좋다.
 
 반드시 아래 형식으로만 출력:
 
 ### 반박 시작
-(2~4문장 결론)
+(2~4문장 결론, perspective-locked 마지막 문장)
 ### 반박 끝"""
 
 
@@ -358,41 +596,78 @@ def _build_discuss_prompt(
     intensity: int = 3,
     already_said: str = "",
     used_starters: Optional[List[str]] = None,
+    user_intent_block: str = "",
+    role_key: str = "",
 ) -> str:
     """Round 2 — 사용자 의견에 자연 대화 톤으로 응답.
 
-    이전엔 inline prompt 로 'mechanical' 했음. 분리 + 자연 회의 톤으로 reframe.
+    수렴 강제·합의 템플릿 제거. 사용자 발언에 회의 참여자처럼 자연스럽게
+    반응하고, intensity 별 협상 태도가 다양성을 만들도록 둔다.
+    질문이면 직답, 의견이면 반응 — LLM 이 자연스럽게 판단하게 한다.
+    user_intent_block: 미리 추출된 사용자 핵심 (질문/주장/인정) 블록.
+    role_key: 회의 역할 (perspective 와 다른 축). 단조로움 차단.
     """
     stance_kr = "찬성" if original_stance == "PRO" else "반대"
     perspective_block = f"\n[너의 관점] {perspective}\n" if perspective else ""
     negotiation = _INTENSITY_NEGOTIATION.get(intensity, _INTENSITY_NEGOTIATION[3])
+    role_block = _build_role_block(role_key)
 
     user_block = ""
     if user_latest:
         user_block = (
             f"\n[방금 사용자 발언 — 직접 응답하라]\n\"{user_latest[:500]}\"\n"
+            f"{user_intent_block}"
         )
 
     style_block = _build_style_block(perspective)
     starters_block = _build_starters_block(perspective, used_starters or [])
 
-    return f"""[5단계 — Round 2: 수렴 단계, 상대 의견 일부 인정 + 합의 시도]
-'{topic}' 최적해 회의가 진행 중이다. 방금 사용자가 의견을 던졌다 — 직접 응답하라.
-{user_block}{perspective_block}[원래 입장] {stance_kr}
+    return f"""[5단계 — Round 2: 수렴 단계]
+'{topic}' 최적해 회의가 진행 중이다. 방금 사용자가 의견을 던졌다.
+{user_block}{perspective_block}{role_block}[원래 입장] {stance_kr}
 [너의 협상 태도] {negotiation}
 {already_said}
 {style_block}{starters_block}
-[Round 2 모드 — 수렴 시작]
-- 이번 라운드는 회의의 **수렴 단계**다. Round 1 에서 자기 입장을 주장했으니, 이제는 사용자·다른 발언자 의견 중 **인정할 수 있는 부분을 명시**하고 합의를 시도하라.
-- "맞는 점은 ~인데, 다만 자기 perspective 에서는 ~" 식의 흐름.
-- 그러나 자기 진영 ({stance_kr}) 입장을 완전히 양보하지 마라. **합의 가능한 접점 1개 + 자기 perspective 의 유지·보완 1개** 를 함께 던져라.
-- 단순 "동의합니다" 만으로 끝내지 마라.
+[Round 2 모드 — 수렴 진행 (단, 양보는 협상 태도에 따라)]
+- Round 1 에서 자기 입장을 던졌다. 이번 라운드는 **수렴 단계** — 사용자·다른 발언자 의견 중 받아들일 부분을 짚고, 자기 perspective 의 보완·조건을 함께 던져 합의 가능한 접점을 모색하라.
+- **단, 협상 태도** ({negotiation}) **를 그대로 반영하라.** 강경하면 강하게 자기 핵심 조건 사수, 부드러우면 더 열린 절충. 모두 같은 톤으로 수렴 금지.
+
+[사용자 대화 layer — 인터랙티브가 핵심]
+- 위 [방금 사용자 발언] 에 **질문·요청·궁금증**이 있으면 **첫 문장에서 그 질문에 구체적으로 직답**하라. 직답에 자기 perspective 의 구체 예시·조건·실행 방법을 박아라.
+- 질문이 없고 단순 의견이면, 자기 협상 태도 그대로 받아쳐라 (인정·이견·구체화·반례·조건 모두 자유).
+- 사용자 발언의 어느 부분에 응답하는지 짧게 짚어주면 인터랙티브함이 산다. 짚는 표현 다양화 — "말씀하신 ~", "그 지적은 ~", "~ 부분은 ~", "그 시각은 ~" 중 한 형태로 자연스럽게.
+
+[perspective-locked 답 — 매우 중요, 단조로움 차단]
+- 같은 사용자 질문에 대해 모두 같은 답 하면 회의가 헛돈다. **너의 perspective 차원에서만 답하라.**
+  · 실현 가능성 관점 → 비용·일정·실행 단계로 답
+  · 피해자/수혜자 관점 → 누가 부담·누가 이득·이해관계자별 영향
+  · 장기적 영향 관점 → 5~10년 후의 부작용·성과
+  · 국제 비교 관점 → 다른 나라 사례·국제 비교
+  · 구조적 원인 관점 → 근본 원인·구조적 조건
+- 위 [이미 한 말] 의 다른 perspective 답을 그대로 따라쓰지 마라. 같은 결론·같은 숫자·같은 어구 반복 금지.
+- 직전 발언자가 이미 답한 차원 (예: "2년 내 10% 예산") 을 또 반복하면 실격. 너의 perspective 차원으로 다른 답을 던져라.
+
+[피해야 할 패턴 — 회의가 헛도는 원인]
+- "단계적 도입으로 균형" 같은 **추상 합의 어구**를 다른 발언자가 이미 썼는데 또 반복.
+- "맞는 점은 ~인데 다만 ~" 같은 templated 합의 문장 반복.
+- 사용자 질문을 무시하고 자기 입장만 또 늘어놓는 것.
+- 구체 예시 없이 "균형이 중요" 류 일반론만 던지는 것.
+- 직전 발언자가 제시한 구체 답 (수치·일정·방법) 을 그대로 또 인용하는 것.
+
+[수치·통계 금지 — 매우 중요]
+- 종합 단계는 검색을 호출하지 않는다. **구체 수치 (%, 년수, 비용·금액, 통계, 인원수) 인용 절대 금지** — 모두 환각이 된다.
+- "약 2년", "20% 추가", "30% 절감" 같은 표현 금지. 다른 발언자가 그런 수치를 던졌어도 **그대로 차용 금지**.
+- 대신 **논리·인과·이름 있는 실명 사례 (EU AI Act, IBM, OpenAI 등) ·조건적 추론** 으로 발언을 채워라.
+- "상당한", "장기적으로", "일부", "다수" 같은 일반화 어휘만 허용.
+
+[실명 사례 (회사·기관·법안) 재인용 금지 — entity echo 차단]
+- 위 [이미 한 말] / 메시지 체인에서 **다른 발언자가 이미 인용한 실명 사례** (회사·기관·법안·제품명) 는 **재인용 금지**.
+- 예: 직전 발언자가 IBM 사례 던졌으면 너는 IBM 다시 쓰지 마라. 다른 entity 또는 자기 perspective 의 새 angle 로 가라.
+- 토픽 자체에 박힌 핵심 entity 는 예외.
 
 [발언 가이드]
-- 사용자 발언에 자연스럽게 응답하라. 회의 토론자가 말하는 톤으로.
-- 인정·이견·질문·구체화·제안 자유. "그 점은 ~수긍하는데, 다만 ~", "그런 측면도 있죠. 그러면 ~" 등.
-- 2~4문장. 합니다체. 보고체 X.
-- 위 [이미 한 말] 과 다른 새 측면으로 가라.
+- 회의 토론자처럼 자연스럽게. 2~4문장. 합니다체.
+- 위 [이미 한 말] 과 **다른 perspective 차원의 새 답** 으로 가라.
 
 반드시 아래 형식으로만 출력:
 
@@ -511,6 +786,48 @@ def _current_synthesis_round_speeches(state: DebateState) -> List[str]:
     return speeches
 
 
+# ── 결론 어구 반복 차단 (Round 2/3 단조로움 가드) ─────────────────────────────
+
+
+def _extract_overused_phrases(speeches: List[str], min_count: int = 2, n: int = 4) -> List[str]:
+    """직전 발언들에서 **여러 발언에 겹쳐서 등장한** 한국어 n-gram 어구를 추출.
+
+    하드코딩된 키워드 없이 텍스트만 보고 자주 등장한 substring 을 찾는다.
+    prompt 에 ban list 로 박아 모델이 같은 표현으로 결론 짓지 않도록 한다.
+
+    speeches: 같은 라운드 내 다른 에이전트의 발언 (앞 80자 정도)
+    n: 윈도우 크기 (글자 수). 6글자 정도면 의미 있는 어구 (예: "단계적 도입")
+    min_count: 이 값 이상 등장해야 ban list 포함
+    """
+    if len(speeches) < 2:
+        return []
+    # 각 speech 마다 등장한 n-gram set 을 계산하고, 등장한 speech 수를 count
+    appears_in: Dict[str, int] = {}
+    for s in speeches:
+        # 한국어 자모/공백 정규화 후 n-gram
+        text = re.sub(r"[^가-힣ㄱ-ㆎ ]", "", s)
+        seen = set()
+        for i in range(len(text) - n + 1):
+            chunk = text[i : i + n].strip()
+            # 의미 있는 어구만 (공백 너무 많은 것 제외)
+            if len(chunk.replace(" ", "")) < n - 1:
+                continue
+            seen.add(chunk)
+        for chunk in seen:
+            appears_in[chunk] = appears_in.get(chunk, 0) + 1
+    # min_count 이상 발언에 등장한 어구
+    overused = [c for c, cnt in appears_in.items() if cnt >= min_count]
+    # 길이 정렬, 중복 substring 정리 (긴 것 우선)
+    overused.sort(key=len, reverse=True)
+    dedup: List[str] = []
+    for p in overused:
+        if not any(p in d for d in dedup):
+            dedup.append(p)
+        if len(dedup) >= 6:
+            break
+    return dedup
+
+
 def synthesis_propose_one_node(state: DebateState) -> DebateState:
     """초기 의견 제시 — 한 AI 에이전트만 발언. synthesis_propose_idx 카운터.
 
@@ -536,9 +853,12 @@ def synthesis_propose_one_node(state: DebateState) -> DebateState:
     display = f"{slabel}{snum}"
 
     perspective = _AGENT_PERSPECTIVES[idx % len(_AGENT_PERSPECTIVES)]
+    role_keys = _assign_roles_for_format(len(speakers))
+    role_key = role_keys[idx % len(role_keys)] if role_keys else ""
+    role_label = _AGENT_ROLES.get(role_key, {}).get("label", "")
     intensity = agent.get("intensity", 3)
 
-    print(f"  [{display}] 의견 제시 중... (관점: {perspective[:20]}, 강경도: {intensity})")
+    print(f"  [{display}] 의견 제시 중... (관점: {perspective[:20]}, 역할: {role_label}, 강경도: {intensity})")
 
     # 직전 발언자 (회의 흐름의 자연성) — synthesis phase 의 history 에서 마지막 비-self 발언
     prev_speaker_id = ""
@@ -563,7 +883,7 @@ def synthesis_propose_one_node(state: DebateState) -> DebateState:
         topic=topic, original_stance=agent["stance"],
         perspective=perspective, intensity=intensity,
         prev_speaker=prev_speaker_id, prev_speech=prev_speech_text,
-        used_starters=used_starters,
+        used_starters=used_starters, role_key=role_key,
     )
     # 같은 라운드에서 다른 에이전트가 이미 한 말 (history 에서 추출)
     this_round = _current_synthesis_round_speeches(state)
@@ -621,6 +941,10 @@ def synthesis_node(state: DebateState) -> DebateState:
 
     print(f"\n[5단계: 최적해 회의] 초기 의견 제시\n")
 
+    # 역할 배정 — AI 수 기반 (user 제외)
+    num_ai = sum(1 for sid in speaking_order if sid != "user")
+    role_keys = _assign_roles_for_format(num_ai)
+
     agent_idx = 0
     this_round_speeches: List[str] = []  # 이번 라운드에서 다른 에이전트가 한 말 수집
     for speaker_id in speaking_order:
@@ -633,16 +957,19 @@ def synthesis_node(state: DebateState) -> DebateState:
         display = f"{slabel}{snum}"
 
         perspective = _AGENT_PERSPECTIVES[agent_idx % len(_AGENT_PERSPECTIVES)]
+        role_key = role_keys[agent_idx % len(role_keys)] if role_keys else ""
+        role_label = _AGENT_ROLES.get(role_key, {}).get("label", "")
         agent_idx += 1
         intensity = agent.get("intensity", 3)
 
-        print(f"  [{display}] 의견 제시 중... (관점: {perspective[:20]}, 강경도: {intensity})")
+        print(f"  [{display}] 의견 제시 중... (관점: {perspective[:20]}, 역할: {role_label}, 강경도: {intensity})")
 
         prompt = _build_proposal_prompt(
             topic=topic,
             original_stance=agent["stance"],
             perspective=perspective,
             intensity=intensity,
+            role_key=role_key,
         )
         # 이전 에이전트가 이미 한 말 추가
         if this_round_speeches:
@@ -718,19 +1045,37 @@ def synthesis_discuss_one_node(state: DebateState) -> DebateState:
     snum = stance_nums.get(speaker_id, 1)
     display = f"{slabel}{snum}"
     perspective = _AGENT_PERSPECTIVES[idx % len(_AGENT_PERSPECTIVES)]
+    role_keys = _assign_roles_for_format(len(speakers))
+    role_key = role_keys[idx % len(role_keys)] if role_keys else ""
+    role_label = _AGENT_ROLES.get(role_key, {}).get("label", "")
     intensity = agent.get("intensity", 3)
     negotiation = _INTENSITY_NEGOTIATION.get(intensity, _INTENSITY_NEGOTIATION[3])
 
-    print(f"  [{display}] 응답 중... (강경도: {intensity})")
+    print(f"  [{display}] 응답 중... (역할: {role_label}, 강경도: {intensity})")
 
-    # 같은 라운드에서 이미 한 말 (history 에서 추출)
+    # 같은 라운드에서 이미 한 말 (history 에서 추출) + 반복 어구 ban list
     this_round = _current_synthesis_round_speeches(state)
     already_said = ""
     if this_round:
         already_said = (
-            "\n[이번 라운드에서 다른 참여자가 이미 한 말 — 같은 내용 반복 금지]\n"
+            "\n[이번 라운드에서 다른 참여자가 이미 한 말 — 같은 내용·표현 반복 금지]\n"
             + "\n".join(f"- {s}" for s in this_round)
             + "\n"
+        )
+
+    # ban list — synthesis 전체 발언 (라운드 간 누적) 대상으로 추출.
+    # 같은 라운드만 보면 라운드 1에서 쓴 어구가 라운드 3에서 또 나옴.
+    all_synthesis_speeches = [
+        e["content"][:200]
+        for e in history
+        if e.get("phase") == "synthesis" and e.get("speaker_id") != "user"
+    ]
+    overused = _extract_overused_phrases(all_synthesis_speeches)
+    if overused:
+        already_said += (
+            "\n[종합 회의 누적 — 여러 발언에 이미 등장한 어구. 그대로 쓰면 실격]\n"
+            + ", ".join(f'"{p}"' for p in overused)
+            + "\n→ 위 어구로 결론 짓거나 같은 합의 톤으로 마무리하지 마라. 다른 단어·다른 각도로 가라.\n"
         )
 
     from src.graph.llm import build_debate_chain
@@ -755,12 +1100,19 @@ def synthesis_discuss_one_node(state: DebateState) -> DebateState:
     ]
     used_starters = [s for s in used_starters if s]
 
+    # 사용자 발언에서 (질문/주장/인정) 추출 — 같은 user_latest 에 대해 캐시되므로
+    # 이 노드가 5번 호출되어도 LLM 호출은 1번뿐.
+    user_intent = _extract_user_intent(user_latest, topic) if user_latest else {}
+    user_intent_block = _format_user_intent_block(user_intent)
+
     if is_final_round:
         prompt = _build_finalize_prompt(
             topic, agent["stance"], perspective=perspective, intensity=intensity,
             prev_speaker=prev_speaker_id, prev_speech=prev_speech_text,
-            used_starters=used_starters,
+            used_starters=used_starters, role_key=role_key,
         )
+        if user_intent_block:
+            prompt += "\n" + user_intent_block
         if already_said:
             prompt += already_said
     else:
@@ -768,6 +1120,7 @@ def synthesis_discuss_one_node(state: DebateState) -> DebateState:
             topic=topic, original_stance=agent["stance"],
             user_latest=user_latest, perspective=perspective, intensity=intensity,
             already_said=already_said, used_starters=used_starters,
+            user_intent_block=user_intent_block, role_key=role_key,
         )
     speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, debate_chain, topic)
 
@@ -819,6 +1172,22 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
     phase_label = "최적해 선언 (Round 3)" if is_final_round else "AI 응답 생성"
     print(f"\n[5단계: 최적해 회의] {phase_label} 중...\n")
 
+    # 역할 배정 — AI 수 기반 (user 제외)
+    num_ai = sum(1 for sid in speaking_order if sid != "user")
+    role_keys = _assign_roles_for_format(num_ai)
+
+    # 사용자 발언 의도 추출 (라운드 시작 시 1회, 캐시됨)
+    user_intent = _extract_user_intent(user_latest, topic) if user_latest else {}
+    user_intent_block = _format_user_intent_block(user_intent)
+
+    # synthesis 전체 발언 (라운드 누적 ban list 용)
+    all_synthesis_speeches = [
+        e["content"][:200]
+        for e in history
+        if e.get("phase") == "synthesis" and e.get("speaker_id") != "user"
+    ]
+    overused = _extract_overused_phrases(all_synthesis_speeches)
+
     agent_idx = 0
     this_round_speeches: List[str] = []  # 이번 라운드에서 다른 에이전트가 한 말 수집
     for speaker_id in speaking_order:
@@ -831,11 +1200,12 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
         display = f"{slabel}{snum}"
 
         perspective = _AGENT_PERSPECTIVES[agent_idx % len(_AGENT_PERSPECTIVES)]
+        role_key = role_keys[agent_idx % len(role_keys)] if role_keys else ""
+        role_label = _AGENT_ROLES.get(role_key, {}).get("label", "")
         agent_idx += 1
         intensity = agent.get("intensity", 3)
-        negotiation = _INTENSITY_NEGOTIATION.get(intensity, _INTENSITY_NEGOTIATION[3])
 
-        print(f"  [{display}] 응답 중... (강경도: {intensity})")
+        print(f"  [{display}] 응답 중... (역할: {role_label}, 강경도: {intensity})")
 
         # 이번 라운드에서 다른 에이전트가 이미 말한 내용을 프롬프트에 포함
         already_said = ""
@@ -845,26 +1215,32 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
                 + "\n".join(f"- {s}" for s in this_round_speeches)
                 + "\n"
             )
+        if overused:
+            already_said += (
+                "\n[종합 회의 누적 — 여러 발언에 이미 등장한 어구. 그대로 쓰면 실격]\n"
+                + ", ".join(f'"{p}"' for p in overused)
+                + "\n→ 위 어구로 결론 짓거나 같은 합의 톤으로 마무리하지 마라.\n"
+            )
 
         # 전체 토론 히스토리 + 종합 회의 체인
         from src.graph.llm import build_debate_chain
         debate_chain = build_debate_chain(history, speaker_id)
 
         if is_final_round:
-            # Round 3: 최적해 선언 (user와 동일 프롬프트)
-            prompt = _build_finalize_prompt(topic, agent["stance"], perspective=perspective, intensity=intensity)
+            prompt = _build_finalize_prompt(
+                topic, agent["stance"], perspective=perspective, intensity=intensity,
+                role_key=role_key,
+            )
+            if user_intent_block:
+                prompt += "\n" + user_intent_block
             if already_said:
                 prompt += already_said
         else:
-            prompt = (
-                f"[너의 고유 관점 — 반드시 이 관점에서만 발언하라] {perspective}\n\n"
-                f"[너의 협상 태도] {negotiation}\n"
-                f"{already_said}\n"
-                f"사용자가 방금 '{user_latest[:100]}...'라고 말했다.\n\n"
-                f"위에서 이미 언급된 내용과 완전히 다른 관점에서 구체적 조건이나 미해결 쟁점을 제기하라. "
-                f"'동의합니다'/'좋은 의견입니다'/'좋은 출발점'으로 시작하지 마라. "
-                f"대화하듯이 자연스럽게. 1~2문장.\n\n"
-                f"### 반박 시작\n### 반박 끝"
+            prompt = _build_discuss_prompt(
+                topic=topic, original_stance=agent["stance"],
+                user_latest=user_latest, perspective=perspective, intensity=intensity,
+                already_said=already_said,
+                user_intent_block=user_intent_block, role_key=role_key,
             )
         speech, raw, _logs = _generate_with_synthesis_chain(agent, prompt, debate_chain, topic)
         this_round_speeches.append(speech[:80])  # 다음 에이전트가 참고할 수 있도록 수집

@@ -610,7 +610,7 @@ def _build_opening_prompt(
 [구조]
 - "{agent_name}"이라고 자기소개
 - 논거 2개, 각 3~5줄. Step 1 의 계획에 따라 작성하라.
-- 핵심 문장에 **강조** 사용
+- **각 논거 본문에 핵심 문장 1개를 반드시 `**굵은 글씨**` 로 감싸 강조한다.** 핵심 사실·통계·결론 문장 1개를 골라 `**...**` 마크다운 볼드로 표시. 논거당 최소 1회, 최대 2회.
 - 막연한 주장 금지
 
 [자료 활용 룰 — 절대 준수]
@@ -630,9 +630,9 @@ def _build_opening_prompt(
 ### 자기소개와 입장 표명
 (자기소개와 입장)
 ### 논거 1: 소제목
-(논거)
+(논거 본문 — 핵심 문장 1개는 반드시 `**굵은 글씨**` 로 강조)
 ### 논거 2: 소제목
-(논거)
+(논거 본문 — 핵심 문장 1개는 반드시 `**굵은 글씨**` 로 강조)
 ### 결론
 (결론)
 ### 답변 끝"""
@@ -855,13 +855,26 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         if focus_area:
             print(f"    [focus] {focus_area}")
 
-        # 2. Plan-and-Execute pipeline 으로 입론 생성
-        #    Step 1 (Plan): focus_area → 논거 outline + 검색 쿼리
-        #    Step 2 (Search): plan 쿼리로 search_web
-        #    Step 3 (Generate): plan + 자료 → 본문 작성
-        final_text, raw, tool_calls_log = _generate_opening(
-            agent, topic, agent["stance"], display, focus_area,
+        # 캐시 lookup — hit 시 LLM 호출 건너뜀
+        from src.cache.loader import load_opening as _cache_load_opening
+        cached = _cache_load_opening(
+            topic_id=state.get("topic_id", ""),
+            stance=agent["stance"],
+            intensity=agent.get("intensity", 3),
+            focus_area=focus_area,
+            variant_idx=state.get("cache_variant_idx"),
         )
+        if cached is not None:
+            print(f"  [{display}] [cache HIT] 입론")
+            final_text, raw, tool_calls_log = cached, cached, []
+        else:
+            # Plan-and-Execute pipeline 으로 입론 생성
+            #    Step 1 (Plan): focus_area → 논거 outline + 검색 쿼리
+            #    Step 2 (Search): plan 쿼리로 search_web
+            #    Step 3 (Generate): plan + 자료 → 본문 작성
+            final_text, raw, tool_calls_log = _generate_opening(
+                agent, topic, agent["stance"], display, focus_area,
+            )
 
         # 3. 자기소개 소제목 보장 (입론 전용)
         if '### 자기소개' not in final_text and '### 입장 표명' not in final_text:

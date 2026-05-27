@@ -511,6 +511,7 @@ def _build_assistant_ctx(
         opponent_speech=opponent_speech,
         history=hist_entries,
         links=[],
+        cache_variant_idx=state.get("cache_variant_idx"),
     )
 
 
@@ -601,11 +602,16 @@ class MetricScore(BaseModel):
 
 
 class PhaseResult(BaseModel):
-    evidence_expansion: MetricScore
-    knowledge_specificity: MetricScore
-    evidence_validity: MetricScore
-    reasoning_density: MetricScore
-    perspective_diversity: MetricScore
+    """Wachsmuth et al. (2017) taxonomy 의 5개 하위 차원 점수.
+
+    - 논리(Cogency): local_acceptability / local_relevance / local_sufficiency
+    - 수사(Effectiveness): clarity / appropriateness
+    """
+    local_acceptability: MetricScore
+    local_relevance: MetricScore
+    local_sufficiency: MetricScore
+    clarity: MetricScore
+    appropriateness: MetricScore
     average_100: float
     overall_summary: str
 
@@ -628,30 +634,30 @@ class EvaluateResponse(BaseModel):
 def _build_phase_result(phase: dict) -> PhaseResult:
     s = phase["scores"]
     return PhaseResult(
-        evidence_expansion=MetricScore(**{
-            "label": s["evidence_expansion"]["label"],
-            "score": s["evidence_expansion"]["score"],
-            "reason": s["evidence_expansion"]["reason"],
+        local_acceptability=MetricScore(**{
+            "label": s["local_acceptability"]["label"],
+            "score": s["local_acceptability"]["score"],
+            "reason": s["local_acceptability"]["reason"],
         }),
-        knowledge_specificity=MetricScore(**{
-            "label": s["knowledge_specificity"]["label"],
-            "score": s["knowledge_specificity"]["score"],
-            "reason": s["knowledge_specificity"]["reason"],
+        local_relevance=MetricScore(**{
+            "label": s["local_relevance"]["label"],
+            "score": s["local_relevance"]["score"],
+            "reason": s["local_relevance"]["reason"],
         }),
-        evidence_validity=MetricScore(**{
-            "label": s["evidence_validity"]["label"],
-            "score": s["evidence_validity"]["score"],
-            "reason": s["evidence_validity"]["reason"],
+        local_sufficiency=MetricScore(**{
+            "label": s["local_sufficiency"]["label"],
+            "score": s["local_sufficiency"]["score"],
+            "reason": s["local_sufficiency"]["reason"],
         }),
-        reasoning_density=MetricScore(**{
-            "label": s["reasoning_density"]["label"],
-            "score": s["reasoning_density"]["score"],
-            "reason": s["reasoning_density"]["reason"],
+        clarity=MetricScore(**{
+            "label": s["clarity"]["label"],
+            "score": s["clarity"]["score"],
+            "reason": s["clarity"]["reason"],
         }),
-        perspective_diversity=MetricScore(**{
-            "label": s["perspective_diversity"]["label"],
-            "score": s["perspective_diversity"]["score"],
-            "reason": s["perspective_diversity"]["reason"],
+        appropriateness=MetricScore(**{
+            "label": s["appropriateness"]["label"],
+            "score": s["appropriateness"]["score"],
+            "reason": s["appropriateness"]["reason"],
         }),
         average_100=phase["average_100"],
         overall_summary=phase.get("overall_summary", ""),

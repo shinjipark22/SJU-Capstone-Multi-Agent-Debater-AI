@@ -85,9 +85,23 @@ def _generate_openings_for(state: DebateState, speaker_ids: list) -> dict:
             topic_id=state.get("topic_id", ""),
             index=_focus_index_within_stance(agent, state["agents"]),
         )
-        final_text, raw, tool_calls_log = _generate_opening(
-            agent, topic, agent["stance"], display, focus_area,
+
+        # 캐시 lookup — hit 시 LLM 호출 건너뜀
+        from src.cache.loader import load_opening as _cache_load_opening
+        cached = _cache_load_opening(
+            topic_id=state.get("topic_id", ""),
+            stance=agent["stance"],
+            intensity=agent.get("intensity", 3),
+            focus_area=focus_area,
+            variant_idx=state.get("cache_variant_idx"),
         )
+        if cached is not None:
+            print(f"    [cache HIT] {display} 입론")
+            final_text, raw, tool_calls_log = cached, cached, []
+        else:
+            final_text, raw, tool_calls_log = _generate_opening(
+                agent, topic, agent["stance"], display, focus_area,
+            )
 
         if not _is_valid_speech(final_text):
             final_text = (

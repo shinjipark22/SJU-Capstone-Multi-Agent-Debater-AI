@@ -22,6 +22,7 @@ state.py — LangGraph State 설계 및 초기화 유틸리티
     5단계 종합 및 재개념 (synthesis)     : 병렬 판정단 승패 + 제3의 최선택 합의안
 """
 
+import random
 import uuid
 from typing import Any, Dict, List, Literal, Optional, Tuple
 from typing_extensions import NotRequired, TypedDict
@@ -197,6 +198,11 @@ class DebateState(TypedDict):
     # 역할반전·종합으로 갈지(=constructive) 바로 END 할지(=debate) 결정한다.
     mode: DebateMode
 
+    # 발언 캐시 variant 슬롯 (1/2/3). build_initial_state 에서 세션마다 랜덤으로 고른다.
+    # 5종 캐시 (opening / assistant_opening / ai_rebuttal / role_reversal /
+    # assistant_role_reversal) 모두 이 idx 로 일관되게 lookup → variant 간 단계 일관성.
+    cache_variant_idx: int
+
 
 # ── 내부 유틸리티 ─────────────────────────────────────────────────────────────
 
@@ -371,6 +377,7 @@ def build_initial_state(
         synthesis_discuss_idx=0,   # 5단계 step 카운터 (사용자 발언 후 응답 라운드, 매 라운드 0 으로 리셋)
         is_finished=False, # 토론 시작 상태이므로 종료 아님
         mode=mode, # 토론 모드 — 자유논박 종료 후 분기 결정에 사용
+        cache_variant_idx=random.randint(1, 3),  # 발언 캐시 variant 슬롯 (세션마다 랜덤)
     )
 
 
