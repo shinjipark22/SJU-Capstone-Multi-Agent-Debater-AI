@@ -855,13 +855,26 @@ def opening_arguments_node(state: DebateState) -> DebateState:
         if focus_area:
             print(f"    [focus] {focus_area}")
 
-        # 2. Plan-and-Execute pipeline 으로 입론 생성
-        #    Step 1 (Plan): focus_area → 논거 outline + 검색 쿼리
-        #    Step 2 (Search): plan 쿼리로 search_web
-        #    Step 3 (Generate): plan + 자료 → 본문 작성
-        final_text, raw, tool_calls_log = _generate_opening(
-            agent, topic, agent["stance"], display, focus_area,
+        # 캐시 lookup — hit 시 LLM 호출 건너뜀
+        from src.cache.loader import load_opening as _cache_load_opening
+        cached = _cache_load_opening(
+            topic_id=state.get("topic_id", ""),
+            stance=agent["stance"],
+            intensity=agent.get("intensity", 3),
+            focus_area=focus_area,
+            variant_idx=state.get("cache_variant_idx"),
         )
+        if cached is not None:
+            print(f"  [{display}] [cache HIT] 입론")
+            final_text, raw, tool_calls_log = cached, cached, []
+        else:
+            # Plan-and-Execute pipeline 으로 입론 생성
+            #    Step 1 (Plan): focus_area → 논거 outline + 검색 쿼리
+            #    Step 2 (Search): plan 쿼리로 search_web
+            #    Step 3 (Generate): plan + 자료 → 본문 작성
+            final_text, raw, tool_calls_log = _generate_opening(
+                agent, topic, agent["stance"], display, focus_area,
+            )
 
         # 3. 자기소개 소제목 보장 (입론 전용)
         if '### 자기소개' not in final_text and '### 입장 표명' not in final_text:

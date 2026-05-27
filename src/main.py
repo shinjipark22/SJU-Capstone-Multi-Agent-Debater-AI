@@ -511,6 +511,7 @@ def _build_assistant_ctx(
         opponent_speech=opponent_speech,
         history=hist_entries,
         links=[],
+        cache_variant_idx=state.get("cache_variant_idx"),
     )
 
 

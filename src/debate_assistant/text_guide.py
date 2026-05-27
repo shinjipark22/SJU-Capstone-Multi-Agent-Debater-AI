@@ -92,6 +92,9 @@ class GuideContext:
     # 사전 큐레이션된 외부 링크 — 없으면 placeholder 가 박힘
     links: List[GuideLink] = field(default_factory=list)
 
+    # 발언 캐시 variant 슬롯 (1/2/3). None 이면 캐시 lookup 안 함.
+    cache_variant_idx: Optional[int] = None
+
 
 # LLM 호출 추상화 — 호출자가 langchain / openai 등 원하는 구현을 주입
 LLMCall = Callable[[str], str]
@@ -880,6 +883,7 @@ def build_guide_message(
     phase: DebatePhase,
     ctx: GuideContext,
     llm: Optional[LLMCall] = None,
+    out_search: Optional[Dict] = None,
 ) -> str:
     """사용자에게 노출할 최종 안내문 텍스트를 만든다.
 
@@ -889,6 +893,9 @@ def build_guide_message(
     ctx : 토론 맥락
     llm : prompt → response 함수. None 이면 단계별 기본 LLMCall(Qwen + tool calling)
           을 자동 주입한다.
+    out_search : (선택) 캐시 생성·검증용 search 결과 capture 컨테이너. opening /
+                 role_reversal phase 에서 사전검색 content·links 가 채워진다.
+                 Serving 경로에서는 None 으로 두면 된다.
 
     Returns
     -------
@@ -897,11 +904,27 @@ def build_guide_message(
     call = llm or _default_llm_for_phase(phase)
 
     if phase == "opening":
+        # 캐시 lookup — hit 시 LLM 호출·검색 모두 건너뜀
+        from src.cache.loader import load_assistant_opening as _cache_load_assist
+        cached = _cache_load_assist(
+            topic_id=ctx.topic_id or "",
+            stance=ctx.user_stance,
+            focus_area=ctx.user_focus_area or "",
+            variant_idx=ctx.cache_variant_idx,
+        )
+        if cached is not None:
+            print(f"  [cache HIT] 어시스턴트 입론 ({ctx.topic_id}/{ctx.user_stance}/v{ctx.cache_variant_idx})")
+            return cached
+
         # opening: focus_area 기반 통합 검색 — tips 인용 자료 + 링크가 같은 출처
         assets = (
             _fetch_focus_assets(ctx.user_focus_area)
             if ctx.user_focus_area else {"content": "", "links": []}
         )
+        if out_search is not None:
+            out_search["query"] = ctx.user_focus_area or ""
+            out_search["content"] = assets.get("content", "")
+            out_search["links"] = list(assets.get("links", []))
         tips = call(build_tips_prompt(
             "opening", ctx, pre_search_text=assets["content"]
         ))
@@ -944,7 +967,23 @@ def build_guide_message(
     if phase == "role_reversal":
         # 역할반전: 반대 진영 자료로 사전검색 (사용자가 옹호할 입장)
         reversed_stance = "CON" if ctx.user_stance == "PRO" else "PRO"
+
+        # 캐시 lookup — hit 시 LLM 호출·검색 모두 건너뜀
+        from src.cache.loader import load_assistant_role_reversal as _cache_load_assist_rr
+        cached = _cache_load_assist_rr(
+            topic_id=ctx.topic_id or "",
+            reversed_stance=reversed_stance,
+            variant_idx=ctx.cache_variant_idx,
+        )
+        if cached is not None:
+            print(f"  [cache HIT] 어시스턴트 역할반전 ({ctx.topic_id}/{reversed_stance}/v{ctx.cache_variant_idx})")
+            return cached
+
         assets = _fetch_topic_assets(ctx.topic, reversed_stance)
+        if out_search is not None:
+            out_search["query"] = f"{ctx.topic} {reversed_stance} 논거"
+            out_search["content"] = assets.get("content", "")
+            out_search["links"] = list(assets.get("links", []))
         tips = call(build_tips_prompt(
             "role_reversal", ctx, pre_search_text=assets["content"]
         ))

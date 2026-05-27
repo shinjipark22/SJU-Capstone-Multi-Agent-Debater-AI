@@ -13,7 +13,7 @@ import logging
 import os
 import random
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -384,6 +384,10 @@ def generate_ai_rebuttal(
     target_stance_num: int,
     current_turn: int,
     is_response: bool,
+    topic_id: str = "",
+    attacker_focus_area: str = "",
+    target_focus_area: str = "",
+    cache_variant_idx: Optional[int] = None,
 ) -> DebateEntry:
     target_speech = "(발언 기록 없음)"
     target_stance = "CON" if agent["stance"] == "PRO" else "PRO"
@@ -392,6 +396,28 @@ def generate_ai_rebuttal(
             target_speech = entry["content"]
             target_stance = entry["stance"]
             break
+
+    # ── 캐시 lookup — AI-AI 쌍 (사용자 끼지 않은 경우) 만
+    if target_id != "user" and agent["agent_id"] != "user" and not is_response:
+        from src.cache.loader import load_ai_rebuttal, focus_area_to_idx
+        att_focus_idx = focus_area_to_idx(topic_id, agent["stance"], attacker_focus_area)
+        tgt_focus_idx = focus_area_to_idx(topic_id, target_stance, target_focus_area)
+        if att_focus_idx is not None and tgt_focus_idx is not None:
+            cached = load_ai_rebuttal(
+                topic_id=topic_id,
+                attacker_stance=agent["stance"],
+                attacker_focus_idx=att_focus_idx,
+                target_focus_idx=tgt_focus_idx,
+                variant_idx=cache_variant_idx,
+            )
+            if cached is not None:
+                print(f"  [cache HIT] AI-AI 연쇄논박 ({agent['stance']}_f{att_focus_idx} → f{tgt_focus_idx})")
+                return DebateEntry(
+                    turn=current_turn, speaker_id=agent["agent_id"],
+                    stance=agent["stance"], phase="chained_rebuttal",
+                    content=cached, target_id=target_id,
+                    tool_calls_log=[], json_raw=cached,
+                )
 
     my_previous = ""
     for entry in reversed(history):
@@ -493,11 +519,16 @@ def process_one_rebuttal_step(state: DebateState) -> DebateState:
         display = f"{slabel}{stance_nums[attacker_id]}"
         print(f"  [라운드 {round_num}] {display} → {target_id}")
 
+        target_agent = agent_map.get(target_id, {})
         entry = generate_ai_rebuttal(
             topic=topic, history=history, agent=agent,
             target_id=target_id, stance_num=stance_nums[attacker_id],
             target_stance_num=stance_nums.get(target_id, 0),
             current_turn=current_turn, is_response=False,
+            topic_id=state.get("topic_id", ""),
+            attacker_focus_area=agent.get("focus_area", ""),
+            target_focus_area=target_agent.get("focus_area", ""),
+            cache_variant_idx=state.get("cache_variant_idx"),
         )
         history.append(entry)
         current_turn += 1
@@ -553,11 +584,16 @@ def chained_rebuttal_node(state: DebateState) -> DebateState:
         display = f"{slabel}{stance_nums[attacker_id]}"
         print(f"  [라운드 {round_num}] {display} → {target_id}")
 
+        target_agent = agent_map.get(target_id, {})
         entry = generate_ai_rebuttal(
             topic=topic, history=history, agent=agent,
             target_id=target_id, stance_num=stance_nums[attacker_id],
             target_stance_num=stance_nums.get(target_id, 0),
             current_turn=current_turn, is_response=False,
+            topic_id=state.get("topic_id", ""),
+            attacker_focus_area=agent.get("focus_area", ""),
+            target_focus_area=target_agent.get("focus_area", ""),
+            cache_variant_idx=state.get("cache_variant_idx"),
         )
         history.append(entry)
         current_turn += 1

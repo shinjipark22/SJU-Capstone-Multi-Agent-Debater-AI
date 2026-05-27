@@ -211,18 +211,30 @@ def role_reversal_node(state: DebateState) -> DebateState:
             opponent_openings.append(entry["content"][:300])
     openings_text = "\n---\n".join(opponent_openings) if opponent_openings else "(없음)"
 
-    # ── 프롬프트 구성 + LLM 호출 (tool calling으로 검색은 모델 판단)
-    print(f"  [{rep_display}] 역할반전 발언 생성 중...")
+    # ── 캐시 lookup — hit 시 LLM 호출 건너뜀
     tool_calls_log: List[Dict] = []
-    prompt = _build_role_reversal_prompt(
-        topic=topic,
+    from src.cache.loader import load_role_reversal as _cache_load_rr
+    cached = _cache_load_rr(
+        topic_id=state.get("topic_id", ""),
         reversed_stance=reversed_stance,
-        agent_name=rep_display,
-        search_results="",
-        opponent_openings=openings_text,
+        intensity=representative.get("intensity", 3),
+        variant_idx=state.get("cache_variant_idx"),
     )
-    final_text, raw, tc_log = _generate_role_reversal(representative, prompt)
-    tool_calls_log.extend(tc_log)
+    if cached is not None:
+        print(f"  [{rep_display}] [cache HIT] 역할반전 발언")
+        final_text, raw = cached, cached
+    else:
+        # 프롬프트 구성 + LLM 호출 (tool calling으로 검색은 모델 판단)
+        print(f"  [{rep_display}] 역할반전 발언 생성 중...")
+        prompt = _build_role_reversal_prompt(
+            topic=topic,
+            reversed_stance=reversed_stance,
+            agent_name=rep_display,
+            search_results="",
+            opponent_openings=openings_text,
+        )
+        final_text, raw, tc_log = _generate_role_reversal(representative, prompt)
+        tool_calls_log.extend(tc_log)
 
     # ── 논거 1 소제목 보장 (### 없이 시작하면 추가)
     if final_text and not final_text.startswith('###'):
