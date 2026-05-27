@@ -10,7 +10,7 @@ Natural Language" (EACL) 의 argumentation quality taxonomy 에서 다섯 개
 METRICS = [
     {
         "key": "local_acceptability",
-        "label": "지역적 수용 가능성 (Local acceptability)",
+        "label": "수용 가능성",
         "alias": "acceptability",
         "description": (
             "논증의 전제는 다음의 경우 수용 가능하다: 그것이 합리적으로 진실이라고 "
@@ -19,7 +19,7 @@ METRICS = [
     },
     {
         "key": "local_relevance",
-        "label": "지역적 관련성 (Local relevance)",
+        "label": "관련성",
         "alias": "relevance",
         "description": (
             "논증의 전제는 다음의 경우 관련성이 있다: 논증의 결론을 수용하거나 "
@@ -28,7 +28,7 @@ METRICS = [
     },
     {
         "key": "local_sufficiency",
-        "label": "지역적 충분성 (Local sufficiency)",
+        "label": "충분성",
         "alias": "sufficiency",
         "description": (
             "논증의 전제들은 다음의 경우 충분하다: 합쳐서 그 결론을 합리적으로 "
@@ -37,7 +37,7 @@ METRICS = [
     },
     {
         "key": "clarity",
-        "label": "명확성 (Clarity)",
+        "label": "명확성",
         "alias": "clarity",
         "description": (
             "논증은 다음의 경우 명확한 문체를 가진다: 올바르고 광범위하게 모호하지 "
@@ -47,7 +47,7 @@ METRICS = [
     },
     {
         "key": "appropriateness",
-        "label": "적절성 (Appropriateness)",
+        "label": "적절성",
         "alias": "appropriateness",
         "description": (
             "논증은 다음의 경우 적절한 문체를 가진다: 사용된 언어가 신뢰성과 감정의 "
