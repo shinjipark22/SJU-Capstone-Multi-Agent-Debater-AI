@@ -82,7 +82,9 @@ def _generate_one(topic: dict, reversed_stance: str, variant_idx: int) -> dict:
         pro_claim=topic.get("pro", "찬성"),
         con_claim=topic.get("con", "반대"),
         topic_id=topic["id"],
-        cache_variant_idx=None,  # 생성 중 캐시 hit 막기
+        # 상대 입론을 근거로 끌어오려면 variant_idx 가 필요. 자기 자신(assistant_RR)
+        # 캐시 hit 은 SPEECH_CACHE_ENABLED=0 이 막으므로 variant 를 그대로 넘겨도 안전.
+        cache_variant_idx=variant_idx,
     )
 
     t0 = time.time()

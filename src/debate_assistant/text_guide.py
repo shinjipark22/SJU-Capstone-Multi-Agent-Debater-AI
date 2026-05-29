@@ -700,6 +700,58 @@ def _fetch_focus_assets(focus_area: str) -> Dict:
         return {"content": "", "links": []}
 
 
+def _fetch_reversed_opening_assets(
+    topic_id: str, reversed_stance: str, variant_idx: Optional[int],
+) -> Dict:
+    """역할반전 단계용 — 상대(=옹호할) 진영 자료를 content + links 로 반환.
+
+    역할반전은 사용자가 상대 진영을 옹호하는 단계라, 막연한 토픽 검색 대신
+    이미 검수된 상대 진영 입론(그 진영이 실제 편 논거)을 근거(content)로 주고,
+    링크는 상대 진영 focus_area 로 KB 를 조회해 입론과 같은 주제축의 출처를 노출한다.
+    1:1 기준 상대 AI 는 focus index 0 슬롯 → f0 입론/focus_area 를 쓴다.
+    캐시 miss / variant 불명 시 content 빈 문자열 → 호출자가 기존 검색으로 폴백.
+
+    Returns: {"content": str, "links": List[dict]}
+    """
+    empty = {"content": "", "links": []}
+    if not (topic_id and reversed_stance) or variant_idx not in (1, 2, 3):
+        return empty
+    try:
+        import json as _json
+        from pathlib import Path as _Path
+        from src.phase1.stage1_opening.nodes import _get_focus_area
+        from src.cache.loader import focus_area_to_idx, _OPENING_CACHE
+
+        # 1:1 상대 AI 는 focus index 0 슬롯. focus_area → focus_idx 로 환산해 파일 경로 구성.
+        focus_area = _get_focus_area(reversed_stance, topic_id=topic_id, index=0)
+        focus_idx = focus_area_to_idx(topic_id, reversed_stance, focus_area)
+        if focus_idx is None:
+            return empty
+        # 상대 입론은 '캐시 서빙'이 아니라 '입력 자료' — SPEECH_CACHE_ENABLED 게이트를
+        # 우회해 파일을 직접 읽는다 (캐시 생성 중 SPEECH_CACHE_ENABLED=0 이어도 읽혀야 함).
+        path = _OPENING_CACHE / f"{topic_id}_{reversed_stance}_i3_f{focus_idx}__v{variant_idx}.json"
+        if not _Path(path).exists():
+            return empty
+        speech = (_json.loads(_Path(path).read_text(encoding="utf-8")) or {}).get("speech", "")
+        if not speech:
+            return empty
+        # speech 자체가 '상대 진영 입론' = 옹호할 논거. prompt 에 그대로 근거로 박는다.
+        content = f"[상대 진영(={reversed_stance}) 입론 — 이번 단계에서 네가 옹호할 논거]\n{speech}"
+
+        # 링크: 상대 진영 focus_area 로 KB 조회 → 입론과 같은 주제축의 출처 (url 포함)
+        links: List[dict] = []
+        try:
+            from .links import fetch_focus_assets
+            links = fetch_focus_assets(focus_area, n=3).get("links", []) or []
+        except Exception as e:
+            logger.warning("[role_reversal] 링크 조회 실패: %s", e)
+
+        return {"content": content, "links": links}
+    except Exception as e:
+        logger.warning("[role_reversal] 상대 입론 로드 실패: %s", e)
+        return empty
+
+
 def _fetch_topic_assets(topic: str, user_stance: str) -> Dict:
     """topic+사용자 진영 기반 검색 결과: content + links 한 묶음.
 
@@ -979,17 +1031,27 @@ def build_guide_message(
             print(f"  [cache HIT] 어시스턴트 역할반전 ({ctx.topic_id}/{reversed_stance}/v{ctx.cache_variant_idx})")
             return cached
 
-        assets = _fetch_topic_assets(ctx.topic, reversed_stance)
+        # 근거: 상대(=옹호할) 진영 AI 입론 캐시 speech 를 우선 사용.
+        # 링크: 상대 진영 focus_area 로 KB 조회 (입론과 같은 주제축, url 포함).
+        # miss 시 기존 토픽 검색으로 폴백.
+        rev_assets = _fetch_reversed_opening_assets(
+            ctx.topic_id or "", reversed_stance, ctx.cache_variant_idx,
+        )
+        if rev_assets["content"]:
+            assets = rev_assets
+        else:
+            assets = _fetch_topic_assets(ctx.topic, reversed_stance)
+        pre_search_text = assets["content"]
         if out_search is not None:
-            out_search["query"] = f"{ctx.topic} {reversed_stance} 논거"
-            out_search["content"] = assets.get("content", "")
+            out_search["query"] = f"{ctx.topic} {reversed_stance} 입론 근거"
+            out_search["content"] = pre_search_text
             out_search["links"] = list(assets.get("links", []))
         tips = call(build_tips_prompt(
-            "role_reversal", ctx, pre_search_text=assets["content"]
+            "role_reversal", ctx, pre_search_text=pre_search_text
         ))
         return ROLE_REVERSAL_TEMPLATE.format(
             tips=tips.strip(),
-            links=_resolve_links(ctx, phase, prefetched_links=assets["links"]),
+            links=_resolve_links(ctx, phase, prefetched_links=assets["links"] or None),
         )
 
     if phase == "synthesis":
