@@ -261,14 +261,14 @@ def save_survey(
 ) -> bool:
     """토론 전(pre)·후(post) 설문 응답을 저장한다. 같은 단계 재제출은 덮어쓴다.
 
-    존재하지 않는 session_id 면 저장하지 않고 False.
+    참가자 응답을 잃지 않는 것이 우선이므로 세션 행이 없어도 저장한다.
+    Returns:
+        해당 session_id 의 세션 행이 실제로 존재했는지 여부.
     """
     with _write_lock, _connect() as conn:
         exists = conn.execute(
             "SELECT 1 FROM debate_sessions WHERE session_id = ?", (session_id,)
         ).fetchone()
-        if exists is None:
-            return False
         conn.execute(
             """
             INSERT INTO survey_responses (session_id, phase, mode, answers, submitted_at)
@@ -280,7 +280,7 @@ def save_survey(
             """,
             (session_id, phase, mode, json.dumps(answers, ensure_ascii=False), _now()),
         )
-        return True
+        return exists is not None
 
 
 def get_survey(session_id: int, phase: str) -> Optional[Dict[str, Any]]:
@@ -349,14 +349,23 @@ def export_survey_csv(path: Optional[Path] = None) -> str:
     for row in responses:
         by_session.setdefault(row["session_id"], {})[row["phase"]] = json.loads(row["answers"])
 
-    lines = [",".join(f'"{c}"' for c in columns)]
-    for session in sessions:
-        answers = by_session.get(session["session_id"], {})
+    def _row(session_id: int, meta: Dict[str, Any]) -> str:
+        answers = by_session.get(session_id, {})
         pre, post = answers.get("pre", {}), answers.get("post", {})
-        cells = [_csv_cell(session[c]) for c in SURVEY_META_COLUMNS]
+        cells = [_csv_cell(meta.get(c)) for c in SURVEY_META_COLUMNS]
         cells += [_csv_cell(pre.get(k)) for k in pre_keys]
         cells += [_csv_cell(post.get(k)) for k in post_keys]
-        lines.append(",".join(cells))
+        return ",".join(cells)
+
+    lines = [",".join(f'"{c}"' for c in columns)]
+    for session in sessions:
+        lines.append(_row(session["session_id"], dict(session)))
+
+    # 세션 행이 없는 응답(세션 기록 유실 등)도 빠뜨리지 않는다.
+    known = {s["session_id"] for s in sessions}
+    for session_id in sorted(set(by_session) - known, reverse=True):
+        lines.append(_row(session_id, {"session_id": session_id}))
+
     content = "\n".join(lines) + "\n"
 
     if path is not None:
