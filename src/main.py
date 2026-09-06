@@ -12,11 +12,15 @@ LangGraph 메인 토론 그래프 기반.
 import asyncio
 import json
 import logging
+import queue
+import threading
+import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Iterator, Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, StreamingResponse
 from langgraph.types import Command
 from pydantic import BaseModel, field_validator
 
@@ -32,6 +36,13 @@ from src.live_analyzer import DebatrixJudge, project_frontend_event
 from src.models import DebateInitRequest
 from src.phase0.persona_factory import create_agents, AgentPersona
 from src.state import AgentSnapshot, DebateState, build_initial_state, generate_session_id
+from src.storage import (
+    create_session as store_create_session,
+    export_csv as store_export_csv,
+    get_session as store_get_session,
+    list_sessions as store_list_sessions,
+    save_evaluation as store_save_evaluation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +50,19 @@ app = FastAPI(
     title="Multi-Agent Debater AI",
     description="LangGraph 기반 멀티 에이전트 토론 시스템 API (SSE 스트리밍)",
     version="2.0.0",
+)
+
+# 프론트엔드(web/, 로컬 dev 서버 및 배포된 정적 호스팅) CORS 허용.
+# 운영 배포 시 CORS_ALLOW_ORIGINS 환경변수로 허용 도메인을 좁힐 것.
+import os
+
+_cors_origins = os.environ.get("CORS_ALLOW_ORIGINS", "*")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"] if _cors_origins == "*" else _cors_origins.split(","),
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ── LangGraph 메인 그래프 (싱글톤) ────────────────────────────────────────
@@ -50,6 +74,43 @@ debate_graph = build_debate_graph()
 _session_judges: Dict[str, DebatrixJudge] = {}
 # 최종 리포트 캐시 — 같은 세션에서 반복 호출 시 재사용
 _final_reports: Dict[str, dict] = {}
+
+_STREAM_SENTINEL = object()
+
+
+async def _astream_in_thread(sync_stream_factory: Callable[[], Iterator[Any]]):
+    """동기 debate_graph.stream()을 전용 스레드 하나에서 그대로 실행하고,
+    결과를 큐를 통해 이벤트 루프를 막지 않으면서 비동기로 넘겨준다.
+
+    astream()으로 바꾸면 LangGraph가 동기 노드를 요청마다 다른 스레드풀 스레드에서
+    실행하게 되어, interrupt()가 의존하는 contextvar가 끊기고 깨진다
+    (RuntimeError: Called get_config outside of a runnable context).
+    이 방식은 한 세션의 그래프 실행 전체를 하나의 스레드에 그대로 묶어두므로
+    (원래의 단일 스레드 동기 실행 모델과 동일) interrupt()는 안전하게 유지되면서,
+    다른 세션의 요청은 이벤트 루프가 계속 처리할 수 있다.
+    """
+    q: "queue.Queue" = queue.Queue()
+
+    def _worker() -> None:
+        try:
+            for item in sync_stream_factory():
+                q.put((True, item))
+        except Exception as e:  # noqa: BLE001 - 그대로 상위로 전달
+            q.put((False, e))
+        finally:
+            q.put(_STREAM_SENTINEL)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+    loop = asyncio.get_running_loop()
+    while True:
+        item = await loop.run_in_executor(None, q.get)
+        if item is _STREAM_SENTINEL:
+            break
+        ok, payload = item
+        if not ok:
+            raise payload
+        yield payload
 
 
 def _build_teams_from_state(initial_state: DebateState) -> dict:
@@ -230,14 +291,36 @@ async def initialize_debate(request: DebateInitRequest):
     )
     _session_judges[session_id] = judge
 
+    # 데이터 수집 — 저장 실패가 토론 진행을 막지 않도록 기록만 남기고 계속한다.
+    try:
+        record_id = store_create_session(
+            topic=request.topic,
+            user_stance=request.user_stance,
+            user_intensity=request.user_intensity,
+            debate_format=request.debate_format,
+            nickname=request.nickname,
+            email=request.email,
+            graph_session_id=session_id,
+        )
+    except Exception:
+        logger.exception("[storage] 세션 기록 실패 (session_id=%s)", session_id)
+        record_id = None
+
     async def event_stream():
         # 세션 시작 이벤트
-        yield _sse_event("session", {"session_id": session_id, "topic": topic_dict["title"]})
+        yield _sse_event("session", {
+            "session_id": session_id,
+            "record_id": record_id,  # /evaluation?session_id= 에 그대로 넘기면 채점 결과가 이어 저장됨
+            "topic": topic_dict["title"],
+            "debate_format": request.debate_format,
+        })
 
         prev_history = []
 
-        # 그래프 스트리밍 실행
-        for chunk in debate_graph.stream(dict(initial_state), config=config, stream_mode="values"):
+        # 그래프 스트리밍 실행 (전용 스레드에서, 이벤트 루프는 막지 않음)
+        async for chunk in _astream_in_thread(
+            lambda: debate_graph.stream(dict(initial_state), config=config, stream_mode="values")
+        ):
             if not isinstance(chunk, dict):
                 continue
 
@@ -292,11 +375,13 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
         current_values = graph_state.values or {}
         prev_history = list(current_values.get("debate_history", []))
 
-        # 그래프 resume 스트리밍
-        for chunk in debate_graph.stream(
-            Command(resume=request.content),
-            config=config,
-            stream_mode="values",
+        # 그래프 resume 스트리밍 (전용 스레드에서, 이벤트 루프는 막지 않음)
+        async for chunk in _astream_in_thread(
+            lambda: debate_graph.stream(
+                Command(resume=request.content),
+                config=config,
+                stream_mode="values",
+            )
         ):
             if not isinstance(chunk, dict):
                 continue
@@ -629,6 +714,7 @@ class EvaluateResponse(BaseModel):
     con_label: str
     pro: SideResult
     con: SideResult
+    record_saved: bool = False  # session_id 로 지정한 수집 레코드에 저장됐는지
 
 
 def _build_phase_result(phase: dict) -> PhaseResult:
@@ -665,11 +751,17 @@ def _build_phase_result(phase: dict) -> PhaseResult:
 
 
 @app.post("/evaluation", response_model=EvaluateResponse)
-async def evaluate_user_before_after(req: EvaluateRequest, topic_id: str):
+async def evaluate_user_before_after(
+    req: EvaluateRequest,
+    topic_id: str,
+    session_id: Optional[int] = None,
+):
     """
     토론 전·후 사용자 답변(찬·반 양쪽)을 5개 지표로 채점하고 변화량을 반환한다.
 
     - **topic_id**: query 파라미터 (예: `tech_001`). topics JSON 에서 title/pro/con 자동 조회.
+    - **session_id**: query 파라미터 (선택). `/debate/init` 의 session 이벤트가 준 `record_id`.
+      주면 답변 원문과 채점 결과가 수집 레코드에 저장되고 status 가 COMPLETED 로 바뀐다.
     - 요청 body: pre_pro / pre_con / post_pro / post_con 각각 문자열.
     - 응답: pro/con 각 진영의 pre/post 점수(5개 지표 + 100점 환산 + 요약) + delta_100.
     """
@@ -686,6 +778,17 @@ async def evaluate_user_before_after(req: EvaluateRequest, topic_id: str):
         logger.exception("평가 실패")
         raise HTTPException(status_code=500, detail=f"평가 중 오류: {e}")
 
+    record_saved = False
+    if session_id is not None:
+        try:
+            record_saved = store_save_evaluation(
+                session_id, req.pre_pro, req.pre_con, req.post_pro, req.post_con, result
+            )
+        except Exception:
+            logger.exception("[storage] 평가 결과 저장 실패 (session_id=%s)", session_id)
+        if not record_saved:
+            logger.warning("[storage] session_id=%s 레코드를 찾지 못했습니다.", session_id)
+
     return EvaluateResponse(
         topic_id=topic_id,
         topic=topic_data["title"],
@@ -701,4 +804,34 @@ async def evaluate_user_before_after(req: EvaluateRequest, topic_id: str):
             post=_build_phase_result(result["con"]["post"]),
             delta_100=result["con"]["delta_100"],
         ),
+        record_saved=record_saved,
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 수집된 세션 데이터 조회 / 내보내기
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/sessions")
+def list_collected_sessions(limit: int = 200, offset: int = 0):
+    """수집된 토론 세션 목록 (최신순). CSV 와 동일한 필드 + 내부 식별자."""
+    return {"sessions": store_list_sessions(limit=limit, offset=offset)}
+
+
+@app.get("/sessions/export.csv")
+def export_collected_sessions():
+    """수집 데이터를 data-*.csv 와 동일한 컬럼·순서의 CSV 로 내보낸다."""
+    filename = f"sessions-{int(time.time() * 1000)}.csv"
+    return Response(
+        content=store_export_csv(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/sessions/{session_id}")
+def get_collected_session(session_id: int):
+    record = store_get_session(session_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="세션 레코드를 찾을 수 없습니다.")
+    return record

@@ -5,7 +5,7 @@ models.py — FastAPI 입력 스키마
 별도 응답 모델은 사용하지 않는다.
 """
 
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, field_validator, model_validator
 
 
@@ -30,6 +30,10 @@ class DebateInitRequest(BaseModel):
     #   "constructive"  — 전체 5단계 (역할반전·종합 포함).
     # 미지정 시 기존 동작 (전체 5단계) 유지.
     mode: Literal["debate", "constructive"] = "constructive"
+
+    # 데이터 수집용 참여자 식별 정보 (선택). storage/sessions 에 그대로 기록된다.
+    nickname: Optional[str] = None
+    email: Optional[str] = None
 
     @field_validator("user_intensity")
     @classmethod
