@@ -38,6 +38,9 @@ from src.phase0.persona_factory import create_agents, AgentPersona
 from src.state import AgentSnapshot, DebateState, build_initial_state, generate_session_id
 from src.storage import (
     create_session as store_create_session,
+    get_session_by_graph_id as store_get_session_by_graph_id,
+    load_turn_analyses as store_load_turn_analyses,
+    save_turn_analysis as store_save_turn_analysis,
     export_csv as store_export_csv,
     export_survey_csv as store_export_survey_csv,
     get_session as store_get_session,
@@ -131,8 +134,16 @@ def _build_teams_from_state(initial_state: DebateState) -> dict:
     return {"PRO": sorted(pro), "CON": sorted(con)}
 
 
-async def _run_judge_turn(judge: DebatrixJudge, entry: dict) -> Optional[dict]:
-    """judge.judge_turn을 async로 실행. 실패 시 None 반환 (debate는 계속)."""
+async def _run_judge_turn(
+    judge: DebatrixJudge,
+    entry: dict,
+    graph_session_id: Optional[str] = None,
+) -> Optional[dict]:
+    """judge.judge_turn을 async로 실행. 실패 시 None 반환 (debate는 계속).
+
+    분석 결과는 곧바로 저장소에도 남긴다. judge 인스턴스는 프로세스 메모리에만
+    있어서 서버가 재시작되면 최종 리포트를 만들 수 없기 때문.
+    """
     speaker = entry.get("speaker_id") or entry.get("speaker") or ""
     stance = entry.get("stance") or entry.get("side") or "PRO"
     phase = entry.get("phase") or ""
@@ -154,6 +165,20 @@ async def _run_judge_turn(judge: DebatrixJudge, entry: dict) -> Optional[dict]:
                 return None  # 분석 대상 외 phase
             live = judge.memory.live_debate_snapshot()
             analysis_row = judge.memory.analysis_memory[-1]
+
+            if graph_session_id:
+                speech_rows = judge.memory.speech_memory
+                turn_index = analysis_row.get("turn_index")
+                speech = next(
+                    (s for s in reversed(speech_rows) if s.get("turn_index") == turn_index), None
+                )
+                try:
+                    store_save_turn_analysis(
+                        graph_session_id, turn_index, analysis_row, speech, live
+                    )
+                except Exception:
+                    logger.exception("[storage] 턴 분석 저장 실패 (session=%s)", graph_session_id)
+
             return project_frontend_event(analysis_row, live)
         except Exception as e:
             logger.warning("live_analyzer 실패: %s", e)
@@ -340,7 +365,7 @@ async def initialize_debate(request: DebateInitRequest):
             for entry in new_entries:
                 entry_dict = dict(entry) if isinstance(entry, dict) else entry
                 # 발화 + 실시간 분석 결과를 한 이벤트로 묶어서 전송 (frontend 가 매칭 부담 없도록)
-                ev = await _run_judge_turn(judge, entry_dict)
+                ev = await _run_judge_turn(judge, entry_dict, session_id)
                 yield _sse_event("turn", {"entry": entry_dict, "analysis": ev})
 
             prev_history = list(cur_history)
@@ -403,7 +428,7 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             for entry in new_entries:
                 entry_dict = dict(entry) if isinstance(entry, dict) else entry
                 # 발화 + 실시간 분석 결과를 한 이벤트로 묶어서 전송 (frontend 가 매칭 부담 없도록)
-                ev = await _run_judge_turn(judge, entry_dict) if judge is not None else None
+                ev = await _run_judge_turn(judge, entry_dict, session_id) if judge is not None else None
                 yield _sse_event("turn", {"entry": entry_dict, "analysis": ev})
 
             prev_history = list(cur_history)
@@ -464,39 +489,48 @@ def get_final_report(session_id: str, refresh: bool = False):
 
     - 토론이 `is_finished=True` 이후에 호출 권장.
     - `refresh=true` 쿼리 파라미터 시 캐시 무시하고 재생성.
-    - judge 인스턴스(`_session_judges`)와 LangGraph state를 사용.
+    - judge 인스턴스(`_session_judges`)와 LangGraph state를 우선 사용하고,
+      서버 재시작 등으로 메모리가 비었으면 저장소(turn_analyses)에서 복구한다.
     """
     if not refresh and session_id in _final_reports:
         return _final_reports[session_id]
 
     judge = _session_judges.get(session_id)
-    if judge is None:
-        raise HTTPException(
-            status_code=404,
-            detail="세션의 분석 데이터를 찾을 수 없습니다 (judge 없음).",
-        )
+    graph_state = debate_graph.get_state({"configurable": {"thread_id": session_id}})
+    values = graph_state.values if graph_state and graph_state.values else {}
 
-    config = {"configurable": {"thread_id": session_id}}
-    graph_state = debate_graph.get_state(config)
-    if not graph_state or not graph_state.values:
-        raise HTTPException(status_code=404, detail="세션 상태를 찾을 수 없습니다.")
+    if judge is not None:
+        analysis_memory = list(judge.memory.analysis_memory)
+        speech_memory = list(judge.memory.speech_memory)
+        live_debate = judge.memory.live_debate_snapshot()
+        topic = values.get("topic", "")
+        debate_format = values.get("debate_format") or judge.memory.debate_format
+        user_stance = values.get("user_stance", "PRO")
+    else:
+        # 메모리 유실 복구 경로 — 턴 분석은 저장소에, 세션 메타는 debate_sessions 에 있다.
+        stored = store_load_turn_analyses(session_id)
+        analysis_memory = stored["analysis_memory"]
+        speech_memory = stored["speech_memory"]
+        live_debate = stored["live_debate"]
 
-    values = graph_state.values
-    analysis_memory = list(judge.memory.analysis_memory)
-    speech_memory = list(judge.memory.speech_memory)
-    live_debate = judge.memory.live_debate_snapshot()
+        record = store_get_session_by_graph_id(session_id) or {}
+        topic = values.get("topic") or _load_topic_for_evaluation(
+            record.get("topic", "")
+        ).get("title", "")
+        debate_format = values.get("debate_format") or record.get("debate_format") or ""
+        user_stance = values.get("user_stance") or record.get("user_stance") or "PRO"
 
     if not analysis_memory:
         raise HTTPException(
-            status_code=400,
-            detail="분석 메모리가 비어 있습니다. 토론이 진행되지 않았거나 평가 대상 phase가 없습니다.",
+            status_code=404,
+            detail="세션의 분석 데이터를 찾을 수 없습니다. 토론이 진행되지 않았거나 기록이 남지 않은 세션입니다.",
         )
 
     try:
         report = build_final_report(
-            topic=values.get("topic", ""),
-            debate_format=values.get("debate_format") or judge.memory.debate_format,
-            user_stance=values.get("user_stance", "PRO"),
+            topic=topic,
+            debate_format=debate_format,
+            user_stance=user_stance,
             analysis_memory=analysis_memory,
             speech_memory=speech_memory,
             live_debate=live_debate,
