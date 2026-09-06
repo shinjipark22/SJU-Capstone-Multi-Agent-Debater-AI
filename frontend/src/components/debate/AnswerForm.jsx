@@ -48,7 +48,7 @@ const AnswerForm = ({ topic, phase, submitting, error, onSubmit }) => {
         disabled={!canSubmit}
         className="mx-auto mt-8 rounded-full bg-stone-900 px-12 py-4 text-lg font-bold text-white transition-all hover:bg-black disabled:bg-stone-200 disabled:text-stone-400"
       >
-        {submitting ? '채점 중...' : isPre ? '토론 시작하기' : '결과 확인하기'}
+        {submitting ? '저장 중...' : isPre ? '토론 시작하기' : '사후 설문으로'}
       </button>
     </div>
   );

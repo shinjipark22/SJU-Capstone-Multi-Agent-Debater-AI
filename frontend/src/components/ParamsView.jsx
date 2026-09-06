@@ -13,6 +13,8 @@ const ParamsView = ({
   onSliderChange,
   nickname,
   setNickname,
+  mode,
+  setMode,
   visible,
 }) => {
   const renderAiSliders = (side, count) => {
@@ -44,6 +46,32 @@ const ParamsView = ({
             <h2 className="text-4xl md:text-5xl font-extrabold text-stone-800 tracking-tight">
               참여 설정
             </h2>
+          </div>
+
+          {/* 진행 방식 — 설문지 종류(토론/구성적 논쟁)와 토론 단계 수를 함께 결정한다 */}
+          <div className="mb-10 flex w-full flex-col items-center">
+            <h3 className="mb-3 text-lg font-medium text-stone-500">진행 방식</h3>
+            <div className="flex gap-3">
+              {[
+                { value: 'debate', label: '토론', desc: '입론 · 연쇄논박 · 자유논박' },
+                { value: 'constructive', label: '구성적 논쟁', desc: '역할반전 · 종합까지' },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setMode(option.value)}
+                  className={`rounded-3xl px-7 py-4 text-center transition-all duration-300 ${
+                    mode === option.value
+                      ? 'bg-stone-900 text-white shadow-xl'
+                      : 'border border-stone-200 bg-white text-stone-600 shadow-sm hover:border-stone-300'
+                  }`}
+                >
+                  <span className="block text-lg font-bold">{option.label}</span>
+                  <span className={`text-xs ${mode === option.value ? 'text-stone-300' : 'text-stone-400'}`}>
+                    {option.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* 참여자 닉네임 — 수집 데이터(nickname 컬럼)에 기록된다 */}

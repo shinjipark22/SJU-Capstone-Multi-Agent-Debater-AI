@@ -19,6 +19,7 @@ const App = () => {
   const [agentCount, setAgentCount] = useState(1);
   const [aiStances, setAiStances] = useState({ pro: [5, 3, 1], con: [5, 3, 1] });
   const [nickname, setNickname] = useState('');
+  const [mode, setMode] = useState('debate');
   const [backendTopics, setBackendTopics] = useState({});
   const [topicsError, setTopicsError] = useState(null);
   const [initRequest, setInitRequest] = useState(null);
@@ -59,6 +60,7 @@ const App = () => {
     setUserIntensity(3);
     setAgentCount(1);
     setAiStances({ pro: [5, 3, 1], con: [5, 3, 1] });
+    setMode('debate');
     setInitRequest(null);
   };
 
@@ -106,7 +108,7 @@ const App = () => {
         ...aiStances[ownSide].slice(0, agentCount - 1),
       ],
       debate_format: `${agentCount}:${agentCount}`,
-      mode: 'debate',
+      mode,
       nickname: nickname.trim() || null,
     });
     setStage(3);
@@ -210,6 +212,8 @@ const App = () => {
             onSliderChange={handleSliderChange}
             nickname={nickname}
             setNickname={setNickname}
+            mode={mode}
+            setMode={setMode}
             visible={stage === 2}
           />
           {initRequest && selectedTopic && (

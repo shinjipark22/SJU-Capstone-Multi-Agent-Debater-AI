@@ -1,0 +1,806 @@
+{
+  "pre": [
+    {
+      "section": null,
+      "description": null,
+      "items": [
+        {
+          "key": "consent",
+          "type": "radio",
+          "title": "아래 내용을 확인하고 동의 여부를 선택해 주세요. · 본 연구의 목적과 절차를 이해하였습니다. · 수집된 자료는 연구 목적으로만 사용됩니다. · 개인 응답은 공개되지 않으며 철저히 보호됩니다.",
+          "required": true,
+          "options": [
+            "위 내용을 모두 확인하였으며 연구에 참여합니다."
+          ]
+        }
+      ]
+    },
+    {
+      "section": "인구 통계학적 정보",
+      "description": null,
+      "items": [
+        {
+          "key": "gender",
+          "type": "radio",
+          "title": "성별",
+          "required": true,
+          "options": [
+            "남",
+            "여"
+          ]
+        },
+        {
+          "key": "age",
+          "type": "short_answer",
+          "title": "나이 (만나이)",
+          "required": true
+        },
+        {
+          "key": "job_type",
+          "type": "radio",
+          "title": "직업유형",
+          "required": true,
+          "options": [
+            "대학생/대학원생",
+            "직장인",
+            "기타"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "대학생/대학원생 추가 질문",
+      "description": null,
+      "items": [
+        {
+          "key": "grade",
+          "type": "radio",
+          "title": "학년",
+          "required": true,
+          "options": [
+            "1학년",
+            "2학년",
+            "3학년",
+            "4학년",
+            "대학원생"
+          ]
+        },
+        {
+          "key": "major",
+          "type": "radio",
+          "title": "전공 계열",
+          "required": true,
+          "options": [
+            "인문학",
+            "사회과학",
+            "법학·행정학",
+            "경영·경제",
+            "교육학",
+            "자연과학",
+            "공학·IT",
+            "의약·보건",
+            "예술·체육",
+            "기타"
+          ]
+        }
+      ],
+      "depends_on": {
+        "key": "job_type",
+        "equals": "대학생/대학원생"
+      }
+    },
+    {
+      "section": "직장인 추가 질문",
+      "description": null,
+      "items": [
+        {
+          "key": "industry",
+          "type": "radio",
+          "title": "종사 산업",
+          "required": true,
+          "options": [
+            "농업·임업·어업·광업",
+            "제조업",
+            "전기·가스·수도·환경",
+            "건설업",
+            "도소매·유통업",
+            "운수·창고업",
+            "숙박·음식업",
+            "정보통신·IT",
+            "금융·보험업",
+            "부동산업",
+            "전문·과학·기술 서비스",
+            "교육 서비스업",
+            "보건·사회복지",
+            "예술·스포츠·여가",
+            "공공행정·국방",
+            "기타"
+          ]
+        },
+        {
+          "key": "job_role",
+          "type": "radio",
+          "title": "직무 유형",
+          "required": true,
+          "options": [
+            "경영·기획·행정",
+            "영업·마케팅",
+            "연구·개발(R&D)",
+            "IT·개발·데이터",
+            "생산·제조·품질",
+            "교육·강의",
+            "의료·복지",
+            "법률·회계·금융",
+            "기타"
+          ]
+        }
+      ],
+      "depends_on": {
+        "key": "job_type",
+        "equals": "직장인"
+      }
+    },
+    {
+      "section": "토론 및 입장 확인",
+      "description": null,
+      "items": [
+        {
+          "key": "debate_experience",
+          "type": "radio",
+          "title": "토론 경험",
+          "required": false,
+          "options": [
+            "없음",
+            "1~2회",
+            "3~5회",
+            "6회 이상"
+          ]
+        },
+        {
+          "key": "stance",
+          "type": "radio",
+          "title": "{topic}에 대한 현재 귀하의 입장을 선택하세요.",
+          "required": true,
+          "options": [
+            "강한 반대",
+            "약간 반대",
+            "중립",
+            "약간 찬성",
+            "강한 찬성"
+          ]
+        },
+        {
+          "key": "confidence",
+          "type": "radio",
+          "title": "위에서 선택한 입장에 대해 얼마나 확신하십니까?",
+          "required": true,
+          "options": [
+            "전혀 확신하지 않음",
+            "불확실함",
+            "보통 정도",
+            "꽤 확신함",
+            "매우 확신함"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "관점 수용성 평가",
+      "description": "다음 문항들을 다시 읽고 각각이 당신을 얼마나 잘 나타내는지 선택하세요.\n응답 척도: 0 (전혀그렇지 않다) ~ 4 (매우 그렇다)",
+      "items": [
+        {
+          "key": "pt1",
+          "type": "linear_scale",
+          "title": "1. {issue}에 나와 반대입장의 사람을 비판하기 전에, 내가 그들의 처지라면 어떤 기분일지 상상해 본다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt2",
+          "type": "linear_scale",
+          "title": "2. {issue}에 대해 내 입장이 확고하면, 상대측 주장을 듣는 데 많은 시간을 쓰지 않는다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt3",
+          "type": "linear_scale",
+          "title": "3. 나는 {issue}에 대한 상대방의 관점을 상상함으로써 그들의 입장을 더 잘 이해하려고 노력한다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt4",
+          "type": "linear_scale",
+          "title": "4. {issue} 문제에도 찬성과 반대 양쪽 측면이 있다고 믿으며, 둘 다 살펴보려고 노력한다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt5",
+          "type": "linear_scale",
+          "title": "5. {issue}에 대해 나와 다른 입장을 가진 사람의 관점에서 상황을 이해하기가 어렵다고 생각한다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt6",
+          "type": "linear_scale",
+          "title": "6. {issue}에 대해 의견 불일치가 생기면, 결론을 내리기 전에 찬반 양측의 입장을 살펴보려고 노력한다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt7",
+          "type": "linear_scale",
+          "title": "7. {issue} 토론에서 상대방 주장에 답답함을 느낄 때, 나는 보통 그 사람의 입장에서 한동안 생각해 본다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        }
+      ]
+    }
+  ],
+  "post": [
+    {
+      "section": "{mode_label} 경험",
+      "description": "방금 진행한 AI와의 논쟁에 대해 응답하세요. 응답 척도: 1 (전혀 동의하지 않음) ~ 7 (매우 동의함)",
+      "items": [
+        {
+          "key": "cc1",
+          "type": "linear_scale",
+          "title": "1. 나와 토론 AI 에이전트는 서로에게 자신의 의견을 직접 표현했다",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "cc2",
+          "type": "linear_scale",
+          "title": "2. 나와 토론 AI 에이전트는 서로의 의견을 성실하게 경청했다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "cc3",
+          "type": "linear_scale",
+          "title": "3. 나와 토론 AI 에이전트는 서로의 우려사항을 이해하려고 노력했다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "cc4",
+          "type": "linear_scale",
+          "title": "4. 나와 토론 AI 에이전트는 서로의 아이디어를 활용하려고 노력했다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "cc5",
+          "type": "linear_scale",
+          "title": "5. 나와 토론 AI 에이전트가 의견이 다를 때에도, 우리는 서로를 존중한다는 것을 표현했다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "cc6",
+          "type": "linear_scale",
+          "title": "6. 나와 토론 AI 에이전트는 모두가 수용할 수 있는 결정을 위해 노력했다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "cc7",
+          "type": "linear_scale",
+          "title": "7. 나와 토론 AI 에이전트는 서로 다른 의견을 활용해 문제를 더 잘 이해했다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        }
+      ]
+    },
+    {
+      "section": "학습 효과",
+      "description": "이 논의를 통해 다음 사항들에 얼마나 동의하십니까? 응답 척도: 1 (전혀 동의하지 않음) ~ 7 (매우 동의함)",
+      "items": [
+        {
+          "key": "le1",
+          "type": "linear_scale",
+          "title": "1. 나는 이 주제를 분석하는 방법을 배웠다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "le2",
+          "type": "linear_scale",
+          "title": "2. 다양한 관점에 대한 논의는 주제에 대한 깊이 있는 이해를 도왔다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "le3",
+          "type": "linear_scale",
+          "title": "3. 나는 체계적으로 생각하는 방법을 배웠다",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "le4",
+          "type": "linear_scale",
+          "title": "4. 나는 이 문제를 해결하는 방법을 배웠다",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        },
+        {
+          "key": "le5",
+          "type": "linear_scale",
+          "title": "5. 나는 다른 사람과 효과적인 토론을 하는 방법을 배웠다",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ],
+          "scale_low": "전혀 동의하지 않음"
+        }
+      ]
+    },
+    {
+      "section": "관점 수용성 평가",
+      "description": "다음 문항들을 다시 읽고 각각이 당신을 얼마나 잘 나타내는지 선택하세요.\n응답 척도: 0 (전혀그렇지 않다) ~ 4 (매우 그렇다)",
+      "items": [
+        {
+          "key": "pt1",
+          "type": "linear_scale",
+          "title": "1. {issue}에 나와 반대 입장의 사람을 비판하기 전에, 내가 그들의 처지라면 어떤 기분일지 상상해 본다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt2",
+          "type": "linear_scale",
+          "title": "2. {issue}에 대해 내 입장이 확고하면, 상대측 주장을 듣는 데 많은 시간을 쓰지 않는다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt3",
+          "type": "linear_scale",
+          "title": "3. 나는 {issue}에 대한 상대방의 관점을 상상함으로써 그들의 입장을 더 잘 이해하려고 노력한다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt4",
+          "type": "linear_scale",
+          "title": "4. {issue} 문제에도 찬성과 반대 양쪽 측면이 있다고 믿으며, 둘 다 살펴보려고 노력한다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt5",
+          "type": "linear_scale",
+          "title": "5. {issue}에 대해 나와 다른 입장을 가진 사람의 관점에서 상황을 이해하기가 어렵다고 생각한다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt6",
+          "type": "linear_scale",
+          "title": "6. {issue}에 대해 의견 불일치가 생기면, 결론을 내리기 전에 찬반 양측의 입장을 살펴보려고 노력한다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        },
+        {
+          "key": "pt7",
+          "type": "linear_scale",
+          "title": "7. {issue} 토론에서 상대방 주장에 답답함을 느낄 때, 나는 보통 그 사람의 입장에서 한동안 생각해 본다.",
+          "required": true,
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ],
+          "scale_low": "전혀 그렇지 않다"
+        }
+      ]
+    },
+    {
+      "section": "AI 상호작용 만족도",
+      "description": "방금 상호작용한 AI Agent에 대해 응답하세요.\n본 시스템은 토론 발언, 토론 어시스턴트(비비드), 토론 실시간 분석, 토론 최종 피드백 등이 AI로 이루어져있습니다.  \n응답 척도: 1 (강하게 동의하지 않음) ~ 5 (강하게 동의함)",
+      "items": [
+        {
+          "key": "sat1",
+          "type": "linear_scale",
+          "title": "1. AI의 기능을 쉽게 알아챌 수 있었다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat2",
+          "type": "linear_scale",
+          "title": "2. AI를 찾기 쉬웠다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat3",
+          "type": "linear_scale",
+          "title": "3. AI와의 소통이 명확했다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat4",
+          "type": "linear_scale",
+          "title": "4. AI는 대화의 맥락을 추적할 수 있었다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat5",
+          "type": "linear_scale",
+          "title": "5. AI의 응답이 이해하기 쉬웠다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat6",
+          "type": "linear_scale",
+          "title": "6. AI가 내가 원하는 것을 이해하고 목표 달성을 도와준다고 생각한다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat7",
+          "type": "linear_scale",
+          "title": "7. AI는 적절한 양의 정보를 제공했다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat8",
+          "type": "linear_scale",
+          "title": "8. AI는 내가 필요한 정보만 제공했다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat9",
+          "type": "linear_scale",
+          "title": "9. AI의 응답이 정확하다고 느껴진다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat10",
+          "type": "linear_scale",
+          "title": "10. AI가 개인정보 관련 가능한 모든 우려사항을 나에게 알려준다고 생각한다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        },
+        {
+          "key": "sat11",
+          "type": "linear_scale",
+          "title": "11. AI의 응답을 받기 위한 대기 시간이 짧았다.",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_low": "강하게 동의하지 않음"
+        }
+      ]
+    },
+    {
+      "section": "의견 변화",
+      "description": null,
+      "items": [
+        {
+          "key": "stance",
+          "type": "radio",
+          "title": "{topic} 에 대한 귀하의 입장을 선택하세요.",
+          "required": true,
+          "options": [
+            "강한반대",
+            "약간반대",
+            "중립",
+            "약간찬성",
+            "강한찬성"
+          ]
+        },
+        {
+          "key": "confidence",
+          "type": "radio",
+          "title": "위에서 선택한 입장에 대해 얼마나 확신하십니까?",
+          "required": true,
+          "options": [
+            "전혀 확신하지 않음",
+            "불확실함",
+            "보통 정도",
+            "꽤 확신함",
+            "매우 확신함"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "추가 의견 (선택)",
+      "description": null,
+      "items": [
+        {
+          "key": "free_comment",
+          "type": "paragraph",
+          "title": "이 AI와의 논의에서 인상적이었던 점이나 개선해야 할 점이 있으시면 자유롭게 작성해 주세요.",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

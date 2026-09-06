@@ -22,11 +22,16 @@ npm run build               # 정적 배포물은 dist/
 | 카테고리 선택 | `TopicGrid` | — |
 | 세부 논제 선택 | `SubTopicView` | `GET /topics` (논제 원본, topic id 사용) |
 | 찬반·강경도 | `StanceView` | — |
-| 참여 설정 (닉네임 / N:N / AI 성향) | `ParamsView` | — |
+| 참여 설정 (진행 방식 / 닉네임 / N:N / AI 성향) | `ParamsView` | — |
+| 사전 설문 (18문항) | `debate/SurveyForm` | `GET /survey/schema/pre` |
 | 토론 전 답변 | `debate/AnswerForm` | — (제출 시점엔 로컬 보관) |
 | 토론 | `debate/DebateRoom` | `POST /debate/init`, `POST /debate/{id}/submit` (SSE), `GET /debate/{id}/assistant/{phase}` |
-| 토론 후 답변 | `debate/AnswerForm` | `POST /evaluation?topic_id=&session_id=` |
+| 토론 후 답변 | `debate/AnswerForm` | — |
+| 사후 설문 (33문항) | `debate/SurveyForm` | `POST /sessions/{id}/survey`, `POST /evaluation?topic_id=&session_id=` |
 | 결과 | `debate/ResultView` | `GET /debate/{id}/final-report` |
+
+사전 설문은 세션 행이 생기기 전에 받으므로 답변을 들고 있다가 `session` 이벤트로
+`record_id` 를 받는 즉시 저장한다 (`DebatePage.handleSessionStart`).
 
 원본 저장소는 마지막 커밋에서 `src/components/debate/` 를 삭제해 `App.jsx` 의 import 가 깨져 있었다.
 그 자리를 위 표의 `debate/` 컴포넌트들로 새로 구현했다.

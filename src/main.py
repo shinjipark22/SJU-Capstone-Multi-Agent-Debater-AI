@@ -16,7 +16,7 @@ import queue
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, Optional
+from typing import Any, Callable, Dict, Iterator, Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,10 +39,14 @@ from src.state import AgentSnapshot, DebateState, build_initial_state, generate_
 from src.storage import (
     create_session as store_create_session,
     export_csv as store_export_csv,
+    export_survey_csv as store_export_survey_csv,
     get_session as store_get_session,
+    get_survey as store_get_survey,
     list_sessions as store_list_sessions,
     save_evaluation as store_save_evaluation,
+    save_survey as store_save_survey,
 )
+from src.survey import PHASES as SURVEY_PHASES, load_schema as load_survey_schema
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +305,7 @@ async def initialize_debate(request: DebateInitRequest):
             nickname=request.nickname,
             email=request.email,
             graph_session_id=session_id,
+            mode=request.mode,
         )
     except Exception:
         logger.exception("[storage] 세션 기록 실패 (session_id=%s)", session_id)
@@ -834,4 +839,67 @@ def get_collected_session(session_id: int):
     record = store_get_session(session_id)
     if record is None:
         raise HTTPException(status_code=404, detail="세션 레코드를 찾을 수 없습니다.")
+    return record
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 연구 설문 (구글폼 4종을 웹에서 직접 수집)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SurveySubmitRequest(BaseModel):
+    """설문 응답. answers 는 {문항 key: 응답} — 스키마의 key 를 그대로 쓴다."""
+    phase: Literal["pre", "post"]
+    answers: Dict[str, Any]
+
+
+@app.get("/survey/schema/{phase}")
+def get_survey_schema(
+    phase: str,
+    mode: Literal["debate", "constructive"] = "debate",
+    topic_id: Optional[str] = None,
+):
+    """설문 문항 스키마. 주제·모드 의존 문구는 치환해서 내려준다.
+
+    - **phase**: `pre` | `post`
+    - **mode**: `debate`(토론) | `constructive`(구성적 논쟁) — 사후 섹션 제목에 반영
+    - **topic_id**: 주면 해당 주제 문장을 입장 문항에 넣는다
+    """
+    if phase not in SURVEY_PHASES:
+        raise HTTPException(status_code=400, detail=f"지원하지 않는 phase '{phase}'. 지원: {list(SURVEY_PHASES)}")
+
+    topic_title = ""
+    if topic_id:
+        topic_title = _load_topic_for_evaluation(topic_id).get("title", "")
+
+    return {"phase": phase, "mode": mode, "topic": topic_title,
+            "sections": load_survey_schema(phase, mode, topic_title)}
+
+
+@app.post("/sessions/{session_id}/survey")
+def submit_survey(session_id: int, request: SurveySubmitRequest):
+    """토론 전·후 설문 응답 저장. 같은 단계를 다시 제출하면 덮어쓴다."""
+    record = store_get_session(session_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="세션 레코드를 찾을 수 없습니다.")
+
+    saved = store_save_survey(session_id, request.phase, request.answers, mode=record.get("mode"))
+    return {"session_id": session_id, "phase": request.phase, "saved": saved}
+
+
+@app.get("/surveys/export.csv")
+def export_surveys():
+    """설문 응답을 세션당 한 행(pre_*, post_* 컬럼)으로 펼친 CSV."""
+    filename = f"surveys-{int(time.time() * 1000)}.csv"
+    return Response(
+        content=store_export_survey_csv(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/sessions/{session_id}/survey/{phase}")
+def get_submitted_survey(session_id: int, phase: str):
+    record = store_get_survey(session_id, phase)
+    if record is None:
+        raise HTTPException(status_code=404, detail="설문 응답을 찾을 수 없습니다.")
     return record
