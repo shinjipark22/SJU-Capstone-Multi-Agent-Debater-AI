@@ -80,7 +80,7 @@ const App = () => {
   const FIXED_INTENSITY = 3;
 
   const handleEnter = () => {
-    if (!selectedTopic) return;
+    if (!selectedTopic || !nickname.trim()) return;
 
     setInitRequest({
       topic: selectedTopic.id,
@@ -89,7 +89,7 @@ const App = () => {
       agent_intensities: Array(agentCount * 2 - 1).fill(FIXED_INTENSITY),
       debate_format: `${agentCount}:${agentCount}`,
       mode,
-      nickname: nickname.trim() || null,
+      nickname: nickname.trim(),
     });
     setStage(3);
   };
@@ -206,6 +206,7 @@ const App = () => {
         selectedSubTopics={selectedSubTopics}
         stage={stage}
         userStance={userStance}
+        canEnter={Boolean(nickname.trim())}
         onNext={() => setStage(1)}
         onNextStage={() => setStage(2)}
         onEnter={handleEnter}

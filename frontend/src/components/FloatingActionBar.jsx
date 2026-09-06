@@ -1,6 +1,6 @@
 import React from 'react';
 
-const FloatingActionBar = ({ selectedSubTopics, stage, userStance, onNext, onNextStage, onEnter }) => {
+const FloatingActionBar = ({ selectedSubTopics, stage, userStance, canEnter, onNext, onNextStage, onEnter }) => {
   const showBar = selectedSubTopics.length > 0;
 
   return (
@@ -36,9 +36,14 @@ const FloatingActionBar = ({ selectedSubTopics, stage, userStance, onNext, onNex
       {stage === 2 && (
         <button
           onClick={onEnter}
-          className="flex items-center gap-4 px-12 py-5 bg-stone-900 text-white rounded-full font-bold text-xl hover:bg-black hover:scale-105 active:scale-95 transition-all shadow-2xl cursor-pointer"
+          disabled={!canEnter}
+          className={`flex items-center gap-4 px-12 py-5 rounded-full font-bold text-xl transition-all shadow-2xl ${
+            canEnter
+              ? 'bg-stone-900 text-white hover:bg-black hover:scale-105 active:scale-95 cursor-pointer'
+              : 'bg-stone-200 text-stone-400 cursor-not-allowed'
+          }`}
         >
-          토론방 입장하기
+          {canEnter ? '토론방 입장하기' : '이름을 입력해주세요'}
         </button>
       )}
     </div>

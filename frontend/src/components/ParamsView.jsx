@@ -52,9 +52,11 @@ const ParamsView = ({
             </div>
           </div>
 
-          {/* 참여자 닉네임 — 수집 데이터(nickname 컬럼)에 기록된다 */}
+          {/* 참여자 이름 — 수집 데이터(nickname 컬럼)에 기록된다. 응답 대조용이라 필수 */}
           <div className="mb-10 flex w-full max-w-sm flex-col items-center">
-            <h3 className="mb-3 text-lg font-medium text-stone-500">닉네임 (선택)</h3>
+            <h3 className="mb-3 text-lg font-medium text-stone-500">
+              이름 <span className="text-rose-500">*</span>
+            </h3>
             <input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
