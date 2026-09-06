@@ -8,14 +8,9 @@ const PHASE_LABELS = {
   synthesis: '종합',
 };
 
-const ScoreChip = ({ label, value }) =>
-  value == null ? null : (
-    <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-600">
-      {label} {value.toFixed(1)}
-    </span>
-  );
-
-const TurnBubble = ({ entry, analysis }) => {
+// 턴별 분석(점수·차원 피드백)은 토론 중에는 노출하지 않는다.
+// 백엔드에 그대로 누적돼 최종 리포트의 근거로만 쓰인다.
+const TurnBubble = ({ entry }) => {
   const isUser = entry.speaker_id === 'user';
   const isPro = entry.stance === 'PRO';
   const speakerLabel = isUser ? '나' : entry.speaker_id.replace('agent_', 'AI ');
@@ -41,19 +36,6 @@ const TurnBubble = ({ entry, analysis }) => {
         >
           <Markdown>{entry.content}</Markdown>
         </div>
-
-        {analysis && (
-          <div className="flex flex-col gap-1.5 rounded-2xl bg-stone-50 px-4 py-3">
-            <div className="flex flex-wrap gap-1.5">
-              <ScoreChip label="논증" value={analysis.argument_score} />
-              <ScoreChip label="근거" value={analysis.evidence_score} />
-              <ScoreChip label="표현" value={analysis.language_score} />
-            </div>
-            {analysis.overall_feedback && (
-              <p className="text-xs leading-relaxed text-stone-500">{analysis.overall_feedback}</p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
