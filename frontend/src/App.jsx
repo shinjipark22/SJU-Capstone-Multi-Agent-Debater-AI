@@ -13,11 +13,9 @@ import DebatePage from './components/debate/DebatePage';
 const App = () => {
   const [activeTopic, setActiveTopic] = useState(null);
   const [selectedSubTopics, setSelectedSubTopics] = useState([]);
-  const [stage, setStage] = useState(0); // 0: 세부주제, 1: 찬반+강도, 2: 참여설정
+  const [stage, setStage] = useState(0); // 0: 세부주제, 1: 찬반, 2: 참여설정
   const [userStance, setUserStance] = useState(null);
-  const [userIntensity, setUserIntensity] = useState(3);
   const [agentCount, setAgentCount] = useState(1);
-  const [aiStances, setAiStances] = useState({ pro: [5, 3, 1], con: [5, 3, 1] });
   const [nickname, setNickname] = useState('');
   const [mode, setMode] = useState('debate');
   const [backendTopics, setBackendTopics] = useState({});
@@ -43,8 +41,6 @@ const App = () => {
 
   const activeData = topicCards.find(t => t.id === activeTopic);
   const selectedTopic = selectedSubTopics[0] ?? null;
-  const activeProAiCount = userStance === 'pro' ? agentCount - 1 : agentCount;
-  const activeConAiCount = userStance === 'con' ? agentCount - 1 : agentCount;
 
   const preDebateBackground = userStance === 'pro'
     ? 'linear-gradient(to bottom right, rgba(147,197,253,0.38), rgba(219,234,254,0.22), rgba(245,245,244,0.08))'
@@ -57,9 +53,7 @@ const App = () => {
   const resetParams = () => {
     setStage(0);
     setUserStance(null);
-    setUserIntensity(3);
     setAgentCount(1);
-    setAiStances({ pro: [5, 3, 1], con: [5, 3, 1] });
     setMode('debate');
     setInitRequest(null);
   };
@@ -81,32 +75,18 @@ const App = () => {
     setSelectedSubTopics(prev => (prev[0]?.id === sub.id ? [] : [sub]));
   };
 
-  const handleSliderChange = (side, index, value) => {
-    let numVal = parseInt(value, 10);
-    if (numVal < 1) numVal = 1;
-    if (numVal > 5) numVal = 5;
-    setAiStances(prev => {
-      const newStances = [...prev[side]];
-      newStances[index] = numVal;
-      return { ...prev, [side]: newStances };
-    });
-  };
+  // 실험 조건 통제를 위해 강경도는 UI 에서 받지 않고 사용자·AI 모두 균형형(3)으로 고정한다.
+  // AI 수는 1:1 → 1명, 2:2 → 3명 (백엔드 DEBATE_FORMAT_AI_COUNT).
+  const FIXED_INTENSITY = 3;
 
-  // AI 강경도 순서는 백엔드 STANCE_DISTRIBUTION 과 같다: 상대 진영 AI 먼저, 그 다음 내 진영 AI.
   const handleEnter = () => {
     if (!selectedTopic) return;
-    const stance = userStance === 'pro' ? 'PRO' : 'CON';
-    const opponentSide = userStance === 'pro' ? 'con' : 'pro';
-    const ownSide = userStance;
 
     setInitRequest({
       topic: selectedTopic.id,
-      user_stance: stance,
-      user_intensity: userIntensity,
-      agent_intensities: [
-        ...aiStances[opponentSide].slice(0, agentCount),
-        ...aiStances[ownSide].slice(0, agentCount - 1),
-      ],
+      user_stance: userStance === 'pro' ? 'PRO' : 'CON',
+      user_intensity: FIXED_INTENSITY,
+      agent_intensities: Array(agentCount * 2 - 1).fill(FIXED_INTENSITY),
       debate_format: `${agentCount}:${agentCount}`,
       mode,
       nickname: nickname.trim() || null,
@@ -197,8 +177,6 @@ const App = () => {
           <StanceView
             userStance={userStance}
             setUserStance={setUserStance}
-            userIntensity={userIntensity}
-            setUserIntensity={setUserIntensity}
             visible={stage === 1}
           />
           <ParamsView
@@ -206,10 +184,6 @@ const App = () => {
             selectedSubTopics={selectedSubTopics}
             agentCount={agentCount}
             setAgentCount={setAgentCount}
-            aiStances={aiStances}
-            activeProAiCount={activeProAiCount}
-            activeConAiCount={activeConAiCount}
-            onSliderChange={handleSliderChange}
             nickname={nickname}
             setNickname={setNickname}
             mode={mode}

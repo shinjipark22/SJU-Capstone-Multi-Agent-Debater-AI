@@ -11,6 +11,8 @@ const API_TARGET = process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:8001'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    // cloudflared 터널로 공유할 때 vite 의 호스트 검증(DNS rebinding 방어)에 막히지 않도록 허용.
+    allowedHosts: ['.trycloudflare.com'],
     proxy: Object.fromEntries(
       API_PATHS.map((path) => [
         path,
