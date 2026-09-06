@@ -8,7 +8,9 @@ import { ApiError, getSurveySchema } from '../../lib/api';
 
 const ScaleInput = ({ item, value, onChange }) => (
   <div className="flex flex-wrap items-center gap-2">
-    {item.scale_low && <span className="text-xs text-stone-400">{item.scale_low}</span>}
+    {item.scale_low && (
+      <span className="shrink-0 text-xs text-stone-400">{item.scale_low}</span>
+    )}
     {item.options.map((opt) => {
       const selected = String(value) === String(opt);
       return (
@@ -26,6 +28,9 @@ const ScaleInput = ({ item, value, onChange }) => (
         </button>
       );
     })}
+    {item.scale_high && (
+      <span className="shrink-0 text-xs text-stone-400">{item.scale_high}</span>
+    )}
   </div>
 );
 
