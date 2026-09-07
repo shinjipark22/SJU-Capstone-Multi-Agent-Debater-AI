@@ -84,6 +84,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
 
   const turnCounter = useRef(0);
   const phaseRef = useRef('');
+  const guidedPhasesRef = useRef(new Set());
   const transcriptEndRef = useRef(null);
   const startedRef = useRef(false);
 
@@ -102,7 +103,9 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   }, [turns]);
 
   const loadGuide = async (id, phase, opponentId) => {
-    if (!ASSISTANT_PHASES.has(phase)) return;
+    // 한 단계에 waiting 이 여러 번 오므로(자유논박 방어/공격 등) 단계당 한 번만 띄운다.
+    if (!ASSISTANT_PHASES.has(phase) || guidedPhasesRef.current.has(phase)) return;
+    guidedPhasesRef.current.add(phase);
     try {
       const res = await getAssistantGuide(id, phase, opponentId);
       if (!res.text) return;
