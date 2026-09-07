@@ -652,7 +652,10 @@ def build_debate_graph():
     graph.add_conditional_edges("user_free_rebuttal_attack", route_free_rebuttal, {
         "continue": "ai_free_rebuttal_defense",
         "to_role_reversal": "ai_role_reversal",  # constructive: user의 최종 답변 후 역할반전
-        "end_debate": END,                        # debate: 자유논박 종료 후 바로 END
+        # debate: 바로 END 로 끊으면 사용자의 마지막 발언에 AI 가 답하지 못한 채 토론이 끝난다.
+        # AI 방어 노드를 한 번 더 거쳐(공격은 is_final_agent_turn 으로 스킵) 공격→방어·공격→방어
+        # 형태를 완성한 뒤, route_after_ai_free 가 END 로 보낸다.
+        "end_debate": "ai_free_rebuttal_defense",
     })
 
     # 역할반전 → 종합
