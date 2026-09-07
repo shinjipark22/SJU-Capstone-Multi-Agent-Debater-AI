@@ -22,6 +22,7 @@ const DebatePage = ({ topic, initRequest, visible, onRestart }) => {
   const [surveyWarning, setSurveyWarning] = useState(null);
   const [recordId, setRecordId] = useState(null);
   const [sessionId, setSessionId] = useState(null);
+  const [synthesis, setSynthesis] = useState('');
   const [evaluation, setEvaluation] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -113,8 +114,9 @@ const DebatePage = ({ topic, initRequest, visible, onRestart }) => {
           initRequest={initRequest}
           topic={topic}
           onSessionStart={handleSessionStart}
-          onFinished={(id) => {
+          onFinished={(id, synthesisDraft) => {
             setSessionId(id);
+            setSynthesis(synthesisDraft || '');
             setStep('post_answer');
           }}
         />
@@ -149,6 +151,8 @@ const DebatePage = ({ topic, initRequest, visible, onRestart }) => {
         <ResultView
           sessionId={sessionId}
           evaluation={evaluation}
+          mode={initRequest.mode}
+          synthesis={synthesis}
           surveyWarning={surveyWarning}
           onRetrySurvey={async () => {
             const warning = await saveSurveys(postSurvey);

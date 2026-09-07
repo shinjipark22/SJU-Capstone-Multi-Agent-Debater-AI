@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS debate_sessions (
     con_post_summary TEXT,
     graph_session_id TEXT,
     mode             TEXT,
+    synthesis_draft  TEXT,
     updated_at       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_graph_id ON debate_sessions(graph_session_id);
@@ -105,6 +106,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     existing = {row["name"] for row in conn.execute("PRAGMA table_info(debate_sessions)")}
     if "mode" not in existing:
         conn.execute("ALTER TABLE debate_sessions ADD COLUMN mode TEXT")
+    if "synthesis_draft" not in existing:
+        conn.execute("ALTER TABLE debate_sessions ADD COLUMN synthesis_draft TEXT")
 
 
 def _now() -> str:
@@ -170,6 +173,16 @@ def save_evaluation(
                 con["pre"].get("overall_summary", ""), con["post"].get("overall_summary", ""),
                 _now(), session_id,
             ),
+        )
+        return cur.rowcount > 0
+
+
+def save_synthesis(graph_session_id: str, synthesis_draft: str) -> bool:
+    """구성적 논쟁에서 합의한 최적해를 세션 행에 기록한다."""
+    with _write_lock, _connect() as conn:
+        cur = conn.execute(
+            "UPDATE debate_sessions SET synthesis_draft = ?, updated_at = ? WHERE graph_session_id = ?",
+            (synthesis_draft, _now(), graph_session_id),
         )
         return cur.rowcount > 0
 

@@ -32,10 +32,11 @@ const SideCard = ({ label, tone, side }) => {
   );
 };
 
-const ResultView = ({ sessionId, evaluation, surveyWarning, onRetrySurvey, onRestart }) => {
+const ResultView = ({ sessionId, evaluation, mode, synthesis, surveyWarning, onRetrySurvey, onRestart }) => {
   const [report, setReport] = useState(null);
   const [reportError, setReportError] = useState(null);
   const [retrying, setRetrying] = useState(false);
+  const isConstructive = mode === 'constructive';
 
   useEffect(() => {
     const controller = new AbortController();
@@ -80,21 +81,31 @@ const ResultView = ({ sessionId, evaluation, surveyWarning, onRetrySurvey, onRes
         </div>
       </section>
 
+      {/* 구성적 논쟁은 승패를 가리는 형식이 아니므로 우세 지수 대신 합의한 최적해를 보여준다. */}
+      {isConstructive && synthesis && (
+        <section className="mt-10 rounded-3xl border border-emerald-100 bg-emerald-50 p-6">
+          <h3 className="text-xl font-bold text-emerald-900">우리가 정한 최적해</h3>
+          <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed text-emerald-900">{synthesis}</p>
+        </section>
+      )}
+
       {report && (
         <>
-          <section className="mt-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-            <h3 className="text-xl font-bold text-stone-800">
-              {report.winner.side === 'DRAW' ? '무승부' : `${report.winner.side === 'PRO' ? '찬성' : '반대'} 우세`}
-            </h3>
-            <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-stone-100">
-              <div className="bg-blue-500" style={{ width: `${report.winner.pro_percent}%` }} />
-              <div className="bg-rose-500" style={{ width: `${report.winner.con_percent}%` }} />
-            </div>
-            <p className="mt-2 text-xs font-medium text-stone-500">
-              찬성 {report.winner.pro_percent.toFixed(0)}% · 반대 {report.winner.con_percent.toFixed(0)}%
-            </p>
-            <p className="mt-4 text-sm leading-relaxed text-stone-600">{report.winner.summary}</p>
-          </section>
+          {!isConstructive && (
+            <section className="mt-10 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+              <h3 className="text-xl font-bold text-stone-800">
+                {report.winner.side === 'DRAW' ? '무승부' : `${report.winner.side === 'PRO' ? '찬성' : '반대'} 우세`}
+              </h3>
+              <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-stone-100">
+                <div className="bg-blue-500" style={{ width: `${report.winner.pro_percent}%` }} />
+                <div className="bg-rose-500" style={{ width: `${report.winner.con_percent}%` }} />
+              </div>
+              <p className="mt-2 text-xs font-medium text-stone-500">
+                찬성 {report.winner.pro_percent.toFixed(0)}% · 반대 {report.winner.con_percent.toFixed(0)}%
+              </p>
+              <p className="mt-4 text-sm leading-relaxed text-stone-600">{report.winner.summary}</p>
+            </section>
+          )}
 
           {report.swing_turns.length > 0 && (
             <section className="mt-6">

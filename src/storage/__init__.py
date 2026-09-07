@@ -12,6 +12,7 @@ from src.storage.sessions import (
     load_turn_analyses,
     save_evaluation,
     save_survey,
+    save_synthesis,
     save_turn_analysis,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "load_turn_analyses",
     "save_evaluation",
     "save_survey",
+    "save_synthesis",
     "save_turn_analysis",
 ]

@@ -48,6 +48,7 @@ from src.storage import (
     list_sessions as store_list_sessions,
     save_evaluation as store_save_evaluation,
     save_survey as store_save_survey,
+    save_synthesis as store_save_synthesis,
 )
 from src.survey import PHASES as SURVEY_PHASES, load_schema as load_survey_schema
 
@@ -441,6 +442,12 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             final_state = debate_graph.get_state(config)
             if final_state and final_state.values:
                 synthesis_draft = final_state.values.get("synthesis_draft", "")
+            # 구성적 논쟁의 결과물이라 리포트·연구 데이터 양쪽에 필요하다.
+            if synthesis_draft:
+                try:
+                    store_save_synthesis(session_id, synthesis_draft)
+                except Exception:
+                    logger.exception("[storage] 최적해 저장 실패 (session=%s)", session_id)
             # 완료된 세션의 judge는 최종 리포트 생성을 위해 유지
             # (별도 엔드포인트 GET /debate/{id}/final-report에서 소비 후 정리)
 
