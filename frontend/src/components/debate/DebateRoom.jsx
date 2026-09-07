@@ -29,6 +29,23 @@ const TURN_KINDS = {
   },
 };
 
+// 단계가 바뀔 때 대화 흐름에 한 줄로 끼워 넣는 안내 (state.py 의 5단계 구성).
+const PHASE_NOTICES = {
+  opening: '1단계 입론입니다. 자신의 주장과 근거를 정리해 발언하세요.',
+  chained_rebuttal: '2단계 연쇄 논박입니다. 상대 입론의 약점을 짚어 반박하세요.',
+  free_rebuttal: '3단계 자유 논박입니다. 상대를 골라 방어와 공격을 주고받으세요.',
+  role_reversal: '4단계 역할 반전입니다. 상대 입장에 서서 그 주장을 옹호해보세요.',
+  synthesis: '5단계 종합입니다. 양측 의견을 모아 최적해를 만들어가세요.',
+};
+
+const StageNotice = ({ text }) => (
+  <div className="flex items-center gap-3 py-1">
+    <div className="h-px flex-1 bg-stone-200" />
+    <span className="shrink-0 text-xs font-semibold text-stone-400">{text}</span>
+    <div className="h-px flex-1 bg-stone-200" />
+  </div>
+);
+
 // 비비드 안내는 에이전트 발언과 같은 대화 흐름 안에 말풍선으로 띄운다.
 const GuideBubble = ({ text }) => (
   <div className="flex w-full justify-start">
@@ -66,6 +83,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   const [synthesis, setSynthesis] = useState('');   // 구성적 논쟁에서 합의한 최적해
 
   const turnCounter = useRef(0);
+  const phaseRef = useRef('');
   const transcriptEndRef = useRef(null);
   const startedRef = useRef(false);
 
@@ -109,7 +127,14 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
           turnCounter.current += 1;
           // 분석 결과는 화면에 띄우지 않고 실시간 평가 지수 갱신에만 쓴다 (상세는 최종 리포트에서).
           const { entry, analysis } = evt.data;
-          setTurns((prev) => [...prev, { key: `${turnCounter.current}-${entry.speaker_id}`, entry }]);
+          const notice =
+            entry.phase && entry.phase !== phaseRef.current ? PHASE_NOTICES[entry.phase] : null;
+          if (notice) phaseRef.current = entry.phase;
+          setTurns((prev) => [
+            ...prev,
+            ...(notice ? [{ key: `phase-${entry.phase}`, notice }] : []),
+            { key: `${turnCounter.current}-${entry.speaker_id}`, entry },
+          ]);
           if (analysis?.pro_percent != null && analysis?.con_percent != null) {
             setLivePercents({ pro: analysis.pro_percent, con: analysis.con_percent });
           }
@@ -189,13 +214,11 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
 
       <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto rounded-3xl px-1 py-2 hide-scrollbar">
-            {turns.map((t) =>
-              t.guide ? (
-                <GuideBubble key={t.key} text={t.guide} />
-              ) : (
-                <TurnBubble key={t.key} entry={t.entry} />
-              ),
-            )}
+            {turns.map((t) => {
+              if (t.notice) return <StageNotice key={t.key} text={t.notice} />;
+              if (t.guide) return <GuideBubble key={t.key} text={t.guide} />;
+              return <TurnBubble key={t.key} entry={t.entry} />;
+            })}
             {isStreaming && (
               <p className="py-4 text-center text-sm font-medium text-stone-400">AI가 발언을 생성하는 중...</p>
             )}
