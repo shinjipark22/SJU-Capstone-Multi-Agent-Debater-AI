@@ -1,0 +1,19 @@
+[Unit]
+Description=Multi-Agent Debater AI - FastAPI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/debate
+EnvironmentFile=/opt/debate/.env
+# ~/.local 에 낡은 langchain-core 가 있으면 venv 패키지를 가려 import 가 깨진다.
+Environment=PYTHONNOUSERSITE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/debate/.venv/bin/uvicorn src.main:app --host 127.0.0.1 --port 8001
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
