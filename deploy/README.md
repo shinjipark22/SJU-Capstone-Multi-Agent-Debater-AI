@@ -35,6 +35,19 @@ vLLM 을 공개 터널(trycloudflare)로 노출하지 않는다. 이유 두 가�
 
 연구실 머신에서 서버로 나가는 리버스 터널을 건다 (방화벽 설정 불필요, 바깥에서 GPU 가 안 보임).
 
+상시 유지는 keepalive 스크립트를 crontab 에 등록해 쓴다 (sudo·autossh 없이도 동작).
+
+```bash
+bash scripts/serve/gpu_tunnel_keepalive.sh     # 끊기면 자동 재연결
+
+# 재부팅 후 자동 시작 + 5분마다 생존 확인
+crontab -e
+# @reboot sleep 60 && /bin/bash <경로>/scripts/serve/gpu_tunnel_keepalive.sh >> $HOME/gpu_tunnel.log 2>&1
+# */5 * * * * pgrep -f "8000:127.0.0.1:8000" > /dev/null || /bin/bash <경로>/scripts/serve/gpu_tunnel_keepalive.sh >> $HOME/gpu_tunnel.log 2>&1
+```
+
+autossh 를 쓸 수 있는 환경이라면 아래도 동일하게 동작한다.
+
 ```bash
 # 연구실 머신에서 1회 준비
 sudo apt install -y autossh
