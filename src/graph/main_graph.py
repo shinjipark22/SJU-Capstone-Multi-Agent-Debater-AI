@@ -34,6 +34,8 @@ from src.phase1.stage3_free_rebuttal.nodes import (
 )
 from src.phase1.stage4_role_reversal.nodes import role_reversal_node
 from src.phase1.stage5_synthesis.nodes import (
+    is_final_synthesis_round,
+    should_end_synthesis,
     synthesis_propose_one_node,
     synthesis_discuss_one_node,
 )
@@ -488,14 +490,14 @@ def route_synthesis_step(state: DebateState) -> str:
 
 
 def user_synthesis_node(state: DebateState) -> dict:
-    """사용자 종합 의견 — interrupt로 대기. Round 3에는 개별 최적해 선언 유도.
+    """사용자 종합 의견 — interrupt로 대기. 마지막 라운드에는 개별 최적해 선언 유도.
 
     분리 후 동작: 사용자 발언 후 다음 discuss 라운드를 위해 synthesis_discuss_idx 를 0 으로 리셋.
     """
-    is_final_round = state.get("synthesis_user_turns", 0) >= 2
+    is_final_round = is_final_synthesis_round(state)
     if is_final_round:
         user_content = interrupt(
-            "Round 3: '제가 생각하는 최적해는 ~입니다' 형식으로 개별 최적해를 선언해주세요 (2~3문장)"
+            "마지막 라운드: '제가 생각하는 최적해는 ~입니다' 형식으로 개별 최적해를 선언해주세요 (2~3문장)"
         )
     else:
         user_content = interrupt("최적해에 대한 의견을 입력하세요")
@@ -574,11 +576,11 @@ def route_after_ai_free(state: DebateState) -> str:
 
 
 def route_synthesis(state: DebateState) -> str:
-    """종합 회의 루프 라우터: 사용자 3턴 완료 → finalize, 아니면 continue.
+    """종합 회의 루프 라우터: 사용자 턴 SYNTHESIS_ROUNDS 개 완료 → finalize, 아니면 continue.
 
-    기대 흐름: (에이전트들 + 사용자) × 3라운드 → 마지막에 user_finalize.
+    기대 흐름: (에이전트들 + 사용자) × SYNTHESIS_ROUNDS 라운드 → 마지막에 user_finalize.
     """
-    if state.get("synthesis_user_turns", 0) >= 3:
+    if should_end_synthesis(state):
         return "finalize"
     return "continue"
 
