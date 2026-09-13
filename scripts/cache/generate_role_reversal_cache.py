@@ -60,6 +60,15 @@ CACHE_PROMPT_VERSION = "v1"
 ALL_VARIANTS = (1, 2, 3)
 
 
+def _load_focus_queries(topic_id: str) -> dict:
+    """data/search_queries.json 의 {PRO: [...], CON: [...]} — 없으면 빈 dict."""
+    path = _ROOT / "data" / "search_queries.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get(topic_id, {}) or {}
+    except Exception:
+        return {}
+
+
 def _load_topic(topic_id: str) -> dict:
     with _TOPICS_PATH.open(encoding="utf-8") as f:
         data = json.load(f)
@@ -174,19 +183,25 @@ def main():
             print(f"  {path.name}  ← reversed={s}/i{i}/v{v}")
         return
 
-    # 사전 검색은 (topic, reversed_stance) 단위로 1회만 수행 — variant 마다 동일
-    search_per_stance = {}
-    search_query_per_stance = {}
-    for s in stances:
+    # 사전 검색은 (reversed_stance, variant) 단위. 입론 캐시와 같은 검색 초점(search_queries.json)을
+    # variant 순서대로 하나씩 써서 변형마다 다른 구체 사례가 들어가게 한다 (v1→f0, v2→f1, v3→f2).
+    # 초점이 없으면 예전처럼 "<논제> <진영> 논거 통계 자료" 한 번으로 폴백.
+    focus_map = _load_focus_queries(topic["id"])
+    search_cache: dict = {}
+
+    def _search_for(s: str, v: int):
         stance_kr = "찬성" if s == "PRO" else "반대"
-        query = f"{topic['title']} {stance_kr} 논거 통계 자료"
-        search_query_per_stance[s] = query
-        print(f"[사전 검색] reversed={s}: {query[:60]}", flush=True)
-        try:
-            search_per_stance[s] = str(safe_search_invoke({"query": query}))[:2000]
-        except Exception as e:
-            print(f"  [경고] 검색 실패: {e}")
-            search_per_stance[s] = ""
+        focuses = focus_map.get(s) or []
+        query = (f"{topic['title']} {stance_kr} 논거: {focuses[(v - 1) % len(focuses)]}"
+                 if focuses else f"{topic['title']} {stance_kr} 논거 통계 자료")
+        if query not in search_cache:
+            print(f"[사전 검색] reversed={s} v{v}: {query[:70]}", flush=True)
+            try:
+                search_cache[query] = str(safe_search_invoke({"query": query}))[:2000]
+            except Exception as e:
+                print(f"  [경고] 검색 실패: {e}")
+                search_cache[query] = ""
+        return search_cache[query], query
 
     generated, skipped, failed = 0, 0, 0
     t_start = time.time()
@@ -207,10 +222,11 @@ def main():
         print(f"  reversed={reversed_stance} i{intensity} v{variant_idx}")
 
         try:
+            search_text, search_query = _search_for(reversed_stance, variant_idx)
             entry = _generate_one(
                 topic, reversed_stance, intensity, variant_idx,
-                search_text=search_per_stance.get(reversed_stance, ""),
-                search_query=search_query_per_stance.get(reversed_stance, ""),
+                search_text=search_text,
+                search_query=search_query,
             )
             path.write_text(json.dumps(entry, ensure_ascii=False, indent=2), encoding="utf-8")
             print(f"  → 저장: {path.name}")
