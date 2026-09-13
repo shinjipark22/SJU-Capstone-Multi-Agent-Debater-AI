@@ -23,7 +23,7 @@ const StanceView = ({ topic, userStance, setUserStance, visible }) => {
           {claim}
         </span>
         {desc && (
-          <span className={`mt-1 text-left text-[14px] leading-relaxed ${dimmed ? 'text-stone-300' : 'text-stone-500'}`}>
+          <span className={`mt-1 break-keep text-left text-[14px] leading-relaxed ${dimmed ? 'text-stone-300' : 'text-stone-500'}`}>
             {desc}
           </span>
         )}
@@ -40,12 +40,17 @@ const StanceView = ({ topic, userStance, setUserStance, visible }) => {
         <span className="inline-block rounded-full bg-stone-100 px-4 py-1 text-sm font-semibold text-stone-500">
           오늘의 논제
         </span>
-        <h2 className="mt-3 text-[24px] font-extrabold leading-snug tracking-tight text-stone-800 md:text-[28px]">
+        <h2 className="mx-auto mt-3 max-w-2xl break-keep text-balance text-[24px] font-extrabold leading-snug tracking-tight text-stone-800 md:text-[28px]">
           {topic?.title ?? '논제를 불러오는 중...'}
         </h2>
         {(topic?.question || topic?.description_short) && (
-          <p className="mt-3 text-[14px] leading-relaxed text-stone-500 md:text-[15px]">
+          <p className="mt-4 break-keep text-[16px] font-semibold text-stone-600 md:text-[17px]">
             {topic.question ?? topic.description_short}
+          </p>
+        )}
+        {topic?.question_note && (
+          <p className="mx-auto mt-1.5 max-w-xl break-keep text-balance text-[14px] leading-relaxed text-stone-500">
+            {topic.question_note}
           </p>
         )}
       </div>
