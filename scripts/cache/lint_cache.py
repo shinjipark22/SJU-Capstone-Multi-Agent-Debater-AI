@@ -38,7 +38,9 @@ OPENING_SECTIONS = ("논거 1", "논거 2", "결론")
 def check(kind: str, text: str) -> list[str]:
     problems: list[str] = []
     stripped = text.strip()
-    if len(stripped) < 200:
+    # 연쇄논박 캐시는 설계상 3~4문장(150~250자)이라 기준을 낮춘다.
+    min_len = 120 if kind == "ai_rebuttals" else 200
+    if len(stripped) < min_len:
         problems.append(f"본문 짧음 ({len(stripped)}자)")
     if m := RE_REPEAT.search(stripped):
         problems.append(f"문자 반복 붕괴: …{stripped[max(0, m.start()-12):m.end()+4]!r}")
