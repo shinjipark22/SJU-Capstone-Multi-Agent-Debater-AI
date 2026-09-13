@@ -58,9 +58,20 @@ def build_summary_user_msg(
     pro_pct: float,
     con_pct: float,
     stats: dict,
+    pro_label: str = "",
+    con_label: str = "",
 ) -> str:
-    """승자/우세도/진영별 평균을 담은 user 메시지."""
+    """승자/우세도/진영별 평균을 담은 user 메시지.
+
+    pro_label/con_label 을 주면 각 진영이 실제로 무엇을 주장했는지 명시한다. 주제 제목만 보고
+    LLM 이 진영을 추측하다 승자 진영에 상대 주장을 붙이는 오류가 있었다.
+    """
     lines = [f"토론 주제: {topic}", ""]
+    if pro_label or con_label:
+        lines.append(f"PRO(찬성) 진영의 주장: {pro_label or '(미상)'}")
+        lines.append(f"CON(반대) 진영의 주장: {con_label or '(미상)'}")
+        lines.append("승자 진영을 언급할 때는 반드시 위에 적힌 그 진영의 주장만 사용하세요.")
+        lines.append("")
     lines.append(f"최종 우세도: PRO {pro_pct:.1f}% vs CON {con_pct:.1f}%")
     lines.append(f"승자: {winner_side}")
     lines.append("")
