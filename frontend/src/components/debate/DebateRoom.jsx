@@ -18,13 +18,13 @@ const WAITING_LABELS = {
 const TURN_KINDS = {
   user_free_rebuttal_defense: {
     badge: '방어 차례',
-    label: '상대의 공격에 답하는 발언을 작성하세요',
+    label: (who) => `${who}의 공격에 답하는 발언을 작성하세요`,
     tone: 'bg-blue-50 text-blue-600',
     placeholder: '상대가 지적한 부분에 답변해보세요...',
   },
   user_free_rebuttal_attack: {
     badge: '공격 차례',
-    label: '상대 논거를 공격하는 발언을 작성하세요',
+    label: (who) => `${who}의 논거를 공격하는 발언을 작성하세요`,
     tone: 'bg-rose-50 text-rose-600',
     placeholder: '상대 논거의 약점을 짚어 공격해보세요...',
   },
@@ -81,6 +81,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   const [livePercents, setLivePercents] = useState(null);
   const [draft, setDraft] = useState('');
   const [selectedOpponent, setSelectedOpponent] = useState(null);
+  const [chosenOpponent, setChosenOpponent] = useState(null);   // 자유논박에서 확정한 상대
   const [synthesis, setSynthesis] = useState('');   // 구성적 논쟁에서 합의한 최적해
 
   const labelOf = makeSpeakerLabeler(initRequest);
@@ -173,6 +174,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
 
     if (waitingFor === 'user_select_opponent') {
       if (!selectedOpponent) return;
+      setChosenOpponent(selectedOpponent);
       consumeStream(submitUserInput(sessionId, { content: selectedOpponent, target_id: selectedOpponent }));
       return;
     }
@@ -183,8 +185,21 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
     setDraft('');
   };
 
+  // 연쇄논박의 반박 대상 = 가장 최근에 나를 공격한 에이전트 (백엔드 user_rebuttal_node 와 같은 규칙)
+  const lastAttacker = [...turns]
+    .reverse()
+    .map((t) => t.entry)
+    .find((e) => e && e.phase === 'chained_rebuttal' && e.speaker_id !== 'user' && e.target_id === 'user');
+  const rebuttalTargetId = lastAttacker?.speaker_id ?? opposingAgents[0] ?? null;
+  const freeTargetId = chosenOpponent ?? opposingAgents[0] ?? null;
+
   const turnKind = TURN_KINDS[waitingDetail] ?? null;
-  const waitingLabel = turnKind?.label ?? WAITING_LABELS[waitingFor] ?? '';
+  let waitingLabel = WAITING_LABELS[waitingFor] ?? '';
+  if (turnKind) {
+    waitingLabel = turnKind.label(freeTargetId ? labelOf(freeTargetId) : '상대');
+  } else if (waitingFor === 'user_rebuttal' && rebuttalTargetId) {
+    waitingLabel = `${labelOf(rebuttalTargetId)}의 발언에 반박하세요`;
+  }
 
   return (
     <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-4 pb-6 pt-6">
