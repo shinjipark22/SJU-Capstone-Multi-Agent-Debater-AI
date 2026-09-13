@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, getAssistantGuide, initDebate, submitUserInput } from '../../lib/api';
+import { makeSpeakerLabeler } from '../../lib/speakers';
 import Markdown from './Markdown';
 import TurnBubble from './TurnBubble';
 
@@ -81,6 +82,8 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   const [draft, setDraft] = useState('');
   const [selectedOpponent, setSelectedOpponent] = useState(null);
   const [synthesis, setSynthesis] = useState('');   // 구성적 논쟁에서 합의한 최적해
+
+  const labelOf = makeSpeakerLabeler(initRequest);
 
   const turnCounter = useRef(0);
   const phaseRef = useRef('');
@@ -222,7 +225,14 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
             {turns.map((t) => {
               if (t.notice) return <StageNotice key={t.key} text={t.notice} />;
               if (t.guide) return <GuideBubble key={t.key} text={t.guide} />;
-              return <TurnBubble key={t.key} entry={t.entry} />;
+              return (
+                <TurnBubble
+                  key={t.key}
+                  entry={t.entry}
+                  speakerLabel={labelOf(t.entry.speaker_id)}
+                  targetLabel={t.entry.target_id ? labelOf(t.entry.target_id) : null}
+                />
+              );
             })}
             {isStreaming && (
               <p className="py-4 text-center text-sm font-medium text-stone-400">AI가 발언을 생성하는 중...</p>
@@ -261,7 +271,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
                           : 'border border-stone-200 bg-white text-stone-600 hover:border-stone-300'
                       }`}
                     >
-                      {id.replace('agent_', 'AI ')}
+                      {labelOf(id)}
                     </button>
                   ))}
                   <button

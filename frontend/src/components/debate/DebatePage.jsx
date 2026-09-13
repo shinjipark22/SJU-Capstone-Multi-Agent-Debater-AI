@@ -4,6 +4,7 @@ import AnswerForm from './AnswerForm';
 import DebateRoom from './DebateRoom';
 import ResultView from './ResultView';
 import SurveyForm from './SurveyForm';
+import { makeSpeakerLabeler } from '../../lib/speakers';
 
 /**
  * 토론 전체 흐름:
@@ -160,6 +161,7 @@ const DebatePage = ({ topic, initRequest, visible, onRestart }) => {
             return warning;
           }}
           onRestart={onRestart}
+          labelOf={makeSpeakerLabeler(initRequest)}
         />
       )}
     </div>
