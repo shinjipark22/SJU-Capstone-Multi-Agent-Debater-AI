@@ -185,29 +185,31 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
 
   return (
     <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-4 pb-6 pt-6">
-      <header className="mb-4 shrink-0 rounded-3xl border border-stone-200 bg-white/90 px-6 py-5 shadow-sm">
-        <h2 className="text-lg font-extrabold leading-snug text-stone-800">{topic.title}</h2>
-        <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-600">찬성 · {topic.pro}</span>
-          <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-600">반대 · {topic.con}</span>
-          <span className="rounded-full bg-stone-100 px-3 py-1 text-stone-600">{initRequest.debate_format}</span>
+      {/* 상단은 채팅 공간을 최대한 남기도록 한 줄로: 왼쪽 제목·진영, 오른쪽 실시간 평가(토론 모드만) */}
+      <header className="mb-3 flex shrink-0 items-center gap-5 rounded-2xl border border-stone-200 bg-white/90 px-5 py-3 shadow-sm">
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-[15px] font-extrabold leading-snug text-stone-800" title={topic.title}>
+            {topic.title}
+          </h2>
+          <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold">
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-600">찬성 · {topic.pro}</span>
+            <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-600">반대 · {topic.con}</span>
+            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-stone-500">{initRequest.debate_format}</span>
+          </div>
         </div>
 
-        {/* 실시간 평가 — 진영별 지수이동평균(EMA) 점수에서 나온 우세 지수. 턴별 상세 분석은 노출하지 않는다.
-            구성적 논쟁은 승패를 겨루는 형식이 아니므로 우세 지수를 띄우지 않는다 (분석·저장은 그대로 진행). */}
+        {/* 실시간 평가 — 진영별 지수이동평균(EMA) 기반 우세 지수. 구성적 논쟁은 승패 형식이 아니라 표시하지 않는다. */}
         {livePercents && initRequest.mode !== 'constructive' && (
-          <div className="mt-4">
-            <div className="flex items-baseline justify-center gap-2">
-              <span className="text-xs font-semibold text-stone-400">실시간 평가</span>
-              <span className="text-xl font-extrabold tabular-nums text-blue-500">
-                {livePercents.pro.toFixed(0)}
-              </span>
-              <span className="text-lg font-bold text-stone-300">:</span>
-              <span className="text-xl font-extrabold tabular-nums text-rose-500">
-                {livePercents.con.toFixed(0)}
+          <div className="w-44 shrink-0">
+            <div className="flex items-baseline justify-between text-[11px] font-semibold text-stone-400">
+              <span>실시간 평가</span>
+              <span className="tabular-nums text-sm">
+                <span className="font-extrabold text-blue-500">{livePercents.pro.toFixed(0)}</span>
+                <span className="mx-1 text-stone-300">:</span>
+                <span className="font-extrabold text-rose-500">{livePercents.con.toFixed(0)}</span>
               </span>
             </div>
-            <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-stone-100">
+            <div className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-stone-100">
               <div className="bg-blue-500 transition-all duration-500" style={{ width: `${livePercents.pro}%` }} />
               <div className="bg-rose-500 transition-all duration-500" style={{ width: `${livePercents.con}%` }} />
             </div>
