@@ -69,6 +69,20 @@ def _load_focus_queries(topic_id: str) -> dict:
         return {}
 
 
+def _load_cached_openings(topic_id: str, stance: str, intensity: int, variant_idx: int) -> list:
+    """같은 variant 의 해당 진영 입론 캐시(f0, f1)를 읽는다. 없으면 빈 리스트."""
+    out = []
+    for focus in (0, 1):
+        path = _ROOT / "data" / "cache" / "openings" / f"{topic_id}_{stance}_i{intensity}_f{focus}__v{variant_idx}.json"
+        try:
+            speech = json.loads(path.read_text(encoding="utf-8")).get("speech", "")
+            if speech:
+                out.append(speech)
+        except Exception:
+            pass
+    return out
+
+
 def _load_topic(topic_id: str) -> dict:
     with _TOPICS_PATH.open(encoding="utf-8") as f:
         data = json.load(f)
@@ -113,12 +127,21 @@ def _generate_one(
     agent = _build_agent(topic, original_stance, intensity)
     name = _agent_name(reversed_stance)
 
+    # 실제 토론에서는 옹호할 진영의 기존 입론(debate_history)을 참고하는데, 캐시 생성 시점엔
+    # 히스토리가 없다. 대신 같은 variant 의 입론 캐시를 참고 자료로 넣어 구체 사례가 이어지게 한다
+    # (어시스턴트 역할반전 안내가 입론 캐시를 재료로 쓰는 것과 같은 방식).
+    openings = _load_cached_openings(topic["id"], reversed_stance, intensity, variant_idx)
+    opponent_openings = (
+        "\n\n".join(f"[{_agent_name(reversed_stance)[:2]}{i + 1} 입론]\n{sp}" for i, sp in enumerate(openings))
+        if openings else
+        "(캐시 생성 — 토론 히스토리 없음. 토픽과 검색 자료 기반으로 자유롭게 입론하라)"
+    )
     prompt = _build_role_reversal_prompt(
         topic=topic["title"],
         reversed_stance=reversed_stance,
         agent_name=name,
         search_results=search_text,
-        opponent_openings="(캐시 생성 — 토론 히스토리 없음. 토픽과 검색 자료 기반으로 자유롭게 입론하라)",
+        opponent_openings=opponent_openings,
     )
 
     t0 = time.time()
