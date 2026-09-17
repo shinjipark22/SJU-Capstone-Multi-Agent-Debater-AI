@@ -74,8 +74,9 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
           onSessionStart?.(evt.data);
         } else if (evt.event === 'turn') {
           turnCounter.current += 1;
+          // 분석 결과는 화면에 띄우지 않고 실시간 평가 지수 갱신에만 쓴다 (상세는 최종 리포트에서).
           const { entry, analysis } = evt.data;
-          setTurns((prev) => [...prev, { key: `${turnCounter.current}-${entry.speaker_id}`, entry, analysis }]);
+          setTurns((prev) => [...prev, { key: `${turnCounter.current}-${entry.speaker_id}`, entry }]);
           if (analysis?.pro_percent != null && analysis?.con_percent != null) {
             setLivePercents({ pro: analysis.pro_percent, con: analysis.con_percent });
           }
@@ -129,22 +130,30 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
           <span className="rounded-full bg-stone-100 px-3 py-1 text-stone-600">{initRequest.debate_format}</span>
         </div>
 
+        {/* 실시간 평가 — 진영별 지수이동평균(EMA) 점수에서 나온 우세 지수. 턴별 상세 분석은 노출하지 않는다. */}
         {livePercents && (
           <div className="mt-4">
-            <div className="flex h-3 overflow-hidden rounded-full bg-stone-100">
+            <div className="flex items-baseline justify-center gap-2">
+              <span className="text-xs font-semibold text-stone-400">실시간 평가</span>
+              <span className="text-xl font-extrabold tabular-nums text-blue-500">
+                {livePercents.pro.toFixed(0)}
+              </span>
+              <span className="text-lg font-bold text-stone-300">:</span>
+              <span className="text-xl font-extrabold tabular-nums text-rose-500">
+                {livePercents.con.toFixed(0)}
+              </span>
+            </div>
+            <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-stone-100">
               <div className="bg-blue-500 transition-all duration-500" style={{ width: `${livePercents.pro}%` }} />
               <div className="bg-rose-500 transition-all duration-500" style={{ width: `${livePercents.con}%` }} />
             </div>
-            <p className="mt-1.5 text-xs font-medium text-stone-500">
-              실시간 우세 — 찬성 {livePercents.pro.toFixed(0)}% · 반대 {livePercents.con.toFixed(0)}%
-            </p>
           </div>
         )}
       </header>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto rounded-3xl px-1 py-2 hide-scrollbar">
         {turns.map((t) => (
-          <TurnBubble key={t.key} entry={t.entry} analysis={t.analysis} />
+          <TurnBubble key={t.key} entry={t.entry} />
         ))}
         {isStreaming && (
           <p className="py-4 text-center text-sm font-medium text-stone-400">AI가 발언을 생성하는 중...</p>
