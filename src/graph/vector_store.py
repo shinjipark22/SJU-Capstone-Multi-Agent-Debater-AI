@@ -73,7 +73,7 @@ def reset_session_urls() -> None:
         _used_urls_by_stance.clear()
         _current_stance = None
 
-_SIMILARITY_THRESHOLD = float(os.environ.get("PINECONE_THRESHOLD", "0.85"))
+_SIMILARITY_THRESHOLD = float(os.environ.get("PINECONE_THRESHOLD", "0.86"))
 _CHUNK_SIZE = int(os.environ.get("PINECONE_CHUNK_SIZE", "500"))
 _CHUNK_OVERLAP = int(os.environ.get("PINECONE_CHUNK_OVERLAP", "100"))
 _DEFAULT_NAMESPACE = "search-cache"
