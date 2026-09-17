@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json as pyjson
+import logging
 import re
 from typing import Optional
 
@@ -143,6 +144,41 @@ def _build_context(
     return pyjson.dumps(ctx, ensure_ascii=False, indent=2)
 
 
+# 중국어 한자 2자 이상 연속, 일본어 가나, 중국어 문장부호. (한국 언론식 단독 한자 美·中 은 허용)
+logger = logging.getLogger(__name__)
+
+_RE_FOREIGN = re.compile(r"[一-鿿]{2,}|[ぁ-ゟ゠-ヿ]|[。，]")
+_KOREAN_ONLY_NOTE = (
+    "\n\n[중요] 반드시 한국어로만 작성하세요. 중국어·일본어 문자를 한 글자도 쓰지 마세요. "
+    "발언을 다른 언어로 번역하거나 인용하지 마세요."
+)
+
+
+def _has_foreign(text: str) -> bool:
+    return bool(_RE_FOREIGN.search(text or ""))
+
+
+def _judge_dimension(system_prompt: str, user_msg: str) -> dict:
+    """차원 평가 1회 호출 + 파싱. 요약에 중국어·일본어가 섞이면 한국어 강제 지시로 1회 재시도하고,
+    그래도 실패하면 점수는 살리고 요약만 중립 문구로 바꾼다.
+
+    심사 요약은 최종 리포트(코치 피드백·주요 발언 해설)의 입력이 되므로, 여기서 새면
+    "참가자가 외국어를 썼다"는 식의 엉뚱한 피드백으로 번진다.
+    """
+    data = _safe_parse_dimension(qwen_chat(system_prompt, user_msg, 400, '{"score":'))
+    if not _has_foreign(data.get("summary", "")):
+        return data
+    logger.warning("[judge] 요약에 외국어 유출 → 한국어 강제 재시도: %r", data.get("summary", "")[:60])
+    retry = _safe_parse_dimension(
+        qwen_chat(system_prompt + _KOREAN_ONLY_NOTE, user_msg, 400, '{"score":')
+    )
+    if not _has_foreign(retry.get("summary", "")):
+        return retry
+    logger.warning("[judge] 재시도도 외국어 포함 → 요약 대체")
+    retry["summary"] = "평가 근거 요약을 생성하지 못했습니다."
+    return retry
+
+
 def _extract_json_object(raw: str) -> dict:
     raw = (raw or "").strip()
     if not raw:
@@ -267,14 +303,20 @@ class DebatrixJudge:
         print("  4-way 병렬 심사 중...", end=" ")
         with ThreadPoolExecutor(max_workers=4) as pool:
             f_sum = pool.submit(_summarize_speech, speech_content)
-            f_arg = pool.submit(qwen_chat, ARGUMENT_PROMPT, ctx_msg, 400, '{"score":')
-            f_src = pool.submit(qwen_chat, EVIDENCE_PROMPT, evidence_ctx_msg, 400, '{"score":')
-            f_lang = pool.submit(qwen_chat, LANGUAGE_PROMPT, ctx_msg, 400, '{"score":')
+            f_arg = pool.submit(_judge_dimension, ARGUMENT_PROMPT, ctx_msg)
+            f_src = pool.submit(_judge_dimension, EVIDENCE_PROMPT, evidence_ctx_msg)
+            f_lang = pool.submit(_judge_dimension, LANGUAGE_PROMPT, ctx_msg)
             speech_summary = f_sum.result()
-            arg_raw = f_arg.result()
-            src_raw = f_src.result()
-            lang_raw = f_lang.result()
+            argument = f_arg.result()
+            evidence = f_src.result()
+            language = f_lang.result()
         print("완료")
+        # 발언 요약도 다음 턴 프롬프트에 들어가므로 외국어가 섞이면 한 번 더 시도한다.
+        if _has_foreign(speech_summary):
+            logger.warning("[judge] 발언 요약에 외국어 유출 → 재시도")
+            speech_summary = _summarize_speech(speech_content)
+            if _has_foreign(speech_summary):
+                speech_summary = _RE_FOREIGN.sub("", speech_summary)
 
         # 3. 발언 요약 → speech_memory에 저장 (다음 턴 참조용)
         self.memory.add_speech(
@@ -285,10 +327,6 @@ class DebatrixJudge:
             target_id=target_id,
             summary=speech_summary,
         )
-
-        argument = _safe_parse_dimension(arg_raw)
-        evidence = _safe_parse_dimension(src_raw)
-        language = _safe_parse_dimension(lang_raw)
 
         overall_summary = _compose_overall_summary(argument, evidence, language)
         memory_summary = _compose_memory_summary(argument, evidence, language, phase)

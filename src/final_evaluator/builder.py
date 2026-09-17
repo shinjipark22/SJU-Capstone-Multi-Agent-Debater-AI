@@ -89,8 +89,11 @@ def _safe_llm_text(
     return fallback
 
 
-def _safe_summary(topic: str, winner_side: str, pro: float, con: float, stats: dict) -> str:
-    msg = build_summary_user_msg(topic, winner_side, pro, con, stats)
+def _safe_summary(
+    topic: str, winner_side: str, pro: float, con: float, stats: dict,
+    pro_label: str = "", con_label: str = "",
+) -> str:
+    msg = build_summary_user_msg(topic, winner_side, pro, con, stats, pro_label, con_label)
     fallback = f"{winner_side} 진영이 우세로 평가되었습니다 (PRO {pro:.1f}% vs CON {con:.1f}%)."
     return _safe_llm_text(SYSTEM_SUMMARY, msg, fallback, "summary", max_new_tokens=200)
 
@@ -202,7 +205,7 @@ def _coach_response_valid(text: str) -> Tuple[bool, str]:
 
 def _coach_field(system: str, msg: str, fallback: str, label: str) -> str:
     """단일 코치 필드(칭찬/지적/제안) — _safe_llm_text 사용."""
-    return _safe_llm_text(system, msg, fallback, f"coach_{label}", max_new_tokens=180)
+    return _safe_llm_text(system, msg, fallback, f"coach_{label}", max_new_tokens=260)
 
 
 def _safe_coach(dim_label: str, best_row: Optional[dict], worst_row: Optional[dict]) -> DimensionFeedback:
@@ -265,6 +268,8 @@ def build_final_report(
     analysis_memory: List[dict],
     speech_memory: List[dict],
     live_debate: dict,
+    pro_label: str = "",
+    con_label: str = "",
 ) -> FinalReport:
     """분석 메모리로부터 최종 리포트 빌드.
 
@@ -283,11 +288,16 @@ def build_final_report(
     swing_candidates = select_swing_turns(analysis_memory, speech_memory, top_k=5)
 
     # 5. 지표별 최고/최저 턴 선정 (코치 피드백용)
-    extremes = find_extreme_per_dimension(analysis_memory, speech_memory)
+    # 코치 피드백은 참가자에게 주는 것이므로 참가자 턴만 대상으로 뽑는다.
+    # 전체 턴에서 뽑으면 "잘한 점"이 AI 발언을 칭찬하는 문장이 된다.
+    user_rows = [a for a in analysis_memory if a.get("speaker_id") == "user"]
+    extremes = find_extreme_per_dimension(user_rows or analysis_memory, speech_memory)
 
     # 6. LLM 호출을 병렬화 (요약 1 + swing N + coach 3)
     with ThreadPoolExecutor(max_workers=6) as pool:
-        f_summary = pool.submit(_safe_summary, topic, winner_side, pro_pct, con_pct, stats_dict)
+        f_summary = pool.submit(
+            _safe_summary, topic, winner_side, pro_pct, con_pct, stats_dict, pro_label, con_label
+        )
         f_swings = [pool.submit(_safe_swing_narrative, t) for t in swing_candidates]
         f_arg = pool.submit(_safe_coach, "논증", extremes["argument"]["best"], extremes["argument"]["worst"])
         f_evi = pool.submit(_safe_coach, "근거", extremes["evidence"]["best"], extremes["evidence"]["worst"])

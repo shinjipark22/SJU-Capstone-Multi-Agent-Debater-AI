@@ -527,6 +527,10 @@ def get_final_report(session_id: str, refresh: bool = False):
         debate_format = values.get("debate_format") or record.get("debate_format") or ""
         user_stance = values.get("user_stance") or record.get("user_stance") or "PRO"
 
+    # 요약 LLM 이 PRO/CON 의 뜻을 추측하지 않도록 진영 라벨을 넘긴다.
+    topic_id = values.get("topic_id") or (store_get_session_by_graph_id(session_id) or {}).get("topic") or ""
+    topic_meta = _load_topic_for_evaluation(topic_id) if topic_id else {}
+
     if not analysis_memory:
         raise HTTPException(
             status_code=404,
@@ -541,6 +545,8 @@ def get_final_report(session_id: str, refresh: bool = False):
             analysis_memory=analysis_memory,
             speech_memory=speech_memory,
             live_debate=live_debate,
+            pro_label=topic_meta.get("pro", ""),
+            con_label=topic_meta.get("con", ""),
         )
     except Exception as e:
         logger.exception("[final-report] 빌드 실패: %s", e)
