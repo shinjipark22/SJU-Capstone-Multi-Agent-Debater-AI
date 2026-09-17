@@ -919,13 +919,24 @@ def get_survey_schema(
 
 @app.post("/sessions/{session_id}/survey")
 def submit_survey(session_id: int, request: SurveySubmitRequest):
-    """토론 전·후 설문 응답 저장. 같은 단계를 다시 제출하면 덮어쓴다."""
-    record = store_get_session(session_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="세션 레코드를 찾을 수 없습니다.")
+    """토론 전·후 설문 응답 저장. 같은 단계를 다시 제출하면 덮어쓴다.
 
-    saved = store_save_survey(session_id, request.phase, request.answers, mode=record.get("mode"))
-    return {"session_id": session_id, "phase": request.phase, "saved": saved}
+    세션 행이 없더라도(기록 유실 등) 응답 자체는 잃지 않도록 저장하고,
+    `session_missing` 으로 알린다.
+    """
+    record = store_get_session(session_id) or {}
+    session_exists = store_save_survey(
+        session_id, request.phase, request.answers, mode=record.get("mode")
+    )
+    if not session_exists:
+        logger.warning("[survey] session_id=%s 세션 행 없이 응답만 저장했습니다.", session_id)
+
+    return {
+        "session_id": session_id,
+        "phase": request.phase,
+        "saved": True,
+        "session_missing": not session_exists,
+    }
 
 
 @app.get("/surveys/export.csv")

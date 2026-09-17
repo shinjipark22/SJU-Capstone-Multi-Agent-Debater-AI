@@ -17,6 +17,9 @@ const DebatePage = ({ topic, initRequest, visible, onRestart }) => {
   const [preSurvey, setPreSurvey] = useState(null);
   const [preAnswers, setPreAnswers] = useState(null);
   const [postAnswers, setPostAnswers] = useState(null);
+  const [postSurvey, setPostSurvey] = useState(null);
+  const [preSurveySaved, setPreSurveySaved] = useState(false);
+  const [surveyWarning, setSurveyWarning] = useState(null);
   const [recordId, setRecordId] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
@@ -29,16 +32,35 @@ const DebatePage = ({ topic, initRequest, visible, onRestart }) => {
     const id = data.record_id ?? null;
     setRecordId(id);
     if (id != null && preSurvey) {
-      // 실패해도 토론은 계속 — 사후 설문 제출 시 다시 시도할 수 있도록 경고만 남긴다.
-      submitSurvey(id, 'pre', preSurvey).catch((e) => console.warn('사전 설문 저장 실패:', e));
+      // 실패해도 토론은 계속 — 사후 제출 때 한 번 더 시도한다.
+      submitSurvey(id, 'pre', preSurvey)
+        .then(() => setPreSurveySaved(true))
+        .catch((e) => console.warn('사전 설문 저장 실패:', e));
+    }
+  };
+
+  // 설문 저장이 실패해도 채점·리포트는 진행한다. 응답은 state 에 남아 결과 화면에서 재시도할 수 있다.
+  const saveSurveys = async (postSurveyAnswers) => {
+    if (recordId == null) return '세션 기록을 찾지 못해 설문이 저장되지 않았습니다.';
+    try {
+      if (!preSurveySaved && preSurvey) {
+        await submitSurvey(recordId, 'pre', preSurvey);
+        setPreSurveySaved(true);
+      }
+      await submitSurvey(recordId, 'post', postSurveyAnswers);
+      return null;
+    } catch (e) {
+      return e instanceof ApiError ? String(e.detail ?? e.message) : String(e);
     }
   };
 
   const handlePostSurvey = async (answers) => {
     setSubmitting(true);
     setError(null);
+    setPostSurvey(answers);
+    const warning = await saveSurveys(answers);
+    setSurveyWarning(warning);
     try {
-      if (recordId != null) await submitSurvey(recordId, 'post', answers);
       const result = await submitEvaluation({
         topicId: topic.id,
         recordId,
@@ -124,7 +146,17 @@ const DebatePage = ({ topic, initRequest, visible, onRestart }) => {
       )}
 
       {step === 'result' && evaluation && (
-        <ResultView sessionId={sessionId} evaluation={evaluation} onRestart={onRestart} />
+        <ResultView
+          sessionId={sessionId}
+          evaluation={evaluation}
+          surveyWarning={surveyWarning}
+          onRetrySurvey={async () => {
+            const warning = await saveSurveys(postSurvey);
+            setSurveyWarning(warning);
+            return warning;
+          }}
+          onRestart={onRestart}
+        />
       )}
     </div>
   );

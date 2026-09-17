@@ -32,9 +32,10 @@ const SideCard = ({ label, tone, side }) => {
   );
 };
 
-const ResultView = ({ sessionId, evaluation, onRestart }) => {
+const ResultView = ({ sessionId, evaluation, surveyWarning, onRetrySurvey, onRestart }) => {
   const [report, setReport] = useState(null);
   const [reportError, setReportError] = useState(null);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -51,6 +52,24 @@ const ResultView = ({ sessionId, evaluation, onRestart }) => {
   return (
     <div className="mx-auto h-full w-full max-w-4xl overflow-y-auto px-4 py-10 hide-scrollbar">
       <h2 className="text-center text-4xl font-extrabold tracking-tight text-stone-800">토론 리포트</h2>
+
+      {/* 설문 저장 실패 — 응답은 화면에 남아 있으므로 여기서 다시 보낼 수 있다 */}
+      {surveyWarning && (
+        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span>설문 응답이 저장되지 않았습니다: {surveyWarning}</span>
+          <button
+            onClick={async () => {
+              setRetrying(true);
+              await onRetrySurvey?.();
+              setRetrying(false);
+            }}
+            disabled={retrying}
+            className="ml-auto rounded-full bg-amber-600 px-4 py-1.5 text-xs font-bold text-white disabled:bg-amber-200"
+          >
+            {retrying ? '저장 중...' : '다시 저장'}
+          </button>
+        </div>
+      )}
       <p className="mt-3 text-center text-base text-stone-500">{evaluation.topic}</p>
 
       <section className="mt-8">
