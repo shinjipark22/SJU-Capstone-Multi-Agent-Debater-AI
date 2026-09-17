@@ -29,30 +29,18 @@ const TURN_KINDS = {
   },
 };
 
-// 비비드 안내. 넓은 화면에서는 오른쪽 열에 펼쳐두고, 좁은 화면에서는 접이식으로 아래에 붙인다.
-const GuidePanel = ({ guide, collapsible, open, onToggle }) => (
-  <div className="flex min-h-0 flex-col rounded-2xl border border-emerald-100 bg-emerald-50 text-sm text-emerald-900">
-    {collapsible ? (
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between px-4 py-2.5 text-left font-bold"
-      >
-        <span>비비드의 단계 안내</span>
-        <span className="text-xs font-semibold opacity-70">{open ? '접기' : '펼치기'}</span>
-      </button>
-    ) : (
-      <p className="px-5 pt-4 pb-2 font-bold">비비드의 단계 안내</p>
-    )}
-    {(!collapsible || open) && (
-      <div
-        className={`overflow-y-auto leading-relaxed ${
-          collapsible ? 'max-h-44 px-4 pb-3' : 'min-h-0 flex-1 px-5 pb-5'
-        }`}
-      >
-        <Markdown>{guide}</Markdown>
+// 비비드 안내는 에이전트 발언과 같은 대화 흐름 안에 말풍선으로 띄운다.
+const GuideBubble = ({ text }) => (
+  <div className="flex w-full justify-start">
+    <div className="flex max-w-[85%] flex-col gap-2 md:max-w-[70%]">
+      <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600">
+        <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-white">도우미</span>
+        <span>비비드</span>
       </div>
-    )}
+      <div className="rounded-3xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-[15px] leading-relaxed text-emerald-900 shadow-sm">
+        <Markdown>{text}</Markdown>
+      </div>
+    </div>
   </div>
 );
 
@@ -73,8 +61,6 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   const [isStreaming, setIsStreaming] = useState(true);
   const [error, setError] = useState(null);
   const [livePercents, setLivePercents] = useState(null);
-  const [guide, setGuide] = useState('');
-  const [guideOpen, setGuideOpen] = useState(true);
   const [draft, setDraft] = useState('');
   const [selectedOpponent, setSelectedOpponent] = useState(null);
 
@@ -82,11 +68,12 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   const transcriptEndRef = useRef(null);
   const startedRef = useRef(false);
 
+  // turns 에는 비비드 안내 말풍선({guide})도 섞여 있으므로 발언 엔트리만 추린다.
   const opposingAgents = Array.from(
     new Set(
       turns
         .map((t) => t.entry)
-        .filter((e) => e.speaker_id !== 'user' && e.stance !== initRequest.user_stance)
+        .filter((e) => e && e.speaker_id !== 'user' && e.stance !== initRequest.user_stance)
         .map((e) => e.speaker_id),
     ),
   );
@@ -99,10 +86,11 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
     if (!ASSISTANT_PHASES.has(phase)) return;
     try {
       const res = await getAssistantGuide(id, phase, opponentId);
-      setGuide(res.text);
-      setGuideOpen(true);
+      if (!res.text) return;
+      turnCounter.current += 1;
+      setTurns((prev) => [...prev, { key: `guide-${turnCounter.current}`, guide: res.text }]);
     } catch {
-      setGuide('');
+      // 안내는 부가 정보라 실패해도 토론 진행에 영향을 주지 않는다.
     }
   };
 
@@ -129,7 +117,6 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
           setWaitingDetail(evt.data.waiting_detail ?? '');
           setIsFinished(evt.data.is_finished);
           setSelectedOpponent(null);
-          setGuide('');
           if (!evt.data.is_finished && currentId) loadGuide(currentId, evt.data.phase);
         }
       }
@@ -167,7 +154,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   const waitingLabel = turnKind?.label ?? WAITING_LABELS[waitingFor] ?? '';
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-7xl flex-col px-4 pb-6 pt-6">
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-4 pb-6 pt-6">
       <header className="mb-4 shrink-0 rounded-3xl border border-stone-200 bg-white/90 px-6 py-5 shadow-sm">
         <h2 className="text-lg font-extrabold leading-snug text-stone-800">{topic.title}</h2>
         <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
@@ -198,12 +185,15 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
         )}
       </header>
 
-      <div className="flex min-h-0 flex-1 gap-5">
-        <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto rounded-3xl px-1 py-2 hide-scrollbar">
-            {turns.map((t) => (
-              <TurnBubble key={t.key} entry={t.entry} />
-            ))}
+            {turns.map((t) =>
+              t.guide ? (
+                <GuideBubble key={t.key} text={t.guide} />
+              ) : (
+                <TurnBubble key={t.key} entry={t.entry} />
+              ),
+            )}
             {isStreaming && (
               <p className="py-4 text-center text-sm font-medium text-stone-400">AI가 발언을 생성하는 중...</p>
             )}
@@ -212,13 +202,6 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
 
           {error && (
             <p className="mt-3 shrink-0 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">오류: {error}</p>
-          )}
-
-          {/* 좁은 화면: 입력창 위 접이식 안내 */}
-          {guide && !isFinished && (
-            <div className="mt-3 shrink-0 lg:hidden">
-              <GuidePanel guide={guide} collapsible open={guideOpen} onToggle={() => setGuideOpen((o) => !o)} />
-            </div>
           )}
 
           {!isFinished && sessionId && (
@@ -282,14 +265,6 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
               )}
             </form>
           )}
-        </div>
-
-        {/* 넓은 화면: 오른쪽 전용 열에 안내를 펼쳐둬 발언과 겹치지 않게 한다 */}
-        {guide && !isFinished && (
-          <aside className="hidden w-80 shrink-0 lg:flex lg:flex-col xl:w-96">
-            <GuidePanel guide={guide} collapsible={false} />
-          </aside>
-        )}
       </div>
 
       {isFinished && sessionId && (
