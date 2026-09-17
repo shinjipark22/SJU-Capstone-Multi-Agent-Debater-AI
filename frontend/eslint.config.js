@@ -26,4 +26,9 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // vite.config.js 는 Node 에서 실행된다 (process.env 사용).
+    files: ['vite.config.js'],
+    languageOptions: { globals: globals.node },
+  },
 ])
