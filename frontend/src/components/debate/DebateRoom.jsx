@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, getAssistantGuide, initDebate, submitUserInput } from '../../lib/api';
+import Markdown from './Markdown';
 import TurnBubble from './TurnBubble';
 
 const WAITING_LABELS = {
@@ -29,6 +30,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   const [error, setError] = useState(null);
   const [livePercents, setLivePercents] = useState(null);
   const [guide, setGuide] = useState('');
+  const [guideOpen, setGuideOpen] = useState(true);
   const [draft, setDraft] = useState('');
   const [selectedOpponent, setSelectedOpponent] = useState(null);
 
@@ -54,6 +56,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
     try {
       const res = await getAssistantGuide(id, phase, opponentId);
       setGuide(res.text);
+      setGuideOpen(true);
     } catch {
       setGuide('');
     }
@@ -139,7 +142,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
         )}
       </header>
 
-      <div className="flex-1 space-y-5 overflow-y-auto rounded-3xl px-1 py-2 hide-scrollbar">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto rounded-3xl px-1 py-2 hide-scrollbar">
         {turns.map((t) => (
           <TurnBubble key={t.key} entry={t.entry} analysis={t.analysis} />
         ))}
@@ -154,9 +157,21 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
       )}
 
       {guide && !isFinished && (
-        <p className="mt-3 shrink-0 whitespace-pre-wrap rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-800">
-          {guide}
-        </p>
+        <div className="mt-3 shrink-0 rounded-2xl border border-emerald-100 bg-emerald-50 text-sm text-emerald-900">
+          <button
+            type="button"
+            onClick={() => setGuideOpen((open) => !open)}
+            className="flex w-full items-center justify-between px-4 py-2.5 text-left font-bold"
+          >
+            <span>비비드의 단계 안내</span>
+            <span className="text-xs font-semibold opacity-70">{guideOpen ? '접기' : '펼치기'}</span>
+          </button>
+          {guideOpen && (
+            <div className="max-h-44 overflow-y-auto px-4 pb-3 leading-relaxed">
+              <Markdown>{guide}</Markdown>
+            </div>
+          )}
+        </div>
       )}
 
       {!isFinished && sessionId && (

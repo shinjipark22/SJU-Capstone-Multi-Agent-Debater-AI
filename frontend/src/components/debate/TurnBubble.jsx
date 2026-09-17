@@ -1,3 +1,5 @@
+import Markdown from './Markdown';
+
 const PHASE_LABELS = {
   opening: '입론',
   chained_rebuttal: '연쇄 논박',
@@ -31,13 +33,13 @@ const TurnBubble = ({ entry, analysis }) => {
         </div>
 
         <div
-          className={`whitespace-pre-wrap rounded-3xl border px-5 py-4 text-[15px] leading-relaxed shadow-sm ${
+          className={`rounded-3xl border px-5 py-4 text-[15px] leading-relaxed shadow-sm ${
             isUser
               ? 'border-stone-800 bg-stone-900 text-white'
               : 'border-stone-200 bg-white text-stone-800'
           }`}
         >
-          {entry.content}
+          <Markdown>{entry.content}</Markdown>
         </div>
 
         {analysis && (
