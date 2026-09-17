@@ -509,7 +509,7 @@ def _build_proposal_prompt(
 ### 반박 끝"""
 
 
-# ── 최적해 선언 프롬프트 (Round 3 전원 공통) ──────────────────────────────
+# ── 최적해 선언 프롬프트 (마지막 라운드 전원 공통) ──────────────────────────────
 
 def _build_finalize_prompt(
     topic: str,
@@ -521,7 +521,7 @@ def _build_finalize_prompt(
     used_starters: Optional[List[str]] = None,
     role_key: str = "",
 ) -> str:
-    """Round 3 — 지금까지 흐름을 종합한 자기 결론.
+    """마지막 라운드 — 지금까지 흐름을 종합한 자기 결론.
 
     이전엔 "제가 생각하는 최적해는 ~입니다" 강제로 5명 모두 같은 시작 → 단조.
     이제 결론 어조는 자유롭게 (단정·제안·요약 형식 다양). 본질은 같음.
@@ -541,13 +541,13 @@ def _build_finalize_prompt(
     style_block = _build_style_block(perspective)
     starters_block = _build_starters_block(perspective, used_starters or [])
 
-    return f"""[5단계 — Round 3: 종결 단계, 자기 perspective 의 최종 결론]
-'{topic}' 에 대한 2라운드 동안의 회의 논의를 종합해 **본인 perspective 차원의 최종 결론**을 짧게 정리하라.
+    return f"""[5단계 — 마지막 라운드: 종결 단계, 자기 perspective 의 최종 결론]
+'{topic}' 에 대한 지금까지의 회의 논의를 종합해 **본인 perspective 차원의 최종 결론**을 짧게 정리하라.
 {prev_block}{perspective_block}{role_block}[원래 입장] {stance_kr}
 [너의 협상 태도] {negotiation}
 {style_block}{starters_block}
 
-[Round 3 모드 — perspective-locked 결론]
+[마지막 라운드 모드 — perspective-locked 결론]
 - Round 1·2 흐름을 종합하되, **본인 perspective 차원의 핵심 메시지**를 명확히 박아라.
 - 결론 마지막 문장은 반드시 **본인 perspective 의 angle 로 마무리**:
   · 실현 가능성 → "비용·일정·실행 단계로 볼 때 ~"
@@ -1035,7 +1035,7 @@ def synthesis_discuss_one_node(state: DebateState) -> DebateState:
     agent_map = {a["agent_id"]: a for a in state["agents"]}
     stance_nums = build_agent_stance_nums(state["agents"], state["speaking_order"])
 
-    is_final_round = state.get("synthesis_user_turns", 0) >= 2
+    is_final_round = is_final_synthesis_round(state)
     user_messages = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "synthesis"]
     user_latest = user_messages[-1]["content"] if user_messages else ""
 
@@ -1081,7 +1081,7 @@ def synthesis_discuss_one_node(state: DebateState) -> DebateState:
     from src.graph.llm import build_debate_chain
     debate_chain = build_debate_chain(history, speaker_id)
 
-    # 직전 발언자 (Round 3 finalize 에서 직전 발언 비추기용)
+    # 직전 발언자 (마지막 라운드 finalize 에서 직전 발언 비추기용)
     prev_speaker_id = ""
     prev_speech_text = ""
     for e in reversed(history):
@@ -1151,7 +1151,7 @@ def synthesis_discuss_one_node(state: DebateState) -> DebateState:
 def synthesis_discuss_node(state: DebateState) -> DebateState:
     """[legacy] 모든 AI 가 한 번에 응답 — 분리 전 호출자 호환용.
 
-    Round 3(synthesis_user_turns >= 2)에는 모든 에이전트가 최적해를 선언한다.
+    마지막 라운드(is_final_synthesis_round)에는 모든 에이전트가 최적해를 선언한다.
     """
     _opening_mod._used_doc_ids = set()
 
@@ -1162,14 +1162,14 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
     speaking_order = state["speaking_order"]
     stance_nums = build_agent_stance_nums(state["agents"], speaking_order)
 
-    # Round 3 여부: user가 2턴 완료한 상태 → 이번 AI 발언이 마지막 라운드
-    is_final_round = state.get("synthesis_user_turns", 0) >= 2
+    # 마지막 라운드 여부 → 이번 AI 발언에서 최적해 선언
+    is_final_round = is_final_synthesis_round(state)
 
     # 사용자 최근 발언
     user_messages = [e for e in history if e["speaker_id"] == "user" and e["phase"] == "synthesis"]
     user_latest = user_messages[-1]["content"] if user_messages else ""
 
-    phase_label = "최적해 선언 (Round 3)" if is_final_round else "AI 응답 생성"
+    phase_label = "최적해 선언 (마지막 라운드)" if is_final_round else "AI 응답 생성"
     print(f"\n[5단계: 최적해 회의] {phase_label} 중...\n")
 
     # 역할 배정 — AI 수 기반 (user 제외)
@@ -1273,6 +1273,16 @@ def synthesis_discuss_node(state: DebateState) -> DebateState:
 
 # ── 턴 라우터 ──────────────────────────────────────────────────────────────
 
+# 종합 회의 라운드 수 = (에이전트들 + 사용자) 반복 횟수. 마지막 라운드에는 모두 최적해를 선언하고,
+# 그 뒤 user_finalize 로 우리의 최적해를 확정한다. (3 → 2 로 축소, 2026-09)
+SYNTHESIS_ROUNDS = 2
+
+
+def is_final_synthesis_round(state: DebateState) -> bool:
+    """이번 라운드가 마지막(최적해 선언) 라운드인지: 사용자 턴이 ROUNDS-1 개 끝난 상태."""
+    return state.get("synthesis_user_turns", 0) >= SYNTHESIS_ROUNDS - 1
+
+
 def should_end_synthesis(state: DebateState) -> bool:
-    """종합 회의 종료 조건: 사용자 3턴 완료."""
-    return state.get("synthesis_user_turns", 0) >= 3
+    """종합 회의 종료 조건: 사용자 턴 SYNTHESIS_ROUNDS 개 완료."""
+    return state.get("synthesis_user_turns", 0) >= SYNTHESIS_ROUNDS
