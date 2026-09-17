@@ -220,3 +220,7 @@ experiments/prompt_exp/
 # artifacts/ — 결과 CSV 는 빼고 PNG (차트) 만 커밋
 artifacts/*
 !artifacts/*.png
+
+# 프론트엔드 소스가 위 파이썬 템플릿 규칙(lib/, data/)에 걸리지 않도록 예외 처리
+!frontend/src/lib/
+!frontend/src/data/
