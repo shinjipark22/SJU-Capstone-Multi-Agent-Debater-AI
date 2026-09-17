@@ -10,10 +10,20 @@
 export PATH=/home/hth/anaconda3/envs/sju_web/bin:$PATH
 cd frontend
 npm install
-cp .env.example .env        # VITE_API_BASE_URL 을 백엔드 주소로
-npm run dev -- --host 0.0.0.0 --port 5173
+npm run dev -- --host 0.0.0.0 --port 5174
 npm run build               # 정적 배포물은 dist/
 ```
+
+### API 주소
+
+프론트는 API 를 **상대 경로**로 호출하고, dev 서버가 FastAPI 로 프록시한다
+(`vite.config.js`). 그래서 LAN IP·SSH 포트포워딩·터널 중 무엇으로 접속하든
+포트 하나만 열면 되고, API 주소를 따로 맞출 필요가 없다.
+
+- 백엔드 포트가 8001 이 아니면 `VITE_API_PROXY_TARGET=http://127.0.0.1:8002 npm run dev`
+- 프론트를 정적 호스팅하고 API 가 **다른 도메인**에 있으면 그때만
+  `.env` 에 `VITE_API_BASE_URL=https://api.example.com` (`.env.example` 참고).
+  같은 도메인이면 앞단 리버스 프록시로 넘기는 편이 낫다.
 
 ## 화면 흐름
 

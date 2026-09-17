@@ -1,7 +1,9 @@
 // FastAPI 백엔드(src/main.py) 클라이언트.
-// 배포 시 frontend/.env 의 VITE_API_BASE_URL 로 서버 주소를 지정한다.
-export const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '') || 'http://localhost:8001';
+//
+// 기본값은 빈 문자열 = 페이지와 같은 출처로 호출한다. dev 서버는 vite.config.js 의
+// 프록시가, 배포 시에는 정적 호스팅 앞단(리버스 프록시)이 백엔드로 넘겨주면 된다.
+// 프론트와 API 를 다른 도메인에 둘 경우에만 frontend/.env 의 VITE_API_BASE_URL 을 설정.
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 export class ApiError extends Error {
   constructor(status, detail) {
