@@ -28,6 +28,17 @@ bash scripts/serve/start_api.sh    # FastAPI (포트 8001)
 - `GET /sessions` — 수집된 세션 목록 (JSON)
 - `GET /sessions/export.csv` — `data-*.csv` 와 **동일한 23개 컬럼·순서**의 CSV 다운로드
 
+23컬럼 CSV 형식을 지키기 위해, 아래 값들은 CSV 에 넣지 않고 별도 컬럼·테이블에 둔다.
+
+| 저장 위치 | 내용 |
+| --- | --- |
+| `debate_sessions.mode` | `debate` / `constructive` |
+| `debate_sessions.synthesis_draft` | 구성적 논쟁에서 합의한 최적해 |
+| `turn_analyses` | 턴별 실시간 분석(논증·근거·표현 점수, 차원별 코멘트, EMA 스냅샷) |
+
+`turn_analyses` 는 서버 재시작 대비용이기도 하다. 최종 리포트는 메모리의 judge 를
+우선 쓰고, 없으면 이 테이블에서 복구해 생성한다.
+
 서버 없이 덤프하려면:
 
 ```bash

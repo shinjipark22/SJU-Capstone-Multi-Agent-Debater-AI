@@ -142,6 +142,10 @@ const ResultView = ({ sessionId, evaluation, mode, synthesis, surveyWarning, onR
         </>
       )}
 
+      {!report && !reportError && (
+        <p className="mt-10 text-center text-sm text-stone-400">토론 분석 리포트를 생성하는 중입니다...</p>
+      )}
+
       {reportError && (
         <p className="mt-6 rounded-2xl bg-stone-100 px-4 py-3 text-sm text-stone-500">
           토론 분석 리포트를 불러오지 못했습니다: {reportError}
