@@ -32,7 +32,7 @@ const SideCard = ({ label, tone, side }) => {
   );
 };
 
-const ResultView = ({ sessionId, evaluation, mode, synthesis, surveyWarning, onRetrySurvey, onRestart }) => {
+const ResultView = ({ sessionId, evaluation, mode, synthesis, surveyWarning, onRetrySurvey, onRestart, labelOf }) => {
   const [report, setReport] = useState(null);
   const [reportError, setReportError] = useState(null);
   const [retrying, setRetrying] = useState(false);
@@ -117,7 +117,7 @@ const ResultView = ({ sessionId, evaluation, mode, synthesis, surveyWarning, onR
                       {SWING_TYPE_LABELS[t.type] ?? t.type}
                     </span>
                     <span className="ml-2 text-sm font-semibold text-stone-700">
-                      {t.speaker_id === 'user' ? '나' : t.speaker_id.replace('agent_', 'AI ')}
+                      {labelOf ? labelOf(t.speaker_id) : t.speaker_id}
                     </span>
                     <p className="mt-2 text-sm leading-relaxed text-stone-600">{t.narrative}</p>
                   </li>
