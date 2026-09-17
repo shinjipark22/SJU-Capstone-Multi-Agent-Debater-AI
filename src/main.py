@@ -199,12 +199,17 @@ _WAITING_ALIAS = {
 
 
 def _get_waiting_info(config: dict) -> tuple:
-    """현재 그래프 상태에서 waiting_for, is_finished를 추출한다."""
+    """현재 그래프 상태에서 (waiting_for, is_finished, waiting_detail)을 추출한다.
+
+    waiting_detail 은 alias 이전의 노드 이름 그대로다. 자유논박처럼 한 단계가
+    방어(user_free_rebuttal_defense)·공격(user_free_rebuttal_attack) 차례로 나뉘는 경우
+    프론트가 무엇을 써야 하는지 안내하는 데 쓴다.
+    """
     graph_state = debate_graph.get_state(config)
     if graph_state and graph_state.next:
         raw = graph_state.next[0]
-        return _WAITING_ALIAS.get(raw, raw), False
-    return "", True
+        return _WAITING_ALIAS.get(raw, raw), False, raw
+    return "", True, ""
 
 
 # ── 초기화 + 토픽 조회 헬퍼 ───────────────────────────────────────────────
@@ -341,10 +346,11 @@ async def initialize_debate(request: DebateInitRequest):
             prev_history = list(cur_history)
 
         # interrupt 대기 정보
-        waiting_for, is_finished = _get_waiting_info(config)
+        waiting_for, is_finished, waiting_detail = _get_waiting_info(config)
         yield _sse_event("waiting", {
             "session_id": session_id,
             "waiting_for": waiting_for,
+            "waiting_detail": waiting_detail,
             "is_finished": is_finished,
             "phase": prev_history[-1].get("phase", "opening") if prev_history else "opening",
             "total_entries": len(prev_history),
@@ -403,7 +409,7 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
             prev_history = list(cur_history)
 
         # interrupt 대기 정보
-        waiting_for, is_finished = _get_waiting_info(config)
+        waiting_for, is_finished, waiting_detail = _get_waiting_info(config)
 
         synthesis_draft = ""
         if is_finished:
@@ -416,6 +422,7 @@ async def submit_user_input(session_id: str, request: UserSubmitRequest):
         yield _sse_event("waiting", {
             "session_id": session_id,
             "waiting_for": waiting_for,
+            "waiting_detail": waiting_detail,
             "is_finished": is_finished,
             "phase": prev_history[-1].get("phase", "") if prev_history else "",
             "total_entries": len(prev_history),
@@ -444,7 +451,8 @@ def get_debate_state(session_id: str):
         "phase": values.get("phase", ""),
         "current_turn": values.get("current_turn", 0),
         "is_finished": values.get("is_finished", False),
-        "waiting_for": graph_state.next[0] if graph_state.next else "",
+        "waiting_for": _WAITING_ALIAS.get(graph_state.next[0], graph_state.next[0]) if graph_state.next else "",
+        "waiting_detail": graph_state.next[0] if graph_state.next else "",
         "debate_history": values.get("debate_history", []),
         "synthesis_draft": values.get("synthesis_draft", ""),
     }

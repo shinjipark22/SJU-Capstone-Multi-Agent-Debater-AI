@@ -13,6 +13,49 @@ const WAITING_LABELS = {
   user_finalize: '우리의 최적해를 작성하세요',
 };
 
+// 자유논박은 한 라운드가 방어 → 공격으로 나뉜다 (백엔드 waiting_detail 의 노드 이름).
+const TURN_KINDS = {
+  user_free_rebuttal_defense: {
+    badge: '방어 차례',
+    label: '상대의 공격에 답하는 발언을 작성하세요',
+    tone: 'bg-blue-50 text-blue-600',
+    placeholder: '상대가 지적한 부분에 답변해보세요...',
+  },
+  user_free_rebuttal_attack: {
+    badge: '공격 차례',
+    label: '상대 논거를 공격하는 발언을 작성하세요',
+    tone: 'bg-rose-50 text-rose-600',
+    placeholder: '상대 논거의 약점을 짚어 공격해보세요...',
+  },
+};
+
+// 비비드 안내. 넓은 화면에서는 오른쪽 열에 펼쳐두고, 좁은 화면에서는 접이식으로 아래에 붙인다.
+const GuidePanel = ({ guide, collapsible, open, onToggle }) => (
+  <div className="flex min-h-0 flex-col rounded-2xl border border-emerald-100 bg-emerald-50 text-sm text-emerald-900">
+    {collapsible ? (
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between px-4 py-2.5 text-left font-bold"
+      >
+        <span>비비드의 단계 안내</span>
+        <span className="text-xs font-semibold opacity-70">{open ? '접기' : '펼치기'}</span>
+      </button>
+    ) : (
+      <p className="px-5 pt-4 pb-2 font-bold">비비드의 단계 안내</p>
+    )}
+    {(!collapsible || open) && (
+      <div
+        className={`overflow-y-auto leading-relaxed ${
+          collapsible ? 'max-h-44 px-4 pb-3' : 'min-h-0 flex-1 px-5 pb-5'
+        }`}
+      >
+        <Markdown>{guide}</Markdown>
+      </div>
+    )}
+  </div>
+);
+
 const ASSISTANT_PHASES = new Set([
   'opening',
   'chained_rebuttal',
@@ -25,6 +68,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   const [sessionId, setSessionId] = useState(null);
   const [turns, setTurns] = useState([]);
   const [waitingFor, setWaitingFor] = useState('');
+  const [waitingDetail, setWaitingDetail] = useState('');
   const [isFinished, setIsFinished] = useState(false);
   const [isStreaming, setIsStreaming] = useState(true);
   const [error, setError] = useState(null);
@@ -82,6 +126,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
           }
         } else if (evt.event === 'waiting') {
           setWaitingFor(evt.data.waiting_for);
+          setWaitingDetail(evt.data.waiting_detail ?? '');
           setIsFinished(evt.data.is_finished);
           setSelectedOpponent(null);
           setGuide('');
@@ -118,10 +163,11 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
     setDraft('');
   };
 
-  const waitingLabel = WAITING_LABELS[waitingFor] ?? '';
+  const turnKind = TURN_KINDS[waitingDetail] ?? null;
+  const waitingLabel = turnKind?.label ?? WAITING_LABELS[waitingFor] ?? '';
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col px-4 pb-6 pt-6">
+    <div className="mx-auto flex h-full w-full max-w-7xl flex-col px-4 pb-6 pt-6">
       <header className="mb-4 shrink-0 rounded-3xl border border-stone-200 bg-white/90 px-6 py-5 shadow-sm">
         <h2 className="text-lg font-extrabold leading-snug text-stone-800">{topic.title}</h2>
         <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
@@ -151,90 +197,99 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
         )}
       </header>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto rounded-3xl px-1 py-2 hide-scrollbar">
-        {turns.map((t) => (
-          <TurnBubble key={t.key} entry={t.entry} />
-        ))}
-        {isStreaming && (
-          <p className="py-4 text-center text-sm font-medium text-stone-400">AI가 발언을 생성하는 중...</p>
-        )}
-        <div ref={transcriptEndRef} />
-      </div>
+      <div className="flex min-h-0 flex-1 gap-5">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto rounded-3xl px-1 py-2 hide-scrollbar">
+            {turns.map((t) => (
+              <TurnBubble key={t.key} entry={t.entry} />
+            ))}
+            {isStreaming && (
+              <p className="py-4 text-center text-sm font-medium text-stone-400">AI가 발언을 생성하는 중...</p>
+            )}
+            <div ref={transcriptEndRef} />
+          </div>
 
-      {error && (
-        <p className="mt-3 shrink-0 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">오류: {error}</p>
-      )}
+          {error && (
+            <p className="mt-3 shrink-0 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">오류: {error}</p>
+          )}
 
-      {guide && !isFinished && (
-        <div className="mt-3 shrink-0 rounded-2xl border border-emerald-100 bg-emerald-50 text-sm text-emerald-900">
-          <button
-            type="button"
-            onClick={() => setGuideOpen((open) => !open)}
-            className="flex w-full items-center justify-between px-4 py-2.5 text-left font-bold"
-          >
-            <span>비비드의 단계 안내</span>
-            <span className="text-xs font-semibold opacity-70">{guideOpen ? '접기' : '펼치기'}</span>
-          </button>
-          {guideOpen && (
-            <div className="max-h-44 overflow-y-auto px-4 pb-3 leading-relaxed">
-              <Markdown>{guide}</Markdown>
+          {/* 좁은 화면: 입력창 위 접이식 안내 */}
+          {guide && !isFinished && (
+            <div className="mt-3 shrink-0 lg:hidden">
+              <GuidePanel guide={guide} collapsible open={guideOpen} onToggle={() => setGuideOpen((o) => !o)} />
             </div>
+          )}
+
+          {!isFinished && sessionId && (
+            <form className="mt-3 shrink-0 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm" onSubmit={handleSubmit}>
+              {waitingLabel && (
+                <p className="mb-2 flex items-center gap-2 text-sm font-bold text-stone-700">
+                  {turnKind && (
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${turnKind.tone}`}>
+                      {turnKind.badge}
+                    </span>
+                  )}
+                  {waitingLabel}
+                </p>
+              )}
+
+              {waitingFor === 'user_select_opponent' ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {opposingAgents.length === 0 && <p className="text-sm text-stone-400">선택 가능한 상대가 없습니다.</p>}
+                  {opposingAgents.map((id) => (
+                    <button
+                      type="button"
+                      key={id}
+                      onClick={() => setSelectedOpponent(id)}
+                      className={`rounded-full px-5 py-2.5 text-sm font-semibold transition-all ${
+                        selectedOpponent === id
+                          ? 'bg-stone-900 text-white'
+                          : 'border border-stone-200 bg-white text-stone-600 hover:border-stone-300'
+                      }`}
+                    >
+                      {id.replace('agent_', 'AI ')}
+                    </button>
+                  ))}
+                  <button
+                    type="submit"
+                    disabled={!selectedOpponent || isStreaming}
+                    className="ml-auto rounded-full bg-stone-900 px-6 py-2.5 text-sm font-bold text-white disabled:bg-stone-200 disabled:text-stone-400"
+                  >
+                    선택 완료
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder={turnKind?.placeholder ?? '발언을 입력하세요...'}
+                    rows={4}
+                    disabled={isStreaming}
+                    className="w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-[15px] leading-relaxed outline-none focus:border-stone-400 disabled:bg-stone-50"
+                  />
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isStreaming || !draft.trim()}
+                      className="rounded-full bg-stone-900 px-8 py-2.5 text-sm font-bold text-white transition-all hover:bg-black disabled:bg-stone-200 disabled:text-stone-400"
+                    >
+                      제출
+                    </button>
+                  </div>
+                </>
+              )}
+            </form>
           )}
         </div>
-      )}
 
-      {!isFinished && sessionId && (
-        <form className="mt-3 shrink-0 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm" onSubmit={handleSubmit}>
-          {waitingLabel && <p className="mb-2 text-sm font-bold text-stone-700">{waitingLabel}</p>}
-
-          {waitingFor === 'user_select_opponent' ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {opposingAgents.length === 0 && <p className="text-sm text-stone-400">선택 가능한 상대가 없습니다.</p>}
-              {opposingAgents.map((id) => (
-                <button
-                  type="button"
-                  key={id}
-                  onClick={() => setSelectedOpponent(id)}
-                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition-all ${
-                    selectedOpponent === id
-                      ? 'bg-stone-900 text-white'
-                      : 'border border-stone-200 bg-white text-stone-600 hover:border-stone-300'
-                  }`}
-                >
-                  {id.replace('agent_', 'AI ')}
-                </button>
-              ))}
-              <button
-                type="submit"
-                disabled={!selectedOpponent || isStreaming}
-                className="ml-auto rounded-full bg-stone-900 px-6 py-2.5 text-sm font-bold text-white disabled:bg-stone-200 disabled:text-stone-400"
-              >
-                선택 완료
-              </button>
-            </div>
-          ) : (
-            <>
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="발언을 입력하세요..."
-                rows={4}
-                disabled={isStreaming}
-                className="w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-[15px] leading-relaxed outline-none focus:border-stone-400 disabled:bg-stone-50"
-              />
-              <div className="mt-2 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={isStreaming || !draft.trim()}
-                  className="rounded-full bg-stone-900 px-8 py-2.5 text-sm font-bold text-white transition-all hover:bg-black disabled:bg-stone-200 disabled:text-stone-400"
-                >
-                  제출
-                </button>
-              </div>
-            </>
-          )}
-        </form>
-      )}
+        {/* 넓은 화면: 오른쪽 전용 열에 안내를 펼쳐둬 발언과 겹치지 않게 한다 */}
+        {guide && !isFinished && (
+          <aside className="hidden w-80 shrink-0 lg:flex lg:flex-col xl:w-96">
+            <GuidePanel guide={guide} collapsible={false} />
+          </aside>
+        )}
+      </div>
 
       {isFinished && sessionId && (
         <div className="mt-3 flex shrink-0 items-center justify-between rounded-3xl border border-stone-200 bg-white px-6 py-5 shadow-sm">
