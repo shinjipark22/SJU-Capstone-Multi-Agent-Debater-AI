@@ -235,9 +235,9 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
           )}
 
           {!isFinished && sessionId && (
-            <form className="mt-3 shrink-0 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm" onSubmit={handleSubmit}>
+            <form className="mt-2 shrink-0 rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm" onSubmit={handleSubmit}>
               {waitingLabel && (
-                <p className="mb-2 flex items-center gap-2 text-sm font-bold text-stone-700">
+                <p className="mb-1.5 flex items-center gap-2 text-sm font-bold text-stone-700">
                   {turnKind && (
                     <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${turnKind.tone}`}>
                       {turnKind.badge}
@@ -273,25 +273,23 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
                   </button>
                 </div>
               ) : (
-                <>
+                <div className="flex items-end gap-3">
                   <textarea
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     placeholder={turnKind?.placeholder ?? '발언을 입력하세요...'}
-                    rows={4}
+                    rows={3}
                     disabled={isStreaming}
-                    className="w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-[15px] leading-relaxed outline-none focus:border-stone-400 disabled:bg-stone-50"
+                    className="min-w-0 flex-1 resize-none rounded-2xl border border-stone-200 px-4 py-2.5 text-[15px] leading-relaxed outline-none focus:border-stone-400 disabled:bg-stone-50"
                   />
-                  <div className="mt-2 flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={isStreaming || !draft.trim()}
-                      className="rounded-full bg-stone-900 px-8 py-2.5 text-sm font-bold text-white transition-all hover:bg-black disabled:bg-stone-200 disabled:text-stone-400"
-                    >
-                      제출
-                    </button>
-                  </div>
-                </>
+                  <button
+                    type="submit"
+                    disabled={isStreaming || !draft.trim()}
+                    className="shrink-0 rounded-full bg-stone-900 px-7 py-2.5 text-sm font-bold text-white transition-all hover:bg-black disabled:bg-stone-200 disabled:text-stone-400"
+                  >
+                    제출
+                  </button>
+                </div>
               )}
             </form>
           )}
