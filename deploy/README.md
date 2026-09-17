@@ -13,6 +13,8 @@
 앱 서버는 GPU·임베딩 모델을 쓰지 않는다. 벡터 캐시는 Pinecone REST, LLM 은 전부 원격 호출이라
 CPU 는 대부분 대기 상태다 (실측 API 프로세스 RSS 0.6 GB, 수집 DB 252 KB).
 
+네이버 클라우드 콘솔에서 서버를 처음 만드는 절차는 [ncp-setup.md](ncp-setup.md) 참고.
+
 ## 서버 사양
 
 | 항목 | 권장 |
