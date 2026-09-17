@@ -63,6 +63,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
   const [livePercents, setLivePercents] = useState(null);
   const [draft, setDraft] = useState('');
   const [selectedOpponent, setSelectedOpponent] = useState(null);
+  const [synthesis, setSynthesis] = useState('');   // 구성적 논쟁에서 합의한 최적해
 
   const turnCounter = useRef(0);
   const transcriptEndRef = useRef(null);
@@ -113,6 +114,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
             setLivePercents({ pro: analysis.pro_percent, con: analysis.con_percent });
           }
         } else if (evt.event === 'waiting') {
+          if (evt.data.synthesis_draft) setSynthesis(evt.data.synthesis_draft);
           setWaitingFor(evt.data.waiting_for);
           setWaitingDetail(evt.data.waiting_detail ?? '');
           setIsFinished(evt.data.is_finished);
@@ -271,7 +273,7 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
         <div className="mt-3 flex shrink-0 items-center justify-between rounded-3xl border border-stone-200 bg-white px-6 py-5 shadow-sm">
           <p className="text-sm font-semibold text-stone-700">토론이 종료되었습니다.</p>
           <button
-            onClick={() => onFinished(sessionId)}
+            onClick={() => onFinished(sessionId, synthesis)}
             className="rounded-full bg-stone-900 px-7 py-2.5 text-sm font-bold text-white hover:bg-black"
           >
             다음 단계로
