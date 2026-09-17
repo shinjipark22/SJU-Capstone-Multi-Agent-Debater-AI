@@ -176,8 +176,9 @@ const DebateRoom = ({ initRequest, topic, onSessionStart, onFinished }) => {
           <span className="rounded-full bg-stone-100 px-3 py-1 text-stone-600">{initRequest.debate_format}</span>
         </div>
 
-        {/* 실시간 평가 — 진영별 지수이동평균(EMA) 점수에서 나온 우세 지수. 턴별 상세 분석은 노출하지 않는다. */}
-        {livePercents && (
+        {/* 실시간 평가 — 진영별 지수이동평균(EMA) 점수에서 나온 우세 지수. 턴별 상세 분석은 노출하지 않는다.
+            구성적 논쟁은 승패를 겨루는 형식이 아니므로 우세 지수를 띄우지 않는다 (분석·저장은 그대로 진행). */}
+        {livePercents && initRequest.mode !== 'constructive' && (
           <div className="mt-4">
             <div className="flex items-baseline justify-center gap-2">
               <span className="text-xs font-semibold text-stone-400">실시간 평가</span>

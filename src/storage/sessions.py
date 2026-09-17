@@ -57,6 +57,18 @@ CREATE TABLE IF NOT EXISTS debate_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_graph_id ON debate_sessions(graph_session_id);
 
+-- 턴별 실시간 분석. judge 인스턴스는 프로세스 메모리에만 있어 서버가 재시작되면
+-- 최종 리포트를 만들 수 없으므로, 발생 즉시 여기에 남겨 복구 가능하게 한다.
+CREATE TABLE IF NOT EXISTS turn_analyses (
+    graph_session_id TEXT    NOT NULL,
+    turn_index       INTEGER NOT NULL,
+    analysis         TEXT    NOT NULL,
+    speech           TEXT,
+    live             TEXT,
+    created_at       TEXT    NOT NULL,
+    PRIMARY KEY (graph_session_id, turn_index)
+);
+
 -- 토론 전·후 연구 설문 (구글폼 대체). 한 세션당 pre/post 각 1행.
 CREATE TABLE IF NOT EXISTS survey_responses (
     session_id   INTEGER NOT NULL,
@@ -178,6 +190,67 @@ def list_sessions(limit: int = 200, offset: int = 0) -> List[Dict[str, Any]]:
             (limit, offset),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def save_turn_analysis(
+    graph_session_id: str,
+    turn_index: int,
+    analysis: Dict[str, Any],
+    speech: Optional[Dict[str, Any]] = None,
+    live: Optional[Dict[str, Any]] = None,
+) -> None:
+    """턴 하나의 실시간 분석을 기록한다 (같은 턴 재분석 시 덮어씀)."""
+    with _write_lock, _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO turn_analyses (graph_session_id, turn_index, analysis, speech, live, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(graph_session_id, turn_index) DO UPDATE SET
+                analysis = excluded.analysis,
+                speech = excluded.speech,
+                live = excluded.live,
+                created_at = excluded.created_at
+            """,
+            (
+                graph_session_id, turn_index,
+                json.dumps(analysis, ensure_ascii=False),
+                json.dumps(speech, ensure_ascii=False) if speech is not None else None,
+                json.dumps(live, ensure_ascii=False) if live is not None else None,
+                _now(),
+            ),
+        )
+
+
+def load_turn_analyses(graph_session_id: str) -> Dict[str, Any]:
+    """기록된 턴 분석을 judge 메모리와 같은 형태로 되돌린다.
+
+    Returns:
+        {"analysis_memory": [...], "speech_memory": [...], "live_debate": {...}}
+        기록이 없으면 세 값 모두 비어 있다.
+    """
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT analysis, speech, live FROM turn_analyses WHERE graph_session_id = ? ORDER BY turn_index",
+            (graph_session_id,),
+        ).fetchall()
+
+    analysis_memory = [json.loads(r["analysis"]) for r in rows]
+    speech_memory = [json.loads(r["speech"]) for r in rows if r["speech"]]
+    live_debate = json.loads(rows[-1]["live"]) if rows and rows[-1]["live"] else {}
+    return {
+        "analysis_memory": analysis_memory,
+        "speech_memory": speech_memory,
+        "live_debate": live_debate,
+    }
+
+
+def get_session_by_graph_id(graph_session_id: str) -> Optional[Dict[str, Any]]:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM debate_sessions WHERE graph_session_id = ? ORDER BY session_id DESC LIMIT 1",
+            (graph_session_id,),
+        ).fetchone()
+    return dict(row) if row else None
 
 
 def save_survey(
