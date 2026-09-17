@@ -63,6 +63,27 @@ export async function submitEvaluation({ topicId, recordId, prePro, preCon, post
   return res.json();
 }
 
+/** 연구 설문 문항 스키마 (주제·모드 문구가 치환된 상태로 온다). */
+export async function getSurveySchema(phase, mode, topicId, signal) {
+  const qs = new URLSearchParams({ mode });
+  if (topicId) qs.set('topic_id', topicId);
+  const res = await fetch(`${API_BASE_URL}/survey/schema/${phase}?${qs}`, { signal });
+  await throwIfNotOk(res);
+  return res.json();
+}
+
+/** 설문 응답 저장. 같은 단계를 다시 제출하면 덮어쓴다. */
+export async function submitSurvey(sessionId, phase, answers, signal) {
+  const res = await fetch(`${API_BASE_URL}/sessions/${sessionId}/survey`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phase, answers }),
+    signal,
+  });
+  await throwIfNotOk(res);
+  return res.json();
+}
+
 /**
  * text/event-stream 바디를 파싱해 { event, data } 를 순서대로 yield.
  * 백엔드가 EventSource(GET 전용) 대신 POST + StreamingResponse 를 쓰므로 직접 파싱한다.

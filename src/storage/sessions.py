@@ -8,6 +8,7 @@ CSV 는 export 시점에 그 테이블에서 그대로 뽑아 쓴다.
     /evaluation    → save_evaluation()  : 토론 전·후 답변 + 채점 결과(평균/델타/요약) 기록
 """
 
+import json
 import os
 import sqlite3
 import threading
@@ -51,9 +52,20 @@ CREATE TABLE IF NOT EXISTS debate_sessions (
     con_pre_summary  TEXT,
     con_post_summary TEXT,
     graph_session_id TEXT,
+    mode             TEXT,
     updated_at       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_graph_id ON debate_sessions(graph_session_id);
+
+-- 토론 전·후 연구 설문 (구글폼 대체). 한 세션당 pre/post 각 1행.
+CREATE TABLE IF NOT EXISTS survey_responses (
+    session_id   INTEGER NOT NULL,
+    phase        TEXT    NOT NULL,
+    mode         TEXT,
+    answers      TEXT    NOT NULL,
+    submitted_at TEXT    NOT NULL,
+    PRIMARY KEY (session_id, phase)
+);
 """
 
 _write_lock = threading.Lock()
@@ -72,7 +84,15 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """CREATE TABLE IF NOT EXISTS 로는 안 붙는 뒤늦게 추가된 컬럼을 채워 넣는다."""
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(debate_sessions)")}
+    if "mode" not in existing:
+        conn.execute("ALTER TABLE debate_sessions ADD COLUMN mode TEXT")
 
 
 def _now() -> str:
@@ -87,6 +107,7 @@ def create_session(
     nickname: Optional[str] = None,
     email: Optional[str] = None,
     graph_session_id: Optional[str] = None,
+    mode: Optional[str] = None,
 ) -> int:
     """토론 시작 시점의 세션 행을 만들고 session_id 를 반환한다."""
     with _write_lock, _connect() as conn:
@@ -94,11 +115,11 @@ def create_session(
             """
             INSERT INTO debate_sessions
                 (debate_date, nickname, email, topic, user_stance, user_intensity,
-                 debate_format, status, graph_session_id, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+                 debate_format, status, graph_session_id, mode, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)
             """,
             (_now(), nickname, email, topic, user_stance, user_intensity,
-             debate_format, graph_session_id, _now()),
+             debate_format, graph_session_id, mode, _now()),
         )
         return int(cur.lastrowid)
 
@@ -159,6 +180,49 @@ def list_sessions(limit: int = 200, offset: int = 0) -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+def save_survey(
+    session_id: int,
+    phase: str,
+    answers: Dict[str, Any],
+    mode: Optional[str] = None,
+) -> bool:
+    """토론 전(pre)·후(post) 설문 응답을 저장한다. 같은 단계 재제출은 덮어쓴다.
+
+    존재하지 않는 session_id 면 저장하지 않고 False.
+    """
+    with _write_lock, _connect() as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM debate_sessions WHERE session_id = ?", (session_id,)
+        ).fetchone()
+        if exists is None:
+            return False
+        conn.execute(
+            """
+            INSERT INTO survey_responses (session_id, phase, mode, answers, submitted_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(session_id, phase) DO UPDATE SET
+                mode = excluded.mode,
+                answers = excluded.answers,
+                submitted_at = excluded.submitted_at
+            """,
+            (session_id, phase, mode, json.dumps(answers, ensure_ascii=False), _now()),
+        )
+        return True
+
+
+def get_survey(session_id: int, phase: str) -> Optional[Dict[str, Any]]:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM survey_responses WHERE session_id = ? AND phase = ?",
+            (session_id, phase),
+        ).fetchone()
+    if row is None:
+        return None
+    record = dict(row)
+    record["answers"] = json.loads(record["answers"])
+    return record
+
+
 def _csv_cell(value: Any) -> str:
     """샘플 CSV 표기 규칙: NULL 은 그대로, 숫자는 무따옴표, 문자열은 큰따옴표."""
     if value is None:
@@ -177,6 +241,49 @@ def export_csv(path: Optional[Path] = None) -> str:
 
     lines = [",".join(f'"{c}"' for c in CSV_COLUMNS)]
     lines.extend(",".join(_csv_cell(row[c]) for c in CSV_COLUMNS) for row in rows)
+    content = "\n".join(lines) + "\n"
+
+    if path is not None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    return content
+
+
+# 설문 CSV 앞쪽에 붙는 세션 식별 정보
+SURVEY_META_COLUMNS = [
+    "session_id", "debate_date", "nickname", "topic", "user_stance", "debate_format", "mode",
+]
+
+
+def export_survey_csv(path: Optional[Path] = None) -> str:
+    """설문 응답을 세션당 한 행으로 펼쳐 CSV 로 만든다 (pre_*, post_* 컬럼)."""
+    from src.survey import answer_keys  # 순환 import 방지를 위해 지연 로딩
+
+    pre_keys, post_keys = answer_keys("pre"), answer_keys("post")
+    columns = (
+        SURVEY_META_COLUMNS
+        + [f"pre_{k}" for k in pre_keys]
+        + [f"post_{k}" for k in post_keys]
+    )
+
+    with _connect() as conn:
+        sessions = conn.execute(
+            f"SELECT {', '.join(SURVEY_META_COLUMNS)} FROM debate_sessions ORDER BY session_id DESC"
+        ).fetchall()
+        responses = conn.execute("SELECT session_id, phase, answers FROM survey_responses").fetchall()
+
+    by_session: Dict[int, Dict[str, dict]] = {}
+    for row in responses:
+        by_session.setdefault(row["session_id"], {})[row["phase"]] = json.loads(row["answers"])
+
+    lines = [",".join(f'"{c}"' for c in columns)]
+    for session in sessions:
+        answers = by_session.get(session["session_id"], {})
+        pre, post = answers.get("pre", {}), answers.get("post", {})
+        cells = [_csv_cell(session[c]) for c in SURVEY_META_COLUMNS]
+        cells += [_csv_cell(pre.get(k)) for k in pre_keys]
+        cells += [_csv_cell(post.get(k)) for k in post_keys]
+        lines.append(",".join(cells))
     content = "\n".join(lines) + "\n"
 
     if path is not None:

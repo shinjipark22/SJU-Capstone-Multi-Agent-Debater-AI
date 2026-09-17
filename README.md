@@ -33,3 +33,21 @@ bash scripts/serve/start_api.sh    # FastAPI (포트 8001)
 ```bash
 python scripts/export_sessions.py -o sessions.csv
 ```
+
+## 연구 설문 (구글폼 대체)
+
+연구팀 구글폼 4종("토론"/"구성적 논쟁" × 사전/사후)의 문항을 그대로 추출해
+`src/survey/schema.json` 에 넣고, 웹에서 직접 받아 같은 DB 에 저장한다.
+
+- 사전 18문항 (연구 동의 · 인구통계 · 토론 경험 · 입장/확신 · 관점 수용성 7문항)
+- 사후 33문항 (토론·구성적 논쟁 경험 7 · 학습 효과 5 · 관점 수용성 7 · AI 만족도 11 ·
+  입장/확신 2 · 자유 의견 1)
+- 구글폼의 닉네임 / 주제 / 사용자 진영 3개 항목은 세션 정보로 자동 기록되므로 문항에서 제외
+- 주제·모드 의존 문구(`{topic}`, `{issue}`, `{mode_label}`)는 세션 값으로 치환해서 내려간다
+
+| 엔드포인트 | 설명 |
+| --- | --- |
+| `GET /survey/schema/{pre\|post}?mode=&topic_id=` | 문항 스키마 (프론트가 이걸로 렌더링) |
+| `POST /sessions/{id}/survey` | `{phase, answers}` 저장 (같은 단계 재제출 시 덮어씀) |
+| `GET /sessions/{id}/survey/{phase}` | 저장된 응답 조회 |
+| `GET /surveys/export.csv` | 세션당 한 행(`pre_*`, `post_*` 컬럼)으로 펼친 CSV |
