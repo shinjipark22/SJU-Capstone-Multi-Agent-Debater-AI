@@ -143,6 +143,7 @@ const App = () => {
 
         <div className={`relative flex-1 flex justify-center w-full ${stage === 2 ? 'overflow-visible' : 'overflow-hidden'} ${stage < 3 ? 'mt-24 md:mt-10' : ''}`}>
           <StanceView
+            topic={selectedTopic}
             userStance={userStance}
             setUserStance={setUserStance}
             visible={stage === 1}
