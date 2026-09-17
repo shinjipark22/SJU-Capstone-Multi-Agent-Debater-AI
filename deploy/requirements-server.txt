@@ -1,0 +1,15 @@
+# 배포 서버용 의존성.
+#
+# requirements.txt 의 transformers/accelerate 는 로컬 모델을 직접 로드하던 시절의
+# 잔재다 (현재 추론은 전부 vLLM HTTP 호출). accelerate 가 torch 를 끌어와 설치 용량이
+# 2~3 GB 늘어나는데, 앱 서버는 GPU 를 쓰지 않으므로 제외한다.
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.7.0
+langgraph>=0.1.0
+langchain-core>=0.2.0
+langchain-openai>=0.3.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+# 검색 도구. 원본 requirements.txt 에 누락돼 있었다.
+tavily-python>=0.5.0
